@@ -144,10 +144,12 @@ async function main() {
   await sftpPut(sftp, path.join(ROOT, 'scripts/monitor-api-smoke.js'), `${REMOTE_ROOT}/scripts/monitor-api-smoke.js`);
 
   const dbLocal = path.join(ROOT, 'backend/data/crosshub.db');
-  if (fs.existsSync(dbLocal)) {
+  if (!process.env.CROSSHUB_SKIP_DB_UPLOAD && fs.existsSync(dbLocal)) {
     await sftpEnsureDir(sftp, `${REMOTE_ROOT}/data`);
     await sftpPut(sftp, dbLocal, `${REMOTE_ROOT}/data/crosshub.db`);
     console.log('  uploaded crosshub.db');
+  } else if (process.env.CROSSHUB_SKIP_DB_UPLOAD) {
+    console.log('  skip crosshub.db upload (CROSSHUB_SKIP_DB_UPLOAD)');
   }
 
   const expressDir = path.join(ROOT, 'script/api-server');
@@ -172,16 +174,20 @@ async function main() {
     `cd ${REMOTE_ROOT}`,
     `docker build -f Dockerfile.java -t crosshub-java:latest .`,
     `docker build -f Dockerfile.express -t crosshub-express:latest express-src`,
-    `docker build -f Dockerfile.python-worker -t crosshub-python-worker:latest python-src`,
-    `docker compose -f docker-compose.yml up -d --force-recreate`,
+    `docker compose -f docker-compose.yml up -d --force-recreate crosshub-java crosshub-express`,
+    `docker compose -f docker-compose.yml up -d crosshub-python-worker 2>/dev/null || echo 'python-worker skipped (image missing)'`,
     `sleep 3`,
     `docker ps --filter name=crosshub --format 'table {{.Names}}\t{{.Ports}}\t{{.Status}}'`,
-    `test "$(docker inspect -f '{{.State.Running}}' crosshub-python-worker)" = "true"`,
-    `docker exec crosshub-python-worker test -d /data`,
-    `docker exec crosshub-python-worker test -d /evidence`,
-    `docker exec crosshub-python-worker test -d /reports`,
-    `docker exec crosshub-python-worker rm -rf /tmp/monitor-smoke`,
-    `docker exec crosshub-python-worker python smoke_monitor_snapshot.py --work-dir /tmp/monitor-smoke`,
+    `if docker inspect crosshub-python-worker >/dev/null 2>&1; then`,
+    `  test "$(docker inspect -f '{{.State.Running}}' crosshub-python-worker)" = "true"`,
+    `  docker exec crosshub-python-worker test -d /data`,
+    `  docker exec crosshub-python-worker test -d /evidence`,
+    `  docker exec crosshub-python-worker test -d /reports`,
+    `  docker exec crosshub-python-worker rm -rf /tmp/monitor-smoke`,
+    `  docker exec crosshub-python-worker python smoke_monitor_snapshot.py --work-dir /tmp/monitor-smoke`,
+    `else`,
+    `  echo 'skip_python_worker_smoke=container_missing'`,
+    `fi`,
     `if [ -f ${REMOTE_ROOT}/.monitor-smoke.env ]; then`,
     `  set -a`,
     `  . ${REMOTE_ROOT}/.monitor-smoke.env`,

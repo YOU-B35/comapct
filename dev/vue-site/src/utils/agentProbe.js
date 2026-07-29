@@ -1,8 +1,10 @@
 const DEFAULT_PORT = 18765
 
 /**
- * 探测本机 Amazon 同步助手健康端口（默认 :18765）。
- * 助手窗口打开即应返回 true，不依赖 Java 心跳 TTL。
+ * 探测本机 CrossHub 同步助手健康端口（默认 :18765）。
+ *
+ * 注意：返回 true 仅表示「本机有进程」，不代表当前登录企业心跳在线。
+ * 业务「是否可同步」必须以 Java 当前租户 agent_online 为准（见 utils/agentPresence.js）。
  */
 export async function probeLocalAgent(port = DEFAULT_PORT, timeoutMs = 2500) {
   const controller = new AbortController()

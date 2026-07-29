@@ -4,26 +4,24 @@
 This intentionally does not reuse login.py because login.py is scoped to the
 seller backend. The browser profile is still tenant-isolated, so competitor
 crawls can reuse the saved front-end cookies and verification state.
+
+Buyer login.html often renders blank under Playwright — default to real Chrome.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 import time
-from pathlib import Path
 from urllib.parse import urlparse
 
-from app.browser.context import close_tenant_profile_browsers, human_pause, open_temu_context
+from app.browser.context import human_pause, open_temu_context
+from app.browser.manual_chrome import (
+    DEFAULT_FRONTEND_URL,
+    find_chrome_executable,
+    open_manual_frontend_chrome,
+)
 from app.config import resolve_profile_dir, resolve_tenant_id
-
-DEFAULT_FRONTEND_URL = "https://www.temu.com/"
-DEFAULT_CHROME_PATHS = [
-    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-]
 
 
 def is_frontend_blocked(url: str) -> bool:
@@ -34,6 +32,7 @@ def is_frontend_blocked(url: str) -> bool:
         or "bgn_verification" in normalized
         or "verification" in normalized
         or "challenge" in normalized
+        or normalized.startswith("about:blank")
     )
 
 
@@ -63,30 +62,7 @@ def describe_frontend_page(page) -> dict:
     }
 
 
-def find_chrome_executable() -> str:
-    env_path = os.getenv("CHROME_PATH", "").strip()
-    candidates = [env_path] if env_path else []
-    candidates.extend(DEFAULT_CHROME_PATHS)
-    for candidate in candidates:
-        if candidate and Path(candidate).is_file():
-            return candidate
-    return "chrome"
-
-
-def run_manual_chrome_login(tenant_id: int, url: str, profile_dir: Path, *, json_only: bool) -> None:
-    chrome = find_chrome_executable()
-    profile_dir.mkdir(parents=True, exist_ok=True)
-    close_tenant_profile_browsers(tenant_id)
-    command = [
-        chrome,
-        f"--user-data-dir={profile_dir}",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--disable-session-crashed-bubble",
-        "--new-window",
-        url,
-    ]
-
+def run_manual_chrome_login(tenant_id: int, url: str, *, json_only: bool) -> None:
     if not json_only:
         print("\nOpening normal Chrome for Temu front-end login...")
         print("Important:")
@@ -95,63 +71,73 @@ def run_manual_chrome_login(tenant_id: int, url: str, profile_dir: Path, *, json
         print("  3. Close that Chrome window completely.")
         print("  4. Come back here and press Enter.")
 
-    process = subprocess.Popen(command)
+    opened = open_manual_frontend_chrome(tenant_id, url)
     try:
         input("\nClose the Chrome login window after success, then press Enter...")
     except KeyboardInterrupt:
         print("\nCancelled", file=sys.stderr)
         sys.exit(1)
 
-    if process.poll() is None:
-        print(
-            "\nChrome is still running with the tenant profile. Close it before running competitor crawl.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     if not json_only:
-        print(f"\nSaved Temu front-end browser profile for tenant {tenant_id}: {profile_dir}")
+        print(f"\nSaved Temu front-end browser profile for tenant {tenant_id}: {opened.get('profile_dir')}")
         print("You can now run competitor crawl or click analysis in the app.")
 
 
 def run_playwright_login(tenant_id: int, url: str, *, json_only: bool) -> None:
-    profile_dir = resolve_profile_dir(tenant_id)
     if not json_only:
-        print("\nOpening Playwright-controlled Chrome for Temu front-end login...")
+        print("\nWARNING: Playwright often shows a blank Temu login.html.")
+        print("Prefer --mode manual. Opening Playwright-controlled Chrome anyway...")
 
+    fallback_to_manual = False
     with open_temu_context(tenant_id) as (_, context):
         page = context.new_page()
         page.goto(url, wait_until="domcontentloaded", timeout=120_000)
         human_pause()
 
+        body_text = ""
         try:
-            input("\nPress Enter after front-end login/verification is complete...")
-        except KeyboardInterrupt:
-            print("\nCancelled", file=sys.stderr)
-            sys.exit(1)
-
-        active = page
-        for candidate in reversed(context.pages):
-            if is_temu_frontend_url(candidate.url or ""):
-                active = candidate
-                break
-
-        status = describe_frontend_page(active)
-        if json_only:
-            print(json.dumps(status, ensure_ascii=False))
+            body = page.locator("body")
+            if body.count():
+                body_text = (body.inner_text(timeout=2_000) or "").strip()
+        except Exception:
+            pass
+        if is_frontend_blocked(page.url) and len(body_text) < 40:
+            fallback_to_manual = True
         else:
-            print("\nCurrent front-end session:")
-            print(json.dumps(status, ensure_ascii=False, indent=2))
+            try:
+                input("\nPress Enter after front-end login/verification is complete...")
+            except KeyboardInterrupt:
+                print("\nCancelled", file=sys.stderr)
+                sys.exit(1)
 
-        if not status["is_temu_frontend"]:
-            print("\nNot on a Temu front-end page. Please rerun and complete login on www.temu.com.", file=sys.stderr)
-            sys.exit(1)
-        if status["requires_login_or_verification"]:
-            print("\nStill on login/verification. Please complete it before pressing Enter.", file=sys.stderr)
-            sys.exit(1)
+            active = page
+            for candidate in reversed(context.pages):
+                if is_temu_frontend_url(candidate.url or ""):
+                    active = candidate
+                    break
 
+            status = describe_frontend_page(active)
+            if json_only:
+                print(json.dumps(status, ensure_ascii=False))
+            else:
+                print("\nCurrent front-end session:")
+                print(json.dumps(status, ensure_ascii=False, indent=2))
+
+            if not status["is_temu_frontend"]:
+                print("\nNot on a Temu front-end page. Please rerun and complete login on www.temu.com.", file=sys.stderr)
+                sys.exit(1)
+            if status["requires_login_or_verification"]:
+                print("\nStill on login/verification. Please complete it before pressing Enter.", file=sys.stderr)
+                sys.exit(1)
+
+            if not json_only:
+                print(f"\nSaved Temu front-end session. You can now run competitor crawl for tenant {tenant_id}.")
+            return
+
+    if fallback_to_manual:
         if not json_only:
-            print(f"\nSaved Temu front-end session. You can now run competitor crawl for tenant {tenant_id}.")
+            print("\nDetected blank Playwright login page — switching to normal Chrome...")
+        run_manual_chrome_login(tenant_id, url, json_only=json_only)
 
 
 def main() -> None:
@@ -188,29 +174,13 @@ def main() -> None:
 
     profile_dir = resolve_profile_dir(tenant_id)
     if args.open_only:
-        profile_dir = resolve_profile_dir(tenant_id)
-        profile_dir.mkdir(parents=True, exist_ok=True)
-        close_tenant_profile_browsers(tenant_id)
-        command = [
-            find_chrome_executable(),
-            f"--user-data-dir={profile_dir}",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-session-crashed-bubble",
-            "--new-window",
-            args.url,
-        ]
-        subprocess.Popen(command)
-        result = {
-            "tenant_id": tenant_id,
-            "profile_dir": str(profile_dir),
-            "url": args.url,
-            "opened": True,
-        }
+        result = open_manual_frontend_chrome(tenant_id, args.url)
         if args.json:
             print(json.dumps(result, ensure_ascii=False))
         else:
             print(f"Opened Temu front-end login window for tenant {tenant_id}: {args.url}")
+            print(f"Chrome: {find_chrome_executable()}")
+            print(f"Profile: {profile_dir}")
         return
 
     if not args.json:
@@ -234,7 +204,7 @@ def main() -> None:
         print("=" * 72)
 
     if args.mode == "manual":
-        run_manual_chrome_login(tenant_id, args.url, profile_dir, json_only=args.json)
+        run_manual_chrome_login(tenant_id, args.url, json_only=args.json)
     else:
         run_playwright_login(tenant_id, args.url, json_only=args.json)
 

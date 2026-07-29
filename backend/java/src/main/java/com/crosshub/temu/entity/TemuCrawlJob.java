@@ -47,6 +47,9 @@ public class TemuCrawlJob {
     @Column(name = "created_at", nullable = false)
     private String createdAt;
 
+    @Column(name = "agent_task_id", nullable = false)
+    private String agentTaskId = "";
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public Long getTenantId() { return tenantId; }
@@ -73,4 +76,6 @@ public class TemuCrawlJob {
     public void setFinishedAt(String finishedAt) { this.finishedAt = finishedAt; }
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    public String getAgentTaskId() { return agentTaskId; }
+    public void setAgentTaskId(String agentTaskId) { this.agentTaskId = agentTaskId == null ? "" : agentTaskId; }
 }

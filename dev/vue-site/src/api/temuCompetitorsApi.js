@@ -249,13 +249,24 @@ export async function discoverBackendCompetitors(payload = {}) {
     keyword: payload.keyword || 'fishing tackle',
     region: payload.region || 'za',
     limit: payload.limit || 10,
+    // Manual discovery is operator-driven; force bypass crawl cooldown for testing/ops.
+    force: true,
   }, { skipGlobalErrorToast: true, validateStatus: () => true })
   const body = res?.data ?? res
   throwIfCrawlCooldownResponse(res, body, '竞店发现冷却中')
   if (res.status >= 400) {
+    const rawMsg = body?.msg || body?.message || '竞店发现失败'
+    let errorCode = body?.error_code || ''
+    if (!errorCode || errorCode === 'UNKNOWN') {
+      const matched = String(rawMsg).match(/^(COMPETITOR_[A-Z0-9_]+)/)
+      if (matched) errorCode = matched[1]
+    }
+    if (errorCode === 'COMPETITOR_FRONTEND_LOGIN_REQUIRED') {
+      errorCode = 'COMPETITOR_LOGIN_REQUIRED'
+    }
     throw new AppApiError(
-      getAppErrorMessage(body?.error_code, body?.msg || '竞店发现失败'),
-      body?.error_code || 'COMPETITOR_DISCOVERY_NO_RESULTS',
+      getAppErrorMessage(errorCode, rawMsg),
+      errorCode || 'COMPETITOR_DISCOVERY_NO_RESULTS',
     )
   }
   return { success: true, data: unwrap(res) || {} }

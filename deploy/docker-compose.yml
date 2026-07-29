@@ -7,10 +7,18 @@ services:
       - "127.0.0.1:18080:18080"
     volumes:
       - /data/crosshub/data:/data
+      - /data/crosshub/python-src:/opt/crosshub/python:ro
+      - /data/crosshub/browser-profile:/data/temu-browser-profile
     environment:
       SPRING_PROFILES_ACTIVE: prod
       CROSSHUB_DB_PATH: /data/crosshub.db
       CROSSHUB_JWT_SECRET: crosshub-prod-jwt-secret-must-be-at-least-32-bytes
+      CROSSHUB_CRAWLER_USE_AGENT: "true"
+      CROSSHUB_PYTHON: python3
+      CROSSHUB_PYTHON_DIR: /opt/crosshub/python
+      TEMU_PROFILE_ROOT: /data/temu-browser-profile
+      TEMU_HEADLESS: "1"
+      TEMU_BROWSER_CHANNEL: ""
 
   crosshub-express:
     image: crosshub-express:latest

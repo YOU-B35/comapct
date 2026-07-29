@@ -297,9 +297,11 @@ def is_temu_frontend_blocked(url: str) -> bool:
     normalized = (url or "").lower()
     return (
         "/login.html" in normalized
+        or "login_scene=" in normalized
         or "bgn_verification" in normalized
         or "verification" in normalized
         or "challenge" in normalized
+        or normalized.startswith("about:blank")
     )
 
 

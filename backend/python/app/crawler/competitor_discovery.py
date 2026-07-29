@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+import time
 from urllib.parse import parse_qs, quote, urlparse
 
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
-from app.browser.context import close_tenant_profile_browsers, human_pause, open_temu_context
+from app.browser.context import close_temu_runtime, close_tenant_profile_browsers, get_or_create_temu_runtime, human_pause
+from app.browser.manual_chrome import frontend_login_required_error, open_manual_frontend_chrome
 from app.crawler.competitor_crawler import (
     extract_name,
     extract_price,
@@ -19,6 +21,8 @@ from app.crawler.competitor_crawler import (
 DEFAULT_DISCOVERY_KEYWORD = "fishing tackle"
 DEFAULT_DISCOVERY_REGION = "za"
 DEFAULT_DISCOVERY_LIMIT = 10
+PROFILE_SETTLE_SECONDS = 2.0
+PROFILE_RETRY_ATTEMPTS = 2
 
 
 def build_search_url(keyword: str = DEFAULT_DISCOVERY_KEYWORD, region: str = DEFAULT_DISCOVERY_REGION) -> str:
@@ -35,7 +39,6 @@ def discover_competitor_candidates(
     limit: int = DEFAULT_DISCOVERY_LIMIT,
 ) -> dict:
     search_url = build_search_url(keyword, region)
-    close_tenant_profile_browsers(tenant_id)
     try:
         items = discover_raw_items(tenant_id, search_url, max_items=max(limit * 4, 24))
     except RuntimeError as exc:
@@ -68,24 +71,50 @@ def discover_competitor_candidates(
 
 
 def discover_raw_items(tenant_id: int, search_url: str, *, max_items: int) -> list[dict]:
-    with open_temu_context(tenant_id, headless=True) as (_, context):
-        page = context.new_page()
+    runtime = get_or_create_temu_runtime(tenant_id, headless=False)
+    page = runtime.context.new_page()
+    try:
         return extract_search_items_from_url(page, search_url, max_items=max_items)
+    except RuntimeError as exc:
+        message = str(exc)
+        if message.startswith("COMPETITOR_FRONTEND_LOGIN_REQUIRED") or message.startswith("COMPETITOR_LOGIN_REQUIRED"):
+            # Playwright login.html is often blank; release profile and open real Chrome.
+            try:
+                page.close()
+            except Exception:
+                pass
+            opened = open_manual_frontend_chrome(tenant_id, search_url or "https://www.temu.com/")
+            raise frontend_login_required_error(opened) from exc
+        raise
+    finally:
+        try:
+            closed = page.is_closed() if hasattr(page, "is_closed") else getattr(page, "closed", False)
+            if not closed:
+                page.close()
+        except Exception:
+            pass
 
 
 def retry_discovery_after_closing_profile(tenant_id: int, search_url: str, *, max_items: int, original: Exception) -> list[dict]:
-    close_tenant_profile_browsers(tenant_id)
-    try:
-        return discover_raw_items(tenant_id, search_url, max_items=max_items)
-    except Exception as exc:
-        message = str(exc)
-        if message.startswith("COMPETITOR_"):
-            raise
-        if is_browser_profile_error(message):
-            raise RuntimeError(
-                "COMPETITOR_BROWSER_PROFILE_UNAVAILABLE: Temu buyer-side browser profile could not be opened after force-closing tenant browser windows."
-            ) from exc
-        raise RuntimeError(f"COMPETITOR_CRAWL_FAILED: {message or str(original) or 'Competitor discovery failed'}") from exc
+    last_exc: Exception = original
+    for attempt in range(PROFILE_RETRY_ATTEMPTS):
+        close_temu_runtime(tenant_id)
+        close_tenant_profile_browsers(tenant_id)
+        time.sleep(PROFILE_SETTLE_SECONDS)
+        try:
+            return discover_raw_items(tenant_id, search_url, max_items=max_items)
+        except Exception as exc:
+            last_exc = exc
+            message = str(exc)
+            if message.startswith("COMPETITOR_"):
+                raise
+            if not is_browser_profile_error(message):
+                raise RuntimeError(f"COMPETITOR_CRAWL_FAILED: {message or str(original) or 'Competitor discovery failed'}") from exc
+            if attempt == PROFILE_RETRY_ATTEMPTS - 1:
+                raise RuntimeError(
+                    "COMPETITOR_BROWSER_PROFILE_UNAVAILABLE: Temu buyer-side browser profile could not be opened after force-closing tenant browser windows."
+                ) from exc
+    raise RuntimeError(f"COMPETITOR_CRAWL_FAILED: {str(last_exc) or str(original) or 'Competitor discovery failed'}")
 
 
 def extract_search_items_from_url(page: Page, url: str, *, max_items: int = 40) -> list[dict]:
@@ -100,22 +129,74 @@ def extract_search_items_from_url(page: Page, url: str, *, max_items: int = 40) 
             "COMPETITOR_NAVIGATION_TIMEOUT: Timed out opening the Temu discovery search page."
         ) from exc
     human_pause()
-    if is_temu_frontend_blocked(page.url):
+    # Temu may bounce to login.html with a blank body under Playwright automation.
+    ensure_discovery_page_accessible(page)
+    try:
+        page.wait_for_load_state("networkidle", timeout=8_000)
+    except Exception:
+        pass
+    ensure_discovery_page_accessible(page)
+
+    for _ in range(2):
+        page.mouse.wheel(0, 900)
+        human_pause()
+        ensure_discovery_page_accessible(page)
+
+    # Temu 搜索页是强动态的：首次抽取可能为空，此时额外滚动并重试抽取。
+    rows = extract_search_items_from_page(page, max_items=max_items)
+    if rows:
+        return rows
+
+    for _ in range(2):
+        page.mouse.wheel(0, 900)
+        human_pause()
+        ensure_discovery_page_accessible(page)
+        rows = extract_search_items_from_page(page, max_items=max_items)
+        if rows:
+            return rows
+
+    # 兜底：严格抽取可能因为前端文案/价格格式变化过于保守，改用宽松抽取策略。
+    if not rows:
+        rows = extract_search_items_from_page_lenient(page, max_items=max_items)
+    return rows
+
+
+def ensure_discovery_page_accessible(page: Page) -> None:
+    if is_temu_frontend_blocked(page.url) or page_looks_like_blank_frontend_login(page):
         raise RuntimeError(
             "COMPETITOR_FRONTEND_LOGIN_REQUIRED: Temu frontend login or verification is required before discovering competitors."
         )
     if page_contains_store_unavailable(page):
         raise RuntimeError("COMPETITOR_STORE_UNAVAILABLE: Temu reports this discovery page is unavailable in the current region/session.")
+
+
+def page_looks_like_blank_frontend_login(page: Page) -> bool:
+    """Detect Playwright blank Temu buyer login (title often ログイン / Login)."""
+    url = (page.url or "").lower()
+    if is_temu_frontend_blocked(url):
+        return True
+    title = ""
     try:
-        page.wait_for_load_state("networkidle", timeout=8_000)
+        title = (page.title() or "").strip()
     except Exception:
-        pass
-
-    for _ in range(2):
-        page.mouse.wheel(0, 900)
-        human_pause()
-
-    return extract_search_items_from_page(page, max_items=max_items)
+        title = ""
+    title_l = title.lower()
+    loginish = (
+        "login" in title_l
+        or "ログイン" in title
+        or "로그인" in title
+        or "登录" in title
+    )
+    if not loginish and "about:blank" not in url:
+        return False
+    text = ""
+    try:
+        body = page.locator("body")
+        if body.count():
+            text = (body.inner_text(timeout=2_000) or "").strip()
+    except Exception:
+        text = ""
+    return len(text) < 40
 
 
 def extract_search_items_from_page(page: Page, *, max_items: int = 40) -> list[dict]:
@@ -158,6 +239,53 @@ def extract_search_items_from_page(page: Page, *, max_items: int = 40) -> list[d
             if (!href || seen.has(href)) continue;
             if (!productHints.test(href) && !pricePattern.test(cardText)) continue;
             if (cardText.length < 12 || !pricePattern.test(cardText)) continue;
+            seen.add(href);
+            rows.push({ url: href, text: cardText, mallUrl: mallLinkFor(anchor) });
+            if (rows.length >= maxItems) break;
+          }
+          return rows;
+        }
+        """,
+        {"maxItems": max_items},
+    ) or []
+
+
+def extract_search_items_from_page_lenient(page: Page, *, max_items: int = 40) -> list[dict]:
+    """更宽松的搜索结果抽取：不强依赖 pricePattern，交给 Python 后处理解析价格。"""
+    return page.evaluate(
+        """
+        ({ maxItems }) => {
+          const anchors = Array.from(document.querySelectorAll('a[href]'));
+          const seen = new Set();
+          const rows = [];
+          const productHints = /(goods|product|item|sku|_oak|\\bg-\\d|\\bpd-\\d)/i;
+          const textOf = (node) => ((node && (node.innerText || node.textContent)) || '')
+            .replace(/[ \\t]+/g, ' ')
+            .trim();
+          const cardTextFor = (anchor) => {
+            let node = anchor;
+            let best = textOf(anchor);
+            for (let depth = 0; node && depth < 7; depth += 1) {
+              const current = textOf(node);
+              if (current && current.length > best.length && current.length < 1200) best = current;
+              node = node.parentElement;
+            }
+            return best;
+          };
+          const mallLinkFor = (anchor) => {
+            let node = anchor;
+            for (let depth = 0; node && depth < 7; depth += 1) {
+              const mallLink = node.querySelector && node.querySelector('a[href*="mall_id"], a[href*="mall.html"]');
+              if (mallLink && mallLink.href) return mallLink.href;
+              node = node.parentElement;
+            }
+            return '';
+          };
+          for (const anchor of anchors) {
+            const href = anchor.href || anchor.getAttribute('href') || '';
+            if (!href || seen.has(href)) continue;
+            const cardText = cardTextFor(anchor);
+            if (!productHints.test(href) && cardText.length < 12) continue;
             seen.add(href);
             rows.push({ url: href, text: cardText, mallUrl: mallLinkFor(anchor) });
             if (rows.length >= maxItems) break;

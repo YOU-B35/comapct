@@ -10,5 +10,7 @@ public interface AliExpressCrawlJobRepository extends JpaRepository<AliExpressCr
     Optional<AliExpressCrawlJob> findByIdAndTenantId(String id, Long tenantId);
 
     Optional<AliExpressCrawlJob> findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(Long tenantId, Collection<String> statuses);
+
+    Optional<AliExpressCrawlJob> findFirstByTenantIdOrderByCreatedAtDesc(Long tenantId);
 }
 

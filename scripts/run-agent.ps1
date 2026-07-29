@@ -17,7 +17,7 @@ if ($JavaApiUrl) {
 }
 
 if (-not $env:AGENT_TOKEN) {
-    Write-Host "Missing AGENT_TOKEN. Download Amazon sync helper from CrossHub settings page." -ForegroundColor Red
+    Write-Host "Missing AGENT_TOKEN. Download CrossHub-Sync-Helper.bat from CrossHub settings or Temu page." -ForegroundColor Red
     exit 2
 }
 
@@ -59,7 +59,7 @@ if ($existing -and $ForceRestart) {
     Start-Sleep -Seconds 1
 }
 
-Write-Host "Starting CrossHub Agent (unbuffered logs)..." -ForegroundColor Cyan
+Write-Host "Starting CrossHub Agent (Temu / Amazon / all platforms)..." -ForegroundColor Cyan
 Write-Host "  JAVA_API_URL=$($env:JAVA_API_URL)" -ForegroundColor DarkCyan
 
 & py -u $agentScript

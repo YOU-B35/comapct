@@ -29,12 +29,13 @@ import HotProductBroadcast from '@/components/temu/HotProductBroadcast.vue'
 import RestockPlanner from '@/components/temu/RestockPlanner.vue'
 import CompetitorAnalysis from '@/components/temu/CompetitorAnalysis.vue'
 import TemuLoginGuide from '@/components/temu/TemuLoginGuide.vue'
+import { canUseOpsManualSync, OPS_SYNC_READONLY_HINT } from '@/utils/opsSyncPolicy'
 
 const auth = useAuthStore()
 const syncStore = usePlatformSyncStore()
 const { assigneeMap, loadAssignees, enrichItems } = useStoreAssignees()
 const activeTab = ref('profit')
-const selectedStoreId = ref('all')
+const selectedStoreId = ref('')
 const temuStores = ref([])
 const productsRaw = ref([])
 const loading = ref(false)
@@ -47,6 +48,8 @@ const hotBroadcasts = ref([])
 const salesTrend = ref({ labels: [], values: [] })
 
 const useBackendData = computed(() => canUseTemuBackend(auth))
+/** 运营成员不展示手动同步 / 登录助手入口；由肉机日批同步 */
+const showManualSyncControls = computed(() => useBackendData.value && canUseOpsManualSync())
 const scopedStoreIds = computed(() => scopeStoreIds(temuStores.value, auth))
 
 const storeNameMap = computed(() =>
@@ -62,29 +65,23 @@ function withStoreMeta(list) {
   )
 }
 
+const selectedStore = computed(
+  () => temuStores.value.find((s) => s.id === selectedStoreId.value) || null,
+)
+
 const products = computed(() => {
-  let list = productsRaw.value.filter((p) => scopedStoreIds.value.has(p.storeId))
-  if (selectedStoreId.value !== 'all') {
-    list = list.filter((p) => p.storeId === selectedStoreId.value)
-  }
+  if (!selectedStoreId.value || selectedStoreId.value === 'all') return []
+  const list = productsRaw.value.filter(
+    (p) => scopedStoreIds.value.has(p.storeId) && p.storeId === selectedStoreId.value,
+  )
   return withStoreMeta(list)
 })
 
-const overviewProducts = computed(() => {
-  if (selectedStoreId.value === 'all') {
-    return withStoreMeta(productsRaw.value.filter((p) => scopedStoreIds.value.has(p.storeId)))
-  }
-  return products.value
-})
+const overviewProducts = computed(() => products.value)
 
-const overviewStores = computed(() => {
-  if (selectedStoreId.value === 'all') return temuStores.value
-  return temuStores.value.filter((s) => s.id === selectedStoreId.value)
-})
-
-const showStoreList = computed(
-  () => selectedStoreId.value === 'all' && temuStores.value.length > 0,
-)
+const overviewStores = computed(() => (
+  selectedStore.value ? [selectedStore.value] : []
+))
 
 const awaitingSync = computed(
   () =>
@@ -97,7 +94,8 @@ const awaitingSync = computed(
     && !dataLoadError.value,
 )
 
-const showStoreColumn = computed(() => selectedStoreId.value === 'all')
+/** 单店视图：明细表不再混入其他店铺列 */
+const showStoreColumn = computed(() => false)
 
 const alertCount = computed(() => {
   const p = products.value
@@ -109,11 +107,25 @@ const alertCount = computed(() => {
   }
 })
 
+function ensureSelectedStore() {
+  const stores = temuStores.value
+  if (!stores.length) {
+    selectedStoreId.value = ''
+    return
+  }
+  const stillValid = stores.some((s) => s.id === selectedStoreId.value)
+  if (!stillValid || selectedStoreId.value === 'all') {
+    selectedStoreId.value = stores[0].id
+  }
+}
+
 async function loadTemuStores() {
   try {
     temuStores.value = await fetchTemuStores(auth)
+    ensureSelectedStore()
   } catch (err) {
     temuStores.value = []
+    selectedStoreId.value = ''
     dataLoadError.value = err.message || '加载店铺失败'
   }
 }
@@ -123,24 +135,27 @@ async function loadHotBroadcastFeed(products = []) {
 }
 
 async function loadProducts() {
-  if (!temuStores.value.length) {
+  ensureSelectedStore()
+  if (!temuStores.value.length || !selectedStoreId.value || selectedStoreId.value === 'all') {
     productsRaw.value = []
+    salesTrend.value = { labels: [], values: [] }
     return
   }
 
   loading.value = true
   dataLoadError.value = ''
   try {
+    const shopId = selectedStoreId.value
     const result = await loadTemuModuleData({
       auth,
-      shopId: selectedStoreId.value,
+      shopId,
     })
     productsRaw.value = result.products
     await loadHotBroadcastFeed(result.products)
     if (useBackendData.value && result.products?.length > 0) {
       markSidebarTemuSync({
         status: 'success',
-        message: `已加载 ${result.products.length} 条 SKU`,
+        message: `已加载 ${result.products.length} 条 SKU（${selectedStore.value?.storeName || shopId}）`,
         rowCount: result.products.length,
         syncedAt: result.meta?.reportTime || '',
       })
@@ -148,11 +163,12 @@ async function loadProducts() {
     if (auth.isBoss) {
       salesTrend.value = await fetchTemuSalesTrend({
         auth,
-        shopId: selectedStoreId.value,
+        shopId,
       })
     }
   } catch (err) {
     productsRaw.value = []
+    salesTrend.value = { labels: [], values: [] }
     dataLoadError.value = err.message || '加载 Temu 数据失败'
     ElMessage.warning(dataLoadError.value)
   } finally {
@@ -165,26 +181,28 @@ function onBroadcastsUpdate(list) {
 }
 
 function markSidebarTemuSync({ status, message, rowCount = 0, syncedAt = '' }) {
-  const stores = selectedStoreId.value === 'all'
+  // 刷新会拉全账号店铺，侧栏按店分别更新；当前页指标仍只展示选中店
+  const stores = temuStores.value.length
     ? temuStores.value
-    : temuStores.value.filter((store) => store.id === selectedStoreId.value)
+    : []
 
   for (const store of stores) {
+    const isCurrent = store.id === selectedStoreId.value
     syncStore.updateStoreStatus({
       platform: 'temu',
       storeId: store.accountId || store.id,
       storeName: store.storeName,
       externalShopId: store.externalShopId || store.id,
       status,
-      message,
-      rowCount,
+      message: isCurrent ? message : (status === 'success' ? '账号已同步，请切换店铺查看' : message),
+      rowCount: isCurrent ? rowCount : 0,
       syncedAt,
     })
   }
 }
 
 async function handleRefreshData() {
-  if (!useBackendData.value || crawling.value) return
+  if (!showManualSyncControls.value || crawling.value) return
 
   crawling.value = true
   syncError.value = null
@@ -203,14 +221,25 @@ async function handleRefreshData() {
       } else {
         crawlHint.value = '登录窗口已在运行，请在已弹出的浏览器中完成登录并选择店铺...'
       }
-      session = await pollTemuSessionUntilReady({ timeoutMs: 300000, intervalMs: 3000 })
+      session = await pollTemuSessionUntilReady({
+        timeoutMs: 300000,
+        intervalMs: 2000,
+        maxIntervalMs: 5000,
+        maxAttempts: 72,
+      })
       await loginGuideRef.value?.reload?.()
     }
 
     crawlHint.value = '正在等待登录窗口释放，以便开始同步...'
-    await pollTemuProfileIdle({ timeoutMs: 120000, intervalMs: 2000 })
+    await pollTemuProfileIdle({
+      timeoutMs: 120000,
+      intervalMs: 2000,
+      maxIntervalMs: 5000,
+      maxAttempts: 36,
+    })
     crawlHint.value = '登录已完成，正在同步销售数据...'
-    const res = await refreshTemuDataWithCrawl()
+    // 运营页「刷新数据」视为用户主动重试：带 force，避免侧栏成功同步后的 3h 冷却误伤
+    const res = await refreshTemuDataWithCrawl({ force: true })
     syncError.value = null
     await loadTemuStores()
     await loadProducts()
@@ -250,10 +279,14 @@ onMounted(async () => {
   await loadAssignees()
   await loadTemuStores()
   await loadHotBroadcastFeed()
-  await loadProducts()
+  if (selectedStoreId.value) {
+    await loadProducts()
+  }
 })
 
-watch(selectedStoreId, () => {
+watch(selectedStoreId, (id, prev) => {
+  // 跳过首次由 ensureSelectedStore 写入（onMounted 会统一 loadProducts）
+  if (!prev || !id || id === 'all' || id === prev) return
   loadProducts()
 })
 </script>
@@ -262,20 +295,27 @@ watch(selectedStoreId, () => {
   <PageScroll>
     <template #header>
       <div v-if="temuStores.length" class="page-toolbar">
-        <el-space wrap>
-          <el-radio-group v-model="selectedStoreId" size="small">
-            <el-radio-button value="all">全部店铺</el-radio-button>
-            <el-radio-button
+        <div class="store-switcher">
+          <span class="store-switcher-label">切换店铺</span>
+          <el-select
+            v-model="selectedStoreId"
+            size="default"
+            class="store-switcher-select"
+            placeholder="选择店铺"
+          >
+            <el-option
               v-for="store in temuStores"
               :key="store.id"
+              :label="store.storeName"
               :value="store.id"
-            >
-              {{ store.storeName }}
-            </el-radio-button>
-          </el-radio-group>
+            />
+          </el-select>
           <el-tag v-if="useBackendData" type="success" size="small">后端实时数据</el-tag>
+          <el-tag v-if="temuStores.length > 1" type="info" size="small" effect="plain">
+            同账号多店 · 共 {{ temuStores.length }} 家
+          </el-tag>
           <el-button
-            v-if="useBackendData"
+            v-if="showManualSyncControls"
             type="primary"
             size="small"
             :icon="Refresh"
@@ -285,7 +325,10 @@ watch(selectedStoreId, () => {
           >
             刷新数据
           </el-button>
-        </el-space>
+          <el-tag v-else-if="useBackendData" type="info" size="small" effect="plain">
+            定时自动同步
+          </el-tag>
+        </div>
       </div>
 
       <PageHeader
@@ -331,7 +374,7 @@ watch(selectedStoreId, () => {
       title="店铺已绑定，运营数据待同步"
     >
       <template #default>
-        请先按上方黄色提示完成 Temu 卖家后台登录，再点击「刷新数据」同步销量与库存。
+        {{ OPS_SYNC_READONLY_HINT }}
       </template>
     </el-alert>
 
@@ -346,7 +389,7 @@ watch(selectedStoreId, () => {
     </el-empty>
 
     <template v-else-if="temuStores.length">
-      <TemuLoginGuide v-if="useBackendData" ref="loginGuideRef" />
+      <TemuLoginGuide v-if="showManualSyncControls" ref="loginGuideRef" />
 
       <div
         v-loading="loading || crawling"
@@ -357,7 +400,8 @@ watch(selectedStoreId, () => {
           :products="overviewProducts"
           :stores="overviewStores"
           :assignee-map="assigneeMap"
-          :show-store-list="showStoreList"
+          :show-store-list="false"
+          :store-name="selectedStore?.storeName || ''"
           :sales-trend="salesTrend"
           @navigate="activeTab = $event"
         />
@@ -421,6 +465,28 @@ watch(selectedStoreId, () => {
 <style scoped>
 .page-toolbar {
   margin-bottom: 16px;
+}
+
+.store-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.store-switcher-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+  white-space: nowrap;
+}
+
+.store-switcher-select {
+  width: 240px;
 }
 
 .temu-tabs {

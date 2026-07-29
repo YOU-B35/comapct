@@ -4,6 +4,8 @@ import {
   fetchTemuOperationalData,
   fetchTemuSessionStatus,
   fetchTemuStores,
+  fetchTemuSyncStatus,
+  formatCrawlError,
   openTemuSellerLogin,
   pollTemuSessionUntilReady,
   pollTemuProfileIdle,
@@ -164,6 +166,69 @@ async function verifyTemuShopTargets(temuTargets, temuShops, reportTime, job = {
   }
 }
 
+function applyPlatformJobStatus(targets, platformStatus, schedule, platformLabel) {
+  const lastJob = platformStatus?.last_job
+  const scheduleHint = schedule?.time_label
+    ? `全平台 ${schedule.time_label}${schedule.next_run_hint ? ` · 下次约 ${schedule.next_run_hint}` : ''}`
+    : '全平台每天 09:30'
+
+  if (!lastJob) {
+    for (const target of targets) {
+      target.status = 'skipped'
+      target.message = `${platformLabel}按日批同步（${scheduleHint}），尚无同步记录`
+    }
+    return
+  }
+
+  const status = String(lastJob.status || '').toLowerCase()
+  const finishedAt = lastJob.finished_at || lastJob.created_at || ''
+  const trigger = lastJob.trigger === 'daily_schedule' ? '日批' : '手动'
+  if (status === 'success' || status === 'partial') {
+    for (const target of targets) {
+      if (target.status === 'failed' || target.status === 'empty') continue
+      target.status = status === 'partial' ? 'partial' : 'success'
+      target.message = [
+        `${trigger}同步成功`,
+        finishedAt ? `于 ${finishedAt}` : '',
+        scheduleHint,
+      ].filter(Boolean).join(' · ')
+      target.syncedAt = finishedAt || target.syncedAt
+      if (lastJob.rows_count != null) target.rowCount = lastJob.rows_count
+    }
+    return
+  }
+  if (status === 'pending' || status === 'running') {
+    for (const target of targets) {
+      target.status = 'syncing'
+      target.message = `${trigger}同步进行中…`
+    }
+    return
+  }
+  if (status === 'failed') {
+    const errMsg = formatCrawlError(lastJob.error_code, lastJob.error_message || platformStatus.error_message)
+    for (const target of targets) {
+      target.status = 'failed'
+      target.message = errMsg || `${platformLabel}日批同步失败`
+    }
+  }
+}
+
+function applyTemuDailySyncStatus(temuTargets, syncStatus) {
+  const schedule = syncStatus?.schedule || {}
+  const temuStatus = syncStatus?.platforms?.temu || syncStatus
+  const reportHint = (temuStatus?.data_report_time || syncStatus?.data_report_time)
+    ? `数据日 ${temuStatus?.data_report_time || syncStatus?.data_report_time}`
+    : ''
+  applyPlatformJobStatus(temuTargets, temuStatus, schedule, 'Temu ')
+  if (reportHint) {
+    for (const target of temuTargets) {
+      if (target.status === 'success' || target.status === 'partial') {
+        target.message = `${target.message} · ${reportHint}`
+      }
+    }
+  }
+}
+
 async function syncTemuStores(auth, items, onProgress, crawlOpts = {}) {
   const temuTargets = items.filter((item) => item.platform === 'temu')
   if (!temuTargets.length) return
@@ -173,6 +238,30 @@ async function syncTemuStores(auth, items, onProgress, crawlOpts = {}) {
       status: 'skipped',
       message: '未启用后端模式，无法自动爬取',
     })
+    onProgress?.([...items])
+    return
+  }
+
+  // 默认走全平台日批（每天 09:30）；登录打开应用只展示状态，不强制再爬。
+  // 「重新同步」带 force=true 仍立即爬取。
+  if (!crawlOpts.force) {
+    try {
+      const syncStatus = await fetchTemuSyncStatus()
+      const temuShops = await fetchTemuStores(auth).catch(() => [])
+      const temuStatus = syncStatus?.platforms?.temu || syncStatus
+      await verifyTemuShopTargets(
+        temuTargets,
+        temuShops,
+        temuStatus?.data_report_time || syncStatus?.data_report_time || '',
+        temuStatus?.last_job || {},
+      )
+      applyTemuDailySyncStatus(temuTargets, syncStatus)
+    } catch (err) {
+      markItems(items, (item) => item.platform === 'temu', {
+        status: 'skipped',
+        message: err.message || '无法读取 Temu 同步状态',
+      })
+    }
     onProgress?.([...items])
     return
   }
@@ -199,7 +288,12 @@ async function syncTemuStores(auth, items, onProgress, crawlOpts = {}) {
       })
       onProgress?.([...items])
       try {
-        session = await pollTemuSessionUntilReady({ timeoutMs: 300000, intervalMs: 3000 })
+        session = await pollTemuSessionUntilReady({
+          timeoutMs: 300000,
+          intervalMs: 2000,
+          maxIntervalMs: 5000,
+          maxAttempts: 72,
+        })
       } catch {
         markItems(items, (item) => item.platform === 'temu', {
           status: 'skipped',
@@ -211,7 +305,12 @@ async function syncTemuStores(auth, items, onProgress, crawlOpts = {}) {
     }
 
     try {
-      await pollTemuProfileIdle({ timeoutMs: 120000, intervalMs: 2000 })
+      await pollTemuProfileIdle({
+        timeoutMs: 120000,
+        intervalMs: 2000,
+        maxIntervalMs: 5000,
+        maxAttempts: 36,
+      })
     } catch {
       markItems(items, (item) => item.platform === 'temu', {
         status: 'skipped',
@@ -288,6 +387,40 @@ async function syncAliExpressStores(auth, items, onProgress, crawlOpts = {}) {
       status: 'skipped',
       message: '未启用后端模式，无法自动爬取',
     })
+    onProgress?.([...items])
+    return
+  }
+
+  if (!crawlOpts.force) {
+    try {
+      const syncStatus = await fetchTemuSyncStatus()
+      applyPlatformJobStatus(targets, syncStatus?.platforms?.aliexpress, syncStatus?.schedule, '速卖通')
+      try {
+        const [orderRes, violationRes] = await Promise.all([
+          fetchTodayAliExpressOrdersFromApi(),
+          loadAliExpressViolationsFromApi(),
+        ])
+        const syncedAt = orderRes.syncedAt || violationRes.syncedAt || ''
+        for (const target of targets) {
+          if (target.status === 'failed' || target.status === 'syncing') continue
+          const orderCount = (orderRes.orders || []).filter((order) => order.storeId === target.storeId).length
+          const violationCount = (violationRes.violations || []).filter((item) => item.storeId === target.storeId).length
+          if (orderCount > 0 || violationCount > 0) {
+            target.status = 'success'
+            target.rowCount = orderCount + violationCount
+            target.syncedAt = syncedAt || target.syncedAt
+            target.message = `已入库 ${orderCount} 笔订单、${violationCount} 条违规 · 全平台每天 09:30`
+          }
+        }
+      } catch {
+        // keep schedule status
+      }
+    } catch (err) {
+      markItems(items, (item) => item.platform === 'aliexpress', {
+        status: 'skipped',
+        message: err.message || '无法读取速卖通同步状态',
+      })
+    }
     onProgress?.([...items])
     return
   }
@@ -385,9 +518,24 @@ async function syncAmazonStores(auth, items, onProgress, crawlOpts = {}) {
     return
   }
 
+  if (!crawlOpts.force) {
+    try {
+      const syncStatus = await fetchTemuSyncStatus()
+      applyPlatformJobStatus(targets, syncStatus?.platforms?.amazon, syncStatus?.schedule, 'Amazon ')
+    } catch (err) {
+      markItems(items, (item) => item.platform === 'amazon', {
+        status: 'skipped',
+        message: err.message || '无法读取 Amazon 同步状态',
+      })
+    }
+    onProgress?.([...items])
+    return
+  }
+
   let integration = {}
   let ziniaoReady = false
   let agentReady = false
+  let localAgentProcess = false
   try {
     const [statusRes, localZiniao, localAgent] = await Promise.all([
       fetchAmazonIntegrationStatus(),
@@ -396,15 +544,20 @@ async function syncAmazonStores(auth, items, onProgress, crawlOpts = {}) {
     ])
     integration = statusRes.data || {}
     ziniaoReady = localZiniao || Boolean(integration.ziniao_online)
-    agentReady = localAgent || Boolean(integration.agent_online)
+    localAgentProcess = Boolean(localAgent)
+    // P0：只认当前企业心跳，禁止本机 :18765 冒充在线
+    agentReady = Boolean(integration.agent_online)
   } catch {
     integration = {}
   }
 
   if (!agentReady) {
+    const mismatch = localAgentProcess && !Boolean(integration.agent_online)
     markItems(items, (item) => item.platform === 'amazon', {
       status: 'failed',
-      message: 'Amazon 同步助手未运行，请到「设置 → Amazon 同步助手」下载并启动',
+      message: mismatch
+        ? '本机有同步进程，但当前企业未收到心跳（config.json 可能绑错企业）。请联系运维用正确 agent_token 重启 CrossHub-Sync-Helper.exe'
+        : '本机同步程序未在线，请联系运维启动 CrossHub-Sync-Helper.exe',
     })
     onProgress?.([...items])
     return
@@ -413,7 +566,7 @@ async function syncAmazonStores(auth, items, onProgress, crawlOpts = {}) {
   if (!ziniaoReady) {
     markItems(items, (item) => item.platform === 'amazon', {
       status: 'failed',
-      message: '紫鸟 WebDriver 未就绪，请到「设置 → Amazon 同步助手」下载并运行启动文件',
+      message: '紫鸟 WebDriver 未就绪，请联系运维确认 CrossHub-Sync-Helper.exe 已启动紫鸟',
     })
     onProgress?.([...items])
     return

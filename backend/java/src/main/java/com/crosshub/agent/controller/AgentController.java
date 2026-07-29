@@ -4,6 +4,8 @@ import com.crosshub.agent.dto.AgentHeartbeatRequest;
 import com.crosshub.agent.dto.AgentRegisterRequest;
 import com.crosshub.agent.dto.AgentTaskCompleteRequest;
 import com.crosshub.agent.service.AgentService;
+import com.crosshub.security.AgentContext;
+import com.crosshub.temu.service.TemuAgentService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,9 +15,13 @@ import java.util.Map;
 @RequestMapping("/api/agent")
 public class AgentController {
     private final AgentService agentService;
+    private final TemuAgentService temuAgentService;
+    private final AgentContext agentContext;
 
-    public AgentController(AgentService agentService) {
+    public AgentController(AgentService agentService, TemuAgentService temuAgentService, AgentContext agentContext) {
         this.agentService = agentService;
+        this.temuAgentService = temuAgentService;
+        this.agentContext = agentContext;
     }
 
     @PostMapping("/register")
@@ -58,5 +64,17 @@ public class AgentController {
                         request.errorMessage()
                 )
         );
+    }
+
+    @PostMapping("/temu/ingest")
+    public Map<String, Object> ingestTemu(@RequestBody Map<String, Object> payload) {
+        Long tenantId = agentContext.tenantId();
+        if (tenantId == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED,
+                    "Agent 未认证"
+            );
+        }
+        return Map.of("success", true, "data", temuAgentService.ingestFromAgent(tenantId, payload));
     }
 }

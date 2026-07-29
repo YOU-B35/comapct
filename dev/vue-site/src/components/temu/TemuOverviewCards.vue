@@ -22,7 +22,7 @@ const summary = computed(() => {
     { label: '在线产品', value: overall.onlineCount, hint: overall.onlineHint, type: 'primary' },
     { label: '亏损 SKU', value: lossItems.length, hint: `潜在亏损 ${formatMoneyDecimal(totalLoss)}`, type: 'danger' },
     { label: '滞销预警', value: slow15.length + slow30.length + slow45.length, hint: `15/30/45 日：${slow15.length}/${slow30.length}/${slow45.length}`, type: 'warning' },
-    { label: '爆款 SKU', value: hotItems.length, hint: '当日销量超 7 日均值 50%', type: 'success' },
+    { label: '爆款 SKU', value: hotItems.length, hint: '当日销量 ≥ 7 日均 × 1.5', type: 'success' },
     { label: '待备货 SKU', value: restockUrgent.length, hint: '官方仓覆盖不足 14 天', type: 'info' },
   ]
 })

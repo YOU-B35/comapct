@@ -1,5 +1,10 @@
 import { TEMU_API_BASE_URL } from '@/api/config'
 
+/** 全平台统一启动脚本（Temu / Amazon 等共用同一 Agent 进程） */
+export const CROSSHUB_SYNC_HELPER_FILENAME = 'CrossHub-Sync-Helper.exe'
+
+/** @deprecated 运营前端不再提供下载；运维请用 scripts/build-sync-helper-exe.ps1 打包 */
+
 const BAT_BOM = '\uFEFF'
 
 function escapeBatValue(value = '') {
@@ -28,17 +33,23 @@ function downloadTextFile(filename, content) {
   URL.revokeObjectURL(url)
 }
 
-function buildZiniaoSection() {
-  return `echo [1/2] Starting Ziniao WebDriver (port 16851)...
-echo       Quit normal Ziniao first, including the tray icon.
-echo.
+function batHeader(title) {
+  return `@echo off
+setlocal EnableExtensions
+chcp 65001 >nul 2>&1
+title ${title}
+`
+}
+
+function buildZiniaoOptionalSection() {
+  return `echo [1/2] Ziniao WebDriver (Amazon only, port 16851)...
 set "ZINIAO_EXE=C:\\Program Files\\ziniao\\ziniao.exe"
 if not exist "%ZINIAO_EXE%" (
-  echo [ERROR] Ziniao not found: %ZINIAO_EXE%
-  echo         Ask IT to install the Ziniao client.
-  pause
-  exit /b 3
+  echo [SKIP] Ziniao not installed. Amazon sync needs it; Temu is unaffected.
+  echo.
+  goto agent_start
 )
+echo       Quit normal Ziniao first, including the tray icon.
 netstat -ano | findstr ":16851" | findstr "LISTENING" >nul
 if errorlevel 1 (
   start "" "%ZINIAO_EXE%" --run_type=web_driver --ipc_type=http --port=16851
@@ -46,25 +57,26 @@ if errorlevel 1 (
   timeout /t 8 /nobreak >nul
   netstat -ano | findstr ":16851" | findstr "LISTENING" >nul
   if errorlevel 1 (
-    echo [ERROR] Port 16851 is not listening.
-    echo         Quit normal Ziniao and enable WebDriver in Ziniao Boss settings.
-    pause
-    exit /b 4
+    echo [WARN] Port 16851 is not listening. Amazon sync may fail; Temu can still work.
+  ) else (
+    echo Ziniao WebDriver is ready.
   )
 ) else (
   echo Ziniao WebDriver is already running.
 )
-echo.`
+echo.
+:agent_start
+`
 }
 
 function buildAgentSection({ agentToken, projectRoot, javaApiUrl }) {
   const root = escapeBatValue(projectRoot)
   const token = escapeBatValue(agentToken)
   const apiUrl = escapeBatValue(javaApiUrl)
-  return `echo [2/2] Starting Amazon sync agent...
-echo       Keep this window open. Closing it stops Amazon sync.
+  return `echo [2/2] CrossHub sync agent (Temu / Amazon / ...)...
+echo       Run once per PC. Keep this window open.
 echo API: ${apiUrl}
-echo Health check: http://127.0.0.1:18765/health
+echo Health: http://127.0.0.1:18765/health
 echo.
 set "AGENT_TOKEN=${token}"
 set "JAVA_API_URL=${apiUrl}"
@@ -95,63 +107,55 @@ echo Agent stopped.
 pause`
 }
 
-function batHeader(title) {
-  return `@echo off
-setlocal EnableExtensions
-chcp 65001 >nul 2>&1
-title ${title}
-`
-}
-
-export function buildZiniaoLauncherBat(projectRoot = resolveLauncherRoot()) {
-  return `${batHeader('CrossHub Ziniao Launcher')}${buildZiniaoSection()}
-echo.
-echo Ziniao WebDriver is ready. Return to CrossHub and click Refresh Status.
-pause
-`
-}
-
-export function buildAmazonAgentLauncherBat({
+export function buildCrossHubSyncHelperBat({
   agentToken,
   projectRoot = resolveLauncherRoot(),
   javaApiUrl = resolveJavaApiUrl(),
 }) {
-  return `${batHeader('CrossHub Amazon Sync Agent')}${buildAgentSection({ agentToken, projectRoot, javaApiUrl })}
+  return `${batHeader('CrossHub Sync Helper')}${buildZiniaoOptionalSection()}${buildAgentSection({
+    agentToken,
+    projectRoot,
+    javaApiUrl,
+  })}
 `
 }
 
-export function buildCombinedLauncherBat({
-  agentToken,
-  projectRoot = resolveLauncherRoot(),
-  javaApiUrl = resolveJavaApiUrl(),
-}) {
-  return `${batHeader('CrossHub Amazon Sync Helper')}${buildZiniaoSection()}
-echo.
-${buildAgentSection({ agentToken, projectRoot, javaApiUrl })}
-`
-}
-
-export function downloadZiniaoLauncher() {
-  downloadTextFile('CrossHub-Ziniao-Launcher.bat', buildZiniaoLauncherBat())
-}
-
-export function downloadAmazonAgentLauncher(setupData) {
-  const token = setupData?.agent_token || setupData?.token
-  if (!token) {
-    throw new Error('未获取到同步助手凭证')
-  }
-  downloadTextFile('CrossHub-Amazon-Sync-Agent.bat', buildAmazonAgentLauncherBat({ agentToken: token }))
-}
-
-export function downloadCombinedLauncher(setupData) {
+export function downloadCrossHubSyncHelper(setupData) {
   const token = setupData?.agent_token || setupData?.token
   if (!token) {
     throw new Error('未获取到同步助手凭证')
   }
   downloadTextFile(
-    'CrossHub-Amazon-Sync-Helper.bat',
-    buildCombinedLauncherBat({ agentToken: token }),
+    CROSSHUB_SYNC_HELPER_FILENAME,
+    buildCrossHubSyncHelperBat({ agentToken: token }),
   )
+}
+
+/** @deprecated 请使用 downloadCrossHubSyncHelper */
+export function downloadCombinedLauncher(setupData) {
+  return downloadCrossHubSyncHelper(setupData)
+}
+
+/** @deprecated 请使用 downloadCrossHubSyncHelper */
+export function downloadCrossHubAgentLauncher(setupData) {
+  return downloadCrossHubSyncHelper(setupData)
+}
+
+/** @deprecated 请使用 downloadCrossHubSyncHelper */
+export function downloadAmazonAgentLauncher(setupData) {
+  return downloadCrossHubSyncHelper(setupData)
+}
+
+/** @deprecated 仅 IT 调试用 */
+export function buildZiniaoLauncherBat(projectRoot = resolveLauncherRoot()) {
+  return `${batHeader('CrossHub Ziniao Launcher')}${buildZiniaoOptionalSection()}
+echo Ziniao check done.
+pause
+`
+}
+
+export function downloadZiniaoLauncher() {
+  downloadTextFile('CrossHub-Ziniao-Launcher.bat', buildZiniaoLauncherBat())
 }
 
 export function getLauncherRootHint() {

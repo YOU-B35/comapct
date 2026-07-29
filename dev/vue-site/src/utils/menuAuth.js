@@ -66,11 +66,14 @@ export function iconForMenu(menu) {
 }
 
 export function decorateMenus(menus = []) {
-  return (Array.isArray(menus) ? menus : []).map((menu) => ({
-    ...menu,
-    index: menu.path && menu.path !== '#' ? menu.path : menu.code,
-    icon: iconForMenu(menu),
-  }))
+  return (Array.isArray(menus) ? menus : [])
+    // 本机同步助手已改为独立 .exe，不对运营前端展示
+    .filter((menu) => menu?.code !== 'boss.agent_nodes' && menu?.path !== '/boss/agent-nodes')
+    .map((menu) => ({
+      ...menu,
+      index: menu.path && menu.path !== '#' ? menu.path : menu.code,
+      icon: iconForMenu(menu),
+    }))
 }
 
 function sortMenus(a, b) {

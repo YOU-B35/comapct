@@ -38,6 +38,7 @@ import AmazonSellerNewsPanel from '@/components/amazon/AmazonSellerNewsPanel.vue
 import AmazonShipmentsPanel from '@/components/amazon/AmazonShipmentsPanel.vue'
 import AmazonCasesPanel from '@/components/amazon/AmazonCasesPanel.vue'
 import AmazonIntegrationGuide from '@/components/amazon/AmazonIntegrationGuide.vue'
+import { canUseOpsManualSync, OPS_SYNC_READONLY_HINT } from '@/utils/opsSyncPolicy'
 
 const auth = useAuthStore()
 const syncStore = usePlatformSyncStore()
@@ -70,7 +71,10 @@ const outboundFilter = ref('pending')
 
 const operationalDemoOnly = computed(() => isPlatformOperationalDemoOnly('amazon'))
 const operationalHint = computed(() => platformOperationalHint('amazon'))
-const showIntegrationGuide = computed(() => auth.backendLinked && !operationalDemoOnly.value)
+const showManualSyncControls = computed(() => canUseOpsManualSync())
+const showIntegrationGuide = computed(
+  () => showManualSyncControls.value && auth.backendLinked && !operationalDemoOnly.value,
+)
 
 const storeNameMap = computed(() =>
   Object.fromEntries(amazonStores.value.map((s) => [s.id, s.storeName])),
@@ -253,6 +257,7 @@ function markAmazonSidebarSync({ status = 'success', message = '' } = {}) {
 }
 
 async function syncBossInsights(refresh = false) {
+  if (refresh && !canUseOpsManualSync()) return
   if (operationalDemoOnly.value || !amazonStores.value.length) {
     applyBossData({ products: [], outboundOrders: [], syncedAt: '' })
     return
@@ -331,6 +336,7 @@ async function syncAccountHealth(refresh = false) {
 }
 
 async function syncAllAmazon() {
+  if (!canUseOpsManualSync()) return
   if (operationalDemoOnly.value || !amazonStores.value.length) return
   loadingAll.value = true
   loadingBoss.value = true
@@ -508,6 +514,15 @@ onActivated(loadModule)
 
     <template v-else-if="amazonStores.length">
       <AmazonIntegrationGuide v-if="showIntegrationGuide" />
+
+      <el-alert
+        v-else-if="auth.backendLinked && !operationalDemoOnly"
+        type="info"
+        :closable="false"
+        show-icon
+        class="operational-hint"
+        :title="OPS_SYNC_READONLY_HINT"
+      />
 
       <div v-if="showIntegrationGuide && auth.isBoss" class="amazon-sync-bar">
         <el-button type="primary" :loading="loadingAll" @click="syncAllAmazon">

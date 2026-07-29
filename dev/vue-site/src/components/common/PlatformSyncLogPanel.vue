@@ -3,11 +3,13 @@ import { computed } from 'vue'
 import { ArrowDown, ArrowUp, CircleCheck, CircleClose, Loading, Refresh, Warning } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePlatformSyncStore } from '@/stores/platformSync'
+import { canUseOpsManualSync, OPS_SYNC_READONLY_HINT } from '@/utils/opsSyncPolicy'
 
 const auth = useAuthStore()
 const syncStore = usePlatformSyncStore()
 
 const visible = computed(() => auth.backendLinked && !auth.isWarehouse)
+const allowManualSync = computed(() => canUseOpsManualSync())
 
 function statusType(status) {
   if (status === 'success' || status === 'partial') return 'success'
@@ -49,7 +51,39 @@ function statusIcon(status) {
     </button>
 
     <div v-show="syncStore.expanded" class="sync-log-panel__body">
-      <div class="sync-log-panel__actions">
+      <div v-if="syncStore.scheduleText" class="sync-log-panel__schedule">
+        <el-text size="small" type="info">计划：{{ syncStore.scheduleText }}</el-text>
+        <el-text size="small" type="info">范围：Temu · 速卖通 · Amazon</el-text>
+        <el-tag
+          v-if="syncStore.platformSyncStatus"
+          size="small"
+          effect="plain"
+          :type="syncStore.platformSyncStatus.agent_online ? 'success' : 'info'"
+        >
+          运维节点{{ syncStore.platformSyncStatus.agent_online ? '在线' : '离线' }}
+        </el-tag>
+        <div
+          v-for="row in syncStore.platformStatusRows"
+          :key="row.key"
+          class="sync-log-panel__platform-row"
+        >
+          <el-text size="small" :type="row.hasError ? 'danger' : 'info'">
+            {{ row.label }}：{{ row.hasError ? (row.errorMessage || '同步失败') : row.lastJobText }}
+          </el-text>
+        </div>
+        <el-text
+          v-if="syncStore.platformSyncStatus?.data_report_time"
+          size="small"
+          type="info"
+        >
+          Temu 数据日：{{ syncStore.platformSyncStatus.data_report_time }}
+        </el-text>
+        <el-text v-if="!allowManualSync" size="small" type="info">
+          {{ OPS_SYNC_READONLY_HINT }}
+        </el-text>
+      </div>
+
+      <div v-if="allowManualSync" class="sync-log-panel__actions">
         <el-button
           size="small"
           text
@@ -63,9 +97,14 @@ function statusIcon(status) {
           {{ syncStore.lastFinishedAt }}
         </el-text>
       </div>
+      <div v-else-if="syncStore.lastFinishedAt" class="sync-log-panel__actions">
+        <el-text size="small" type="info">
+          最近状态更新：{{ syncStore.lastFinishedAt }}
+        </el-text>
+      </div>
 
       <el-text
-        v-if="syncStore.inCooldown && !syncStore.running"
+        v-if="allowManualSync && syncStore.inCooldown && !syncStore.running"
         size="small"
         type="info"
         class="sync-log-panel__cooldown"
@@ -75,7 +114,7 @@ function statusIcon(status) {
 
       <el-alert
         v-if="syncStore.lastError"
-        type="warning"
+        :type="syncStore.platformSyncStatus?.has_error ? 'error' : 'warning'"
         :closable="false"
         show-icon
         :title="syncStore.lastError"
@@ -151,6 +190,16 @@ function statusIcon(status) {
 .sync-log-panel__body {
   padding: 0 10px 10px;
   border-top: 1px solid var(--ch-border);
+}
+
+.sync-log-panel__schedule {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.sync-log-panel__platform-row {
+  min-width: 0;
 }
 
 .sync-log-panel__actions {

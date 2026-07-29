@@ -59,6 +59,7 @@ public class TemuSale {
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public Long getUserId() { return userId; }
     public Integer getCost() { return cost; }
+    public void setCost(Integer cost) { this.cost = cost; }
     public String getCategoryName() { return categoryName; }
     public String getImgUrl() { return imgUrl; }
     public String getTitle() { return title; }

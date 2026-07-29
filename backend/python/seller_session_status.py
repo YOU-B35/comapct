@@ -55,18 +55,7 @@ def profile_busy_error(exc: Exception) -> bool:
 
 
 def payload_from_cache(tenant_id: int, cached: dict, *, profile_busy: bool) -> dict:
-
-    payload = build_session_payload(tenant_id, cached, profile_busy=profile_busy)
-
-    if session_ready(cached):
-
-        payload["message"] = (
-
-            "登录窗口中已检测到有效会话。请确认已选择店铺，然后点击「我已完成登录」或继续同步。"
-
-        )
-
-    return payload
+    return build_session_payload(tenant_id, cached, profile_busy=profile_busy)
 
 
 

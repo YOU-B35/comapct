@@ -23,16 +23,16 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -120,6 +120,93 @@ public class AliExpressCrawlServiceImpl implements AliExpressCrawlService {
         if (userId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, AppErrorCode.AUTH_MISSING_USER.getUserMessage());
         }
+        return createJobForTenant(tenantId, userId, reportTime, scope, force, recordCooldown);
+    }
+
+    /**
+     * 全平台日批：不依赖 JWT。force=true 跳过冷却；triggeredBy=0 表示系统触发。
+     */
+    @Override
+    @Transactional
+    public Map<String, Object> enqueueDailyCrawl(Long tenantId) {
+        return enqueueDailyCrawl(tenantId, false);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> enqueueDailyCrawl(Long tenantId, boolean force) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("platform", "aliexpress");
+        out.put("tenant_id", tenantId);
+        out.put("force", force);
+        if (tenantId == null) {
+            out.put("action", "skipped_invalid_tenant");
+            return out;
+        }
+        String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        if (!force) {
+            Optional<AliExpressCrawlJob> latest = jobRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId);
+            if (latest.isPresent()) {
+                AliExpressCrawlJob job = latest.get();
+                String created = job.getCreatedAt() == null ? "" : job.getCreatedAt();
+                if (created.startsWith(today)) {
+                    out.put("action", "skipped_already_ran");
+                    out.put("job", toStatusJobMap(job));
+                    return out;
+                }
+            }
+        }
+        Optional<AliExpressCrawlJob> active = jobRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(
+                tenantId, ACTIVE_STATUSES
+        );
+        if (active.isPresent()) {
+            AliExpressCrawlJob existing = reconcileStaleJob(active.get());
+            if (ACTIVE_STATUSES.contains(existing.getStatus())) {
+                out.put("action", "skipped_active");
+                out.put("job", toStatusJobMap(existing));
+                return out;
+            }
+        }
+        AliExpressCrawlJob job = createJobForTenant(tenantId, 0L, today, "all", true, false);
+        out.put("action", "enqueued");
+        out.put("job", toStatusJobMap(job));
+        return out;
+    }
+
+    @Override
+    public Map<String, Object> buildSyncStatus(Long tenantId) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("platform", "aliexpress");
+        Optional<AliExpressCrawlJob> latest = jobRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId);
+        if (latest.isEmpty()) {
+            out.put("last_job", null);
+            out.put("has_error", false);
+            out.put("error_code", "");
+            out.put("error_message", "");
+            return out;
+        }
+        AliExpressCrawlJob job = latest.get();
+        Map<String, Object> jobMap = toStatusJobMap(job);
+        jobMap.put("trigger", job.getTriggeredBy() != null && job.getTriggeredBy() == 0L
+                ? "daily_schedule"
+                : "manual");
+        out.put("last_job", jobMap);
+        boolean failed = "failed".equalsIgnoreCase(job.getStatus());
+        out.put("has_error", failed);
+        out.put("error_code", failed ? nullToEmpty(job.getErrorCode()) : "");
+        out.put("error_message", failed ? nullToEmpty(job.getErrorMessage()) : "");
+        return out;
+    }
+
+    private AliExpressCrawlJob createJobForTenant(
+            Long tenantId,
+            Long triggeredBy,
+            String reportTime,
+            String scope,
+            boolean force,
+            boolean recordCooldown
+    ) {
+        crawlCooldownService.assertAllowed(tenantId, force);
         Optional<AliExpressCrawlJob> active = jobRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(
                 tenantId, ACTIVE_STATUSES
         );
@@ -133,7 +220,7 @@ public class AliExpressCrawlServiceImpl implements AliExpressCrawlService {
         AliExpressCrawlJob job = new AliExpressCrawlJob();
         job.setId(UUID.randomUUID().toString());
         job.setTenantId(tenantId);
-        job.setTriggeredBy(userId);
+        job.setTriggeredBy(triggeredBy == null ? 0L : triggeredBy);
         job.setStatus("pending");
         job.setMode("live");
         job.setScope(scope);
@@ -145,6 +232,27 @@ public class AliExpressCrawlServiceImpl implements AliExpressCrawlService {
         String jobId = job.getId();
         scheduleAfterCommit(() -> crawlJobExecutor.execute(() -> executeJob(jobId)));
         return job;
+    }
+
+    private Map<String, Object> toStatusJobMap(AliExpressCrawlJob job) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", job.getId());
+        map.put("status", job.getStatus());
+        map.put("mode", job.getMode());
+        map.put("scope", job.getScope());
+        map.put("report_time", job.getReportTime());
+        map.put("error_code", job.getErrorCode());
+        map.put("error_message", job.getErrorMessage());
+        map.put("created_at", job.getCreatedAt());
+        map.put("started_at", job.getStartedAt());
+        map.put("finished_at", job.getFinishedAt());
+        map.put("rows_count", job.getRowsCount());
+        map.put("shops_count", job.getShopsCount());
+        return map;
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private void scheduleAfterCommit(Runnable task) {
@@ -211,6 +319,8 @@ public class AliExpressCrawlServiceImpl implements AliExpressCrawlService {
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.directory(scriptDir.toFile());
         builder.environment().put("TENANT_ID", String.valueOf(job.getTenantId()));
+        builder.environment().put("PYTHONIOENCODING", "utf-8");
+        builder.environment().put("PYTHONUTF8", "1");
         builder.redirectErrorStream(false);
 
         Process process = builder.start();
@@ -401,17 +511,15 @@ public class AliExpressCrawlServiceImpl implements AliExpressCrawlService {
     }
 
     private String readStream(java.io.InputStream stream) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!sb.isEmpty()) {
-                    sb.append(System.lineSeparator());
-                }
-                sb.append(line);
-            }
-            return sb.toString();
+        byte[] bytes = stream.readAllBytes();
+        if (bytes.length == 0) {
+            return "";
         }
+        String utf8 = new String(bytes, StandardCharsets.UTF_8);
+        if (!utf8.contains("\uFFFD")) {
+            return utf8;
+        }
+        return new String(bytes, java.nio.charset.Charset.forName("GBK"));
     }
 
     private String safeReadStream(java.io.InputStream stream) {

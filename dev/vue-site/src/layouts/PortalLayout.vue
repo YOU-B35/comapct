@@ -4,9 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { Bell, Menu, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import WarehouseScopePanel from '@/components/warehouse/WarehouseScopePanel.vue'
-import PlatformSyncLogPanel from '@/components/common/PlatformSyncLogPanel.vue'
 import { settingsMenuOpenKeys } from '@/utils/menuAuth'
 import { usePlatformSyncStore } from '@/stores/platformSync'
+import { canUseOpsManualSync } from '@/utils/opsSyncPolicy'
 
 const MOBILE_BREAKPOINT = 768
 
@@ -79,7 +79,8 @@ onMounted(() => {
   if (auth.backendLinked && !auth.isWarehouse) {
     syncStore.bindAuth(auth)
     void syncStore.seedFromBackend(auth)
-    if (syncStore.shouldAutoSync(auth)) {
+    // 运营网页不触发爬取；仅读库展示日批状态。同步由肉机 + 09:30 日批完成。
+    if (canUseOpsManualSync() && syncStore.shouldAutoSync(auth)) {
       void syncStore.runAutoSyncOnLogin(auth)
     }
   }
@@ -146,8 +147,6 @@ watch(() => route.path, () => {
           </el-menu-item>
         </template>
       </el-menu>
-
-      <PlatformSyncLogPanel v-if="!auth.isWarehouse" />
 
       <div class="aside-footer">
         <el-dropdown

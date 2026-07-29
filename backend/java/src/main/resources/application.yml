@@ -9,6 +9,12 @@ crosshub:
     script-dir: ${CROSSHUB_PYTHON_DIR:../python}
     timeout-seconds: 300
     allow-seed: false
+    use-agent: ${CROSSHUB_CRAWLER_USE_AGENT:true}
+    daily-sync:
+      # 全平台日批（Temu / 速卖通 / Amazon），每天 09:30 Asia/Shanghai
+      enabled: ${CROSSHUB_TEMU_DAILY_SYNC:true}
+      cron: "0 30 9 * * *"
+      zone: Asia/Shanghai
 
 spring:
   datasource:

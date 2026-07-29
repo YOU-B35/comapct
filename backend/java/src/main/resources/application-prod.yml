@@ -6,10 +6,14 @@ crosshub:
   db-path: ${CROSSHUB_DB_PATH:/data/crosshub/data/crosshub.db}
   crawler:
     python-executable: ${CROSSHUB_PYTHON:python3}
-    script-dir: ${CROSSHUB_PYTHON_DIR:/data/crosshub/backend/python}
+    script-dir: ${CROSSHUB_PYTHON_DIR:/opt/crosshub/python}
     timeout-seconds: 300
     allow-seed: false
-
+    use-agent: ${CROSSHUB_CRAWLER_USE_AGENT:true}
+    daily-sync:
+      enabled: ${CROSSHUB_TEMU_DAILY_SYNC:true}
+      cron: "0 30 9 * * *"
+      zone: Asia/Shanghai
 spring:
   datasource:
     url: jdbc:sqlite:${crosshub.db-path}?busy_timeout=30000

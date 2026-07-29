@@ -2,18 +2,48 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / ".env", override=False)
 
-PROFILE_ROOT = Path(os.getenv("TEMU_PROFILE_ROOT", str(ROOT / ".temu-browser-profile")))
+def _module_root() -> Path:
+    """源码态 = backend/python；冻结态勿用 _internal 当业务根（会新建空 Profile 丢 Cookie）。"""
+    if getattr(sys, "frozen", False):
+        configured = (os.getenv("CROSSHUB_PROJECT_ROOT") or "").strip()
+        if configured:
+            return Path(configured) / "backend" / "python"
+        exe_dir = Path(sys.executable).resolve().parent
+        for candidate in (
+            exe_dir / "backend" / "python",
+            exe_dir.parent / "backend" / "python",
+            Path(r"D:\NIUBI\SaaS-HZ_WEB_Demo\backend\python"),
+        ):
+            if (candidate / ".temu-browser-profile").is_dir() or (candidate / "app").is_dir():
+                return candidate
+        return exe_dir
+    return Path(__file__).resolve().parents[1]
+
+
+ROOT = _module_root()
+_env_file = ROOT / ".env"
+if _env_file.is_file():
+    load_dotenv(_env_file, override=False)
+elif not getattr(sys, "frozen", False):
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
+
+
+def resolve_profile_root() -> Path:
+    env = (os.getenv("TEMU_PROFILE_ROOT") or "").strip()
+    if env:
+        return Path(env)
+    return ROOT / ".temu-browser-profile"
 
 
 def resolve_profile_dir(tenant_id: int) -> Path:
-    return PROFILE_ROOT / f"tenant-{tenant_id}"
+    """每次调用读环境变量，避免冻结态误用 _internal 空 Profile。"""
+    return resolve_profile_root() / f"tenant-{tenant_id}"
 
 
 def resolve_tenant_id(cli_value: int | None = None) -> int:
@@ -25,6 +55,9 @@ def resolve_tenant_id(cli_value: int | None = None) -> int:
     raise ValueError("缺少租户 ID：请传入 --tenant-id 或设置环境变量 TENANT_ID")
 
 
+# 兼容旧引用（导入瞬间快照；业务请优先用 resolve_profile_dir）
+PROFILE_ROOT = resolve_profile_root()
+
 # 默认有头 + 本机 Chrome，降低 Temu 风控识别概率
 TEMU_SELLER_HOME = os.getenv("TEMU_SELLER_HOME", "https://agentseller.temu.com/")
 TEMU_SALES_API = os.getenv(
@@ -35,9 +68,18 @@ TEMU_USER_INFO_API = os.getenv(
     "TEMU_USER_INFO_API",
     "https://agentseller.temu.com/api/seller/auth/userInfo",
 )
+# 全托管「销售管理」官方侧栏入口（fully-mgt）。旧 mmsos 路径对全托管常显示「该区暂无权限」。
+TEMU_SALES_PAGE = os.getenv(
+    "TEMU_SALES_PAGE",
+    "https://agentseller.temu.com/stock/fully-mgt/sale-manage/main",
+)
+TEMU_SALES_PAGE_LEGACY = os.getenv(
+    "TEMU_SALES_PAGE_LEGACY",
+    "https://agentseller.temu.com/mmsos/sales-stock-management/sales-management",
+)
 MALL_STORAGE_KEY = os.getenv("TEMU_MALL_STORAGE_KEY", "agentseller-mall-info-id")
 
-# 默认有头 + 本机 Chrome，降低 Temu 风控识别概率
+
 def is_headless() -> bool:
     return os.getenv("TEMU_HEADLESS", "0").strip().lower() in ("1", "true", "yes")
 
@@ -52,12 +94,19 @@ TEMU_LOGIN_POLL_SECONDS = int(os.getenv("TEMU_LOGIN_POLL_SECONDS", "3"))
 
 STATUS_TO_CODE = {10: "100", 11: "200", 12: "300", 13: "400"}
 
-# AliExpress 卖家后台
-AE_PROFILE_ROOT = Path(os.getenv("AE_PROFILE_ROOT", str(ROOT / ".aliexpress-browser-profile")))
+
+def resolve_ae_profile_root() -> Path:
+    env = (os.getenv("AE_PROFILE_ROOT") or "").strip()
+    if env:
+        return Path(env)
+    return ROOT / ".aliexpress-browser-profile"
+
+
+AE_PROFILE_ROOT = resolve_ae_profile_root()
 
 
 def resolve_aliexpress_profile_dir(tenant_id: int) -> Path:
-    return AE_PROFILE_ROOT / f"tenant-{tenant_id}"
+    return resolve_ae_profile_root() / f"tenant-{tenant_id}"
 
 
 AE_CSP_HOME = os.getenv("AE_CSP_HOME", "https://csp.aliexpress.com/")

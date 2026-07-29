@@ -35,6 +35,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/tenant/**",
                         "/api/warehouse/**",
                         "/api/platform-accounts/**",
+                        "/api/platform/**",
                         "/api/tasks/**",
                         "/api/ops-feedback/**",
                         "/api/agent/register",
@@ -48,7 +49,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns(
                         "/api/agent/heartbeat",
                         "/api/agent/tasks",
-                        "/api/agent/tasks/**"
+                        "/api/agent/tasks/**",
+                        "/api/agent/temu/**"
                 );
     }
 }

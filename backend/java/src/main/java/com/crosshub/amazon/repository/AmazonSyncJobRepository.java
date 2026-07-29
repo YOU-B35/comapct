@@ -14,4 +14,6 @@ public interface AmazonSyncJobRepository extends JpaRepository<AmazonSyncJob, St
     Optional<AmazonSyncJob> findFirstByTenantIdAndPlatformAccountIdAndScopeAndStatusInOrderByCreatedAtDesc(
             Long tenantId, String platformAccountId, String scope, Collection<String> statuses
     );
+
+    Optional<AmazonSyncJob> findFirstByTenantIdOrderByCreatedAtDesc(Long tenantId);
 }

@@ -18,11 +18,13 @@ import sys
 
 from app.browser.context import (
 
+    close_temu_runtime,
+
     describe_session,
 
-    get_or_open_seller_page,
+    get_or_create_temu_runtime,
 
-    open_temu_context,
+    get_or_open_seller_page,
 
     wait_for_login_and_mall,
 
@@ -92,55 +94,55 @@ def main() -> None:
 
     try:
 
-        with open_temu_context(tenant_id, headless=False) as (_, context):
+        close_temu_runtime(tenant_id)
+        runtime = get_or_create_temu_runtime(tenant_id, headless=False)
+        page = get_or_open_seller_page(runtime.context)
 
-            page = get_or_open_seller_page(context)
+        try:
 
-            try:
+            page.bring_to_front()
 
-                page.bring_to_front()
+        except Exception:
 
-            except Exception:
+            pass
 
-                pass
+        mall_id = wait_for_login_and_mall(
 
-            mall_id = wait_for_login_and_mall(
+            page,
 
-                page,
+            tenant_id=tenant_id,
 
-                tenant_id=tenant_id,
+            timeout_seconds=max(60, args.timeout_seconds),
 
-                timeout_seconds=max(60, args.timeout_seconds),
+            on_poll=lambda status: cache_login_progress(tenant_id, status),
 
-                on_poll=lambda status: cache_login_progress(tenant_id, status),
+        )
 
-            )
+        status = describe_session(page)
 
-            status = describe_session(page)
+        page.wait_for_timeout(1000)
 
-            page.wait_for_timeout(1000)
+        payload = build_session_payload(tenant_id, status, profile_busy=False)
 
-            payload = build_session_payload(tenant_id, status, profile_busy=False)
+        write_session_cache(tenant_id, payload)
 
-            write_session_cache(tenant_id, payload)
+        result.update(
 
-            result.update(
+            {
 
-                {
+                "success": True,
 
-                    "success": True,
+                "ready": True,
 
-                    "ready": True,
+                "mall_id": mall_id,
 
-                    "mall_id": mall_id,
+                "mall_count": status.get("mall_count") or 0,
 
-                    "mall_count": status.get("mall_count") or 0,
+                "message": "Temu 卖家后台登录已完成，浏览器将继续保留给后续 discover / 同步任务复用。",
 
-                    "message": "Temu 卖家后台登录已完成，可以关闭浏览器并回到 CrossHub 同步数据。",
+            }
 
-                }
-
-            )
+        )
 
     except Exception as exc:
 

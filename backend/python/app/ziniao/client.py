@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -29,25 +30,54 @@ class ZiniaoConfig:
 
     @classmethod
     def from_env(cls) -> "ZiniaoConfig":
-        from app.config import (
-            ZINIAO_CLIENT_PATH,
-            ZINIAO_COMPANY,
-            ZINIAO_PASSWORD,
-            ZINIAO_SOCKET_PORT,
-            ZINIAO_USERNAME,
-        )
+        """每次从环境变量 / 项目 .env 读取，避免冻结 exe 导入顺序导致空常量。"""
+        cls._ensure_project_dotenv()
+        company = (os.getenv("ZINIAO_COMPANY") or "").strip()
+        username = (os.getenv("ZINIAO_USERNAME") or "").strip()
+        password = (os.getenv("ZINIAO_PASSWORD") or "").strip()
+        client_path = (
+            os.getenv("ZINIAO_CLIENT_PATH") or str(DEFAULT_CLIENT_PATH)
+        ).strip() or str(DEFAULT_CLIENT_PATH)
+        socket_port = int(os.getenv("ZINIAO_SOCKET_PORT") or str(DEFAULT_SOCKET_PORT))
 
-        if not ZINIAO_COMPANY or not ZINIAO_USERNAME or not ZINIAO_PASSWORD:
+        if not company or not username or not password:
             raise ValueError(
                 "请在 backend/python/.env 配置 ZINIAO_COMPANY、ZINIAO_USERNAME、ZINIAO_PASSWORD"
             )
         return cls(
-            company=ZINIAO_COMPANY,
-            username=ZINIAO_USERNAME,
-            password=ZINIAO_PASSWORD,
-            client_path=Path(ZINIAO_CLIENT_PATH),
-            socket_port=ZINIAO_SOCKET_PORT,
+            company=company,
+            username=username,
+            password=password,
+            client_path=Path(client_path),
+            socket_port=socket_port,
         )
+
+    @staticmethod
+    def _ensure_project_dotenv() -> None:
+        if (os.getenv("ZINIAO_COMPANY") or "").strip() and (os.getenv("ZINIAO_USERNAME") or "").strip():
+            return
+        candidates: list[Path] = []
+        project_root = (os.getenv("CROSSHUB_PROJECT_ROOT") or "").strip()
+        if project_root:
+            candidates.append(Path(project_root) / "backend" / "python" / ".env")
+        try:
+            from app.config import ROOT
+
+            candidates.append(Path(ROOT) / ".env")
+        except Exception:
+            pass
+        candidates.append(Path(r"D:\NIUBI\SaaS-HZ_WEB_Demo\backend\python\.env"))
+        for env_file in candidates:
+            if not env_file.is_file():
+                continue
+            try:
+                from dotenv import load_dotenv
+
+                load_dotenv(env_file, override=False)
+                return
+            except Exception:
+                continue
+
 
 
 class ZiniaoClient:

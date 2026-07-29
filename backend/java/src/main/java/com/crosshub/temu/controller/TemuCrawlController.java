@@ -7,6 +7,8 @@ import com.crosshub.temu.entity.TemuCrawlJob;
 import com.crosshub.temu.mapper.TemuMapper;
 import com.crosshub.temu.service.CrawlConflictException;
 import com.crosshub.temu.service.TemuCrawlService;
+import com.crosshub.platform.service.PlatformDailySyncService;
+import com.crosshub.tenant.service.DataScopeService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,10 +20,19 @@ import java.util.Map;
 public class TemuCrawlController {
     private final TemuCrawlService crawlService;
     private final TemuMapper temuMapper;
+    private final PlatformDailySyncService dailySyncService;
+    private final DataScopeService dataScopeService;
 
-    public TemuCrawlController(TemuCrawlService crawlService, TemuMapper temuMapper) {
+    public TemuCrawlController(
+            TemuCrawlService crawlService,
+            TemuMapper temuMapper,
+            PlatformDailySyncService dailySyncService,
+            DataScopeService dataScopeService
+    ) {
         this.crawlService = crawlService;
         this.temuMapper = temuMapper;
+        this.dailySyncService = dailySyncService;
+        this.dataScopeService = dataScopeService;
     }
 
     @PostMapping("/crawl")
@@ -49,5 +60,12 @@ public class TemuCrawlController {
     @GetMapping("/crawl/{jobId}")
     public Map<String, Object> status(@PathVariable String jobId) {
         return ApiResult.ok(temuMapper.toCrawlJobDto(crawlService.getJob(jobId)));
+    }
+
+    /** 兼容：等同 {@code GET /api/platform/sync-status}（全平台日批状态） */
+    @GetMapping("/sync-status")
+    public Map<String, Object> syncStatus() {
+        Long tenantId = dataScopeService.requireTenantId();
+        return ApiResult.ok(dailySyncService.buildSyncStatus(tenantId));
     }
 }

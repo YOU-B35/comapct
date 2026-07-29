@@ -33,13 +33,14 @@ def map_sales_batches(
         for order in sub_orders:
             skus = order.get("skuQuantityDetailList") or []
             for sku in skus:
+                today = int(sku.get("todaySaleVolume") or 0)
+                s7 = int(sku.get("lastSevenDaysSaleVolume") or 0)
                 s30 = int(sku.get("lastThirtyDaysSaleVolume") or 0)
-                if s30 == 0:
+                # 保留有销量或有近 30 日销量的 SKU；今日有单但 30 日为 0 的新品也要入库
+                if s30 == 0 and today == 0 and s7 == 0:
                     continue
 
                 inv = sku.get("inventoryNumInfo") or {}
-                wh_groups = sku.get("warehouseGroupList") or []
-                son_storage = wh_groups[0] if wh_groups else ""
 
                 rows.append(
                     {
@@ -56,16 +57,17 @@ def map_sales_batches(
                         "title": order.get("productName") or "",
                         "skc": str(order.get("productSkcId") or ""),
                         "spu": str(order.get("productId") or ""),
-                        # ext_code 在真实场景可能是 SKC 级（重复）；优先用 skuExtCode 作为更细粒度唯一键
+                        # 唯一键依赖 ext_code：优先 productSkuId，避免 skcExtCode 跨 SKU 重复覆盖销量
                         "ext_code": (
-                            sku.get("skuExtCode")
-                            or order.get("skcExtCode")
-                            or str(sku.get("productSkuId") or "")
+                            str(sku.get("productSkuId") or "").strip()
+                            or str(sku.get("skuExtCode") or "").strip()
+                            or str(order.get("skcExtCode") or "").strip()
+                            or f"{order.get('productSkcId') or ''}-{sku.get('className') or ''}"
                         ),
                         "son_sku": str(sku.get("productSkuId") or ""),
                         "son_price": int(sku.get("supplierPrice") or 0),
-                        "son_today_sales": int(sku.get("todaySaleVolume") or 0),
-                        "son_sales_seven_days": int(sku.get("lastSevenDaysSaleVolume") or 0),
+                        "son_today_sales": today,
+                        "son_sales_seven_days": s7,
                         "son_sales_thirty_days": s30,
                         "join_site_time": int(order.get("onSalesDurationOffline") or 0),
                         "warehouse_available_stock": int(inv.get("warehouseInventoryNum") or 0),

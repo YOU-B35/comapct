@@ -73,28 +73,39 @@ public class TemuWarningServiceImpl implements TemuWarningService {
     }
 
     public List<LowSaleWarning> lowSaleWarnings(List<TemuSale> sales) {
+        return slowMovingEstimates(sales);
+    }
+
+    public List<LowSaleWarning> allLowSaleEstimates(List<TemuSale> sales) {
+        return slowMovingEstimates(sales);
+    }
+
+    private List<LowSaleWarning> slowMovingEstimates(List<TemuSale> sales) {
         List<LowSaleWarning> warnings = new ArrayList<>();
         for (TemuSale sale : sales) {
-            int s30 = safeInt(sale.getSonSalesThirtyDays());
-            if (!"300".equals(sale.getStatus()) || s30 != 0) continue;
+            if (!isSlowCandidate(sale)) {
+                continue;
+            }
             int today = safeInt(sale.getSonTodaySales());
             int s7 = safeInt(sale.getSonSalesSevenDays());
+            int s30 = safeInt(sale.getSonSalesThirtyDays());
             int[] est = estimateS10S15(today, s7, s30);
             warnings.add(new LowSaleWarning(sale, est[0], est[1]));
         }
         return warnings;
     }
 
-    public List<LowSaleWarning> allLowSaleEstimates(List<TemuSale> sales) {
-        List<LowSaleWarning> warnings = new ArrayList<>();
-        for (TemuSale sale : sales) {
-            int today = safeInt(sale.getSonTodaySales());
-            int s7 = safeInt(sale.getSonSalesSevenDays());
-            int s30 = safeInt(sale.getSonSalesThirtyDays());
-            int[] est = estimateS10S15(today, s7, s30);
-            warnings.add(new LowSaleWarning(sale, est[0], est[1]));
+    private boolean isSlowCandidate(TemuSale sale) {
+        if (!"300".equals(sale.getStatus())) {
+            return false;
         }
-        return warnings;
+        int stock = safeInt(sale.getWarehouseAvailableStock());
+        if (stock <= 0) {
+            return false;
+        }
+        int s7 = safeInt(sale.getSonSalesSevenDays());
+        int today = safeInt(sale.getSonTodaySales());
+        return s7 <= 0 && today <= 0;
     }
 
     public List<InventoryWarning> inventoryWarnings(List<TemuSale> sales) {

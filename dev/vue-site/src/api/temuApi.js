@@ -36,29 +36,91 @@ export async function fetchTemuSessionStatus() {
   return res?.data ?? res ?? {}
 }
 
+export async function fetchTemuIntegrationStatus() {
+  const res = await service.get('/api/temu/integration/status', { skipGlobalErrorToast: true })
+  return { success: true, data: res?.data ?? res ?? {} }
+}
+
 export async function openTemuSellerLogin() {
   const res = await service.post('/api/temu/login/open', {}, { skipGlobalErrorToast: true })
   return res?.data ?? res ?? {}
 }
 
-export async function pollTemuSessionUntilReady({ timeoutMs = 300000, intervalMs = 3000 } = {}) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
+/** Open real Chrome for Temu buyer-side / competitor frontend login. */
+export async function openTemuFrontendLogin(payload = {}) {
+  const res = await service.post(
+    '/api/temu/frontend-login/open',
+    { url: payload.url || undefined },
+    { skipGlobalErrorToast: true },
+  )
+  return res?.data ?? res ?? {}
+}
+
+/**
+ * 轮询 session 直至 ready。
+ * TM-P3：退避 2s→5s，默认最多约 20 次，避免打爆 probe；可用 timeoutMs/maxAttempts 覆盖。
+ */
+export async function pollTemuSessionUntilReady({
+  timeoutMs = 90000,
+  intervalMs = 2000,
+  maxIntervalMs = 5000,
+  maxAttempts = 20,
+  signal = null,
+} = {}) {
+  const deadline = Date.now() + Math.max(1000, timeoutMs)
+  let delay = Math.max(500, intervalMs)
+  let attempt = 0
+
+  while (attempt < maxAttempts && Date.now() < deadline) {
+    if (signal?.aborted) {
+      throw new AppApiError('已取消登录等待', 'CRAWL_INTERRUPTED')
+    }
     const session = await fetchTemuSessionStatus()
     if (session.ready) return session
     if (session.profile_busy && session.logged_in && session.mall_id) return session
-    await sleep(intervalMs)
+
+    attempt += 1
+    if (attempt >= maxAttempts || Date.now() >= deadline) break
+    const waitMs = Math.min(delay, Math.max(0, deadline - Date.now()))
+    if (waitMs <= 0) break
+    await sleep(waitMs)
+    delay = Math.min(maxIntervalMs, Math.round(delay * 1.4))
   }
+
+  const last = await fetchTemuSessionStatus()
+  if (last.ready) return last
+  if (last.profile_busy && last.logged_in && last.mall_id) return last
   throw new AppApiError('登录等待超时，请确认已在弹出窗口完成登录并选择店铺后重试', 'CRAWL_NOT_LOGGED_IN')
 }
 
-export async function pollTemuProfileIdle({ timeoutMs = 120000, intervalMs = 2000 } = {}) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
+export async function pollTemuProfileIdle({
+  timeoutMs = 120000,
+  intervalMs = 2000,
+  maxIntervalMs = 5000,
+  maxAttempts = 30,
+  signal = null,
+} = {}) {
+  const deadline = Date.now() + Math.max(1000, timeoutMs)
+  let delay = Math.max(500, intervalMs)
+  let attempt = 0
+
+  while (attempt < maxAttempts && Date.now() < deadline) {
+    if (signal?.aborted) {
+      throw new AppApiError('已取消等待', 'CRAWL_INTERRUPTED')
+    }
     const session = await fetchTemuSessionStatus()
     if (!session.profile_busy) return session
-    await sleep(intervalMs)
+
+    attempt += 1
+    if (attempt >= maxAttempts || Date.now() >= deadline) break
+    const waitMs = Math.min(delay, Math.max(0, deadline - Date.now()))
+    if (waitMs <= 0) break
+    await sleep(waitMs)
+    delay = Math.min(maxIntervalMs, Math.round(delay * 1.4))
   }
+
+  const last = await fetchTemuSessionStatus()
+  if (!last.profile_busy) return last
   throw new AppApiError(
     '登录窗口仍占用浏览器，请关闭 CrossHub 弹出的登录浏览器后重试',
     'CRAWL_IN_PROGRESS',
@@ -72,39 +134,64 @@ export async function fetchTemuStores(auth) {
       fetchPlatformStores(TEMU_PLATFORM),
     ])
     const list = shopsRes?.data ?? []
-    const shops = (Array.isArray(list) ? list : [])
+    const crawledShops = (Array.isArray(list) ? list : [])
       .filter((shop) => !isDemoShopId(shop.shop_id))
       .map((shop) => ({
-      id: shop.shop_id,
-      storeName: shop.bound_store_name || shop.shop_name || shop.shop_id,
-      platform: TEMU_PLATFORM,
-      isUpload: shop.is_upload,
-      externalShopId: shop.external_shop_id || shop.shop_id,
-      platformAccountId: shop.platform_account_id || '',
-    }))
-    const shopById = new Map(shops.map((shop) => [shop.id, shop]))
+        id: shop.shop_id,
+        storeName: shop.shop_name || shop.bound_store_name || shop.shop_id,
+        platform: TEMU_PLATFORM,
+        isUpload: shop.is_upload,
+        externalShopId: shop.external_shop_id || shop.shop_id,
+        platformAccountId: shop.platform_account_id || '',
+      }))
+
     const boundStores = (boundRes?.data || boundRes || []).map((store) => ({
       ...store,
       externalShopId: store.externalShopId || store.external_shop_id || '',
     }))
+    const boundByExt = new Map()
+    for (const store of boundStores) {
+      const extId = String(store.externalShopId || '').trim()
+      if (extId) boundByExt.set(extId, store)
+    }
+
     const merged = []
     const seen = new Set()
-    for (const store of boundStores) {
-      const extId = store.externalShopId
-      const shop = extId ? shopById.get(extId) : null
-      const id = shop?.id || extId || store.id
+
+    // 以爬虫入库的店铺为准（同一 Temu 账号可有多家 mall）
+    for (const shop of crawledShops) {
+      const id = String(shop.id || '').trim()
       if (!id || seen.has(id)) continue
+      seen.add(id)
+      const bound = boundByExt.get(id)
+      merged.push({
+        id,
+        storeName: shop.storeName,
+        platform: TEMU_PLATFORM,
+        isUpload: shop.isUpload,
+        externalShopId: shop.externalShopId || id,
+        accountId: bound?.id || shop.platformAccountId || '',
+        needsShopLink: !bound,
+      })
+    }
+
+    // 已绑定但尚未爬到数据的店铺仍保留入口
+    for (const store of boundStores) {
+      const extId = String(store.externalShopId || '').trim()
+      const id = extId || String(store.id || '').trim()
+      if (!id || seen.has(id) || isDemoShopId(id)) continue
       seen.add(id)
       merged.push({
         id,
-        storeName: store.storeName || shop?.storeName || id,
+        storeName: store.storeName || id,
         platform: TEMU_PLATFORM,
-        isUpload: shop?.isUpload,
+        isUpload: undefined,
         externalShopId: extId || id,
         accountId: store.id,
         needsShopLink: !extId,
       })
     }
+
     return scopeStores(merged, auth)
   }
   return fetchLocalTemuStores(auth)
@@ -145,6 +232,7 @@ export async function fetchTemuSalesTrend({ auth, shopId, days = 7 } = {}) {
     return {
       labels: res.labels || [],
       values: res.values || [],
+      estimated: res.estimated || [],
     }
   }
   return fetchLocalTemuSalesTrend({ shopId, days })
@@ -206,6 +294,17 @@ export async function triggerTemuCrawl(options = {}) {
 export async function fetchTemuCrawlJob(jobId) {
   const res = await service.get(`/api/temu/crawl/${jobId}`, { skipGlobalErrorToast: true })
   return res?.data ?? res
+}
+
+/** 全平台日批计划 + 各平台最近同步结果/错误（打开应用时展示） */
+export async function fetchPlatformSyncStatus() {
+  const res = await service.get('/api/platform/sync-status', { skipGlobalErrorToast: true })
+  return res?.data ?? res
+}
+
+/** @deprecated 使用 fetchPlatformSyncStatus；兼容旧调用 */
+export async function fetchTemuSyncStatus() {
+  return fetchPlatformSyncStatus()
 }
 
 export async function refreshTemuDataWithCrawl(options = {}) {

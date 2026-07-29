@@ -39,12 +39,12 @@ const urgencyFiltered = computed(() => {
   return list
 })
 
-const { keyword, page, pageSize, total, paged } = useFuzzySearchPagination(urgencyFiltered, {
+const { keyword, page, pageSize, filtered, total, paged } = useFuzzySearchPagination(urgencyFiltered, {
   fields: ['sku', 'name', 'storeName'],
 })
 
 const totalSuggest = computed(() =>
-  urgencyFiltered.value.reduce((s, p) => s + p.restock.suggestedRestock, 0),
+  urgencyFiltered.value.reduce((s, p) => s + (Number(p.restock?.suggestedRestock) || 0), 0),
 )
 
 onMounted(async () => {
@@ -117,7 +117,7 @@ async function onStatusChange(row, status) {
           <template #default>
             日均需求 = max(当日销量, 7 日均值) ·
             目标库存 = 日均 × ({{ RESTOCK_CONFIG.targetCoverDays }} 天覆盖 + {{ RESTOCK_CONFIG.leadTimeDays }} 天提前期) ·
-            建议补货 = 目标 − 官方仓库存（不超过本地仓可用）
+            建议补货 = max(0, 目标 − 官方仓库存)；本地仓有货时再封顶到可用量
           </template>
         </el-alert>
       </el-col>
@@ -133,10 +133,20 @@ async function onStatusChange(row, status) {
             <el-radio-button value="hot">爆款优先</el-radio-button>
           </el-radio-group>
           <el-tag type="primary">合计建议备货 {{ totalSuggest.toLocaleString() }} 件</el-tag>
+          <el-tag type="info" effect="plain">共 {{ total }} 个 SKU</el-tag>
         </el-space>
       </template>
 
-      <el-table :data="filtered" stripe>
+      <TableQueryBar
+        v-model:keyword="keyword"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+      />
+
+      <el-empty v-if="!total" description="暂无备货数据" />
+
+      <el-table v-else :data="paged" stripe>
         <el-table-column v-if="showStoreColumn" prop="storeName" label="所属店铺" width="130" show-overflow-tooltip />
         <AssigneeTableColumn />
         <el-table-column prop="sku" label="SKU" width="110" fixed />
@@ -150,7 +160,11 @@ async function onStatusChange(row, status) {
           <template #default="{ row }">{{ row.restock.dailyDemand }}</template>
         </el-table-column>
         <el-table-column label="官方仓" width="90" align="right" prop="officialStock" />
-        <el-table-column label="本地仓" width="90" align="right" prop="localStock" />
+        <el-table-column label="本地仓" width="90" align="right">
+          <template #default="{ row }">
+            {{ row.localStock == null || row.localStock === '' ? '—' : row.localStock }}
+          </template>
+        </el-table-column>
         <el-table-column label="可售天数" width="100" align="right">
           <template #default="{ row }">
             <el-text :type="row.restock.coverDays <= RESTOCK_CONFIG.leadTimeDays ? 'danger' : row.restock.coverDays <= RESTOCK_CONFIG.safetyDays ? 'warning' : undefined">

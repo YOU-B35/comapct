@@ -38,6 +38,14 @@ def main() -> None:
     try:
         result = run_ingest(args.date, use_seed=args.seed, tenant_id=tenant_id)
     except Exception as exc:
+        msg = str(exc)
+        if any(token in msg for token in ("未登录", "登录已过期", "登录窗口")):
+            try:
+                from app.browser.profile_lock import clear_session_cache
+
+                clear_session_cache(tenant_id)
+            except Exception:
+                pass
         print(f"爬取失败: {exc}", file=sys.stderr)
         sys.exit(1)
 

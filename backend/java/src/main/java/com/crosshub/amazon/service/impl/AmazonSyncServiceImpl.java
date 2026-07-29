@@ -1,5 +1,6 @@
 package com.crosshub.amazon.service.impl;
 
+import com.crosshub.agent.service.AgentPresenceService;
 import com.crosshub.amazon.dto.AmazonSyncRequest;
 import com.crosshub.amazon.entity.AmazonSyncJob;
 import com.crosshub.amazon.repository.AmazonSyncJobRepository;
@@ -38,6 +39,7 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
     private final JdbcTemplate jdbc;
     private final AmazonOperationalPersistenceService persistenceService;
     private final TenantCrawlCooldownService crawlCooldownService;
+    private final AgentPresenceService agentPresenceService;
 
     public AmazonSyncServiceImpl(
             AmazonSyncJobRepository syncJobRepository,
@@ -46,7 +48,8 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
             ObjectMapper objectMapper,
             JdbcTemplate jdbc,
             AmazonOperationalPersistenceService persistenceService,
-            TenantCrawlCooldownService crawlCooldownService
+            TenantCrawlCooldownService crawlCooldownService,
+            AgentPresenceService agentPresenceService
     ) {
         this.syncJobRepository = syncJobRepository;
         this.platformAccountRepository = platformAccountRepository;
@@ -55,6 +58,7 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         this.jdbc = jdbc;
         this.persistenceService = persistenceService;
         this.crawlCooldownService = crawlCooldownService;
+        this.agentPresenceService = agentPresenceService;
     }
 
     @Transactional
@@ -105,6 +109,150 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         }
 
         return Map.of("jobs", jobs);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> enqueueDailySync(Long tenantId) {
+        return enqueueDailySync(tenantId, false);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> enqueueDailySync(Long tenantId, boolean force) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("platform", "amazon");
+        out.put("tenant_id", tenantId);
+        out.put("force", force);
+        if (tenantId == null) {
+            out.put("action", "skipped_invalid_tenant");
+            return out;
+        }
+
+        String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        if (!force) {
+            Optional<AmazonSyncJob> latest = syncJobRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId);
+            if (latest.isPresent()) {
+                AmazonSyncJob job = latest.get();
+                String created = job.getCreatedAt() == null ? "" : job.getCreatedAt();
+                if (created.startsWith(today)) {
+                    out.put("action", "skipped_already_ran");
+                    out.put("job", statusJobMap(job));
+                    return out;
+                }
+            }
+        }
+
+        List<PlatformAccount> targets = resolveTargets(tenantId, null);
+        if (targets.isEmpty()) {
+            out.put("action", "skipped_no_accounts");
+            return out;
+        }
+
+        if (!agentPresenceService.isAgentOnline(tenantId)) {
+            List<Map<String, Object>> failedJobs = new ArrayList<>();
+            for (PlatformAccount account : targets) {
+                AmazonSyncJob failed = createTerminalDailyJob(
+                        tenantId,
+                        account.getId(),
+                        AppErrorCode.TEMU_AGENT_OFFLINE.getCode(),
+                        AppErrorCode.TEMU_AGENT_OFFLINE.getUserMessage()
+                );
+                failedJobs.add(statusJobMap(failed));
+            }
+            out.put("action", "failed_agent_offline");
+            out.put("jobs", failedJobs);
+            return out;
+        }
+
+        String scope = "account_health";
+        List<Map<String, Object>> jobs = new ArrayList<>();
+        for (PlatformAccount account : targets) {
+            Optional<AmazonSyncJob> active = syncJobRepository
+                    .findFirstByTenantIdAndPlatformAccountIdAndScopeAndStatusInOrderByCreatedAtDesc(
+                            tenantId, account.getId(), scope, ACTIVE
+                    );
+            if (active.isPresent()) {
+                AmazonSyncJob existing = reconcileJob(active.get());
+                if (ACTIVE.contains(existing.getStatus()) && !isStale(existing)) {
+                    jobs.add(statusJobMap(existing));
+                    continue;
+                }
+                if (ACTIVE.contains(existing.getStatus())) {
+                    markStaleJobFailed(existing);
+                }
+            }
+
+            String taskId = "agt_" + UUID.randomUUID();
+            AmazonSyncJob job = new AmazonSyncJob();
+            job.setId("amz_sync_" + UUID.randomUUID());
+            job.setTenantId(tenantId);
+            job.setPlatformAccountId(account.getId());
+            job.setAgentTaskId(taskId);
+            job.setAgentId("");
+            job.setScope(scope);
+            job.setStatus("pending");
+            job.setMode("ziniao_webdriver");
+            job.setCreatedAt(now());
+            job.setResultSummary("{\"trigger\":\"daily_schedule\"}");
+            syncJobRepository.save(job);
+            crawlCooldownService.registerJobRecordPolicy(job.getId(), false);
+            enqueueAgentTask(tenantId, taskId, scope, account);
+            jobs.add(statusJobMap(job));
+        }
+        out.put("action", jobs.isEmpty() ? "skipped_active" : "enqueued");
+        out.put("jobs", jobs);
+        return out;
+    }
+
+    @Override
+    public Map<String, Object> buildSyncStatus(Long tenantId) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("platform", "amazon");
+        Optional<AmazonSyncJob> latest = syncJobRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId);
+        if (latest.isEmpty()) {
+            out.put("last_job", null);
+            out.put("has_error", false);
+            out.put("error_code", "");
+            out.put("error_message", "");
+            return out;
+        }
+        AmazonSyncJob job = reconcileJob(latest.get());
+        Map<String, Object> jobMap = statusJobMap(job);
+        String summary = job.getResultSummary() == null ? "" : job.getResultSummary();
+        jobMap.put("trigger", summary.contains("daily_schedule") ? "daily_schedule" : "manual");
+        out.put("last_job", jobMap);
+        boolean failed = "failed".equalsIgnoreCase(job.getStatus());
+        out.put("has_error", failed);
+        out.put("error_code", failed ? defaultText(job.getErrorCode(), "") : "");
+        out.put("error_message", failed ? defaultText(job.getErrorMessage(), "") : "");
+        return out;
+    }
+
+    private AmazonSyncJob createTerminalDailyJob(Long tenantId, String accountId, String errorCode, String errorMessage) {
+        String now = now();
+        AmazonSyncJob job = new AmazonSyncJob();
+        job.setId("amz_sync_" + UUID.randomUUID());
+        job.setTenantId(tenantId);
+        job.setPlatformAccountId(accountId);
+        job.setAgentTaskId("");
+        job.setAgentId("");
+        job.setScope("account_health");
+        job.setStatus("failed");
+        job.setMode("ziniao_webdriver");
+        job.setErrorCode(errorCode == null ? "" : errorCode);
+        job.setErrorMessage(errorMessage == null ? "" : errorMessage);
+        job.setResultSummary("{\"trigger\":\"daily_schedule\"}");
+        job.setCreatedAt(now);
+        job.setStartedAt(now);
+        job.setFinishedAt(now);
+        return syncJobRepository.save(job);
+    }
+
+    private Map<String, Object> statusJobMap(AmazonSyncJob job) {
+        Map<String, Object> map = jobDto(job);
+        map.put("platform_account_id", job.getPlatformAccountId());
+        return map;
     }
 
     @Override

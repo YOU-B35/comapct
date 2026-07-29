@@ -2,16 +2,19 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import subprocess
 import sys
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Generator
 
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
+from app.browser import runtime as browser_runtime
 from app.browser.stealth import BROWSER_ARGS, IGNORE_DEFAULT_ARGS, STEALTH_INIT_SCRIPT
 from app.config import (
     BROWSER_CHANNEL,
@@ -27,9 +30,48 @@ from app.config import (
 )
 
 
+@dataclass
+class ManagedBrowserContext:
+    playwright: Playwright
+    context: BrowserContext
+    closed: bool = False
+
+    def __getattr__(self, name: str):
+        return getattr(self.context, name)
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        try:
+            self.context.close()
+        finally:
+            try:
+                self.playwright.stop()
+            except Exception:
+                pass
+
+
 def human_pause() -> None:
     delay = random.randint(MIN_ACTION_DELAY_MS, MAX_ACTION_DELAY_MS) / 1000.0
     time.sleep(delay)
+
+
+def _system_chrome_path() -> str | None:
+    """打包 .exe 无 Playwright 自带浏览器，必须用本机 Chrome/Edge。"""
+    candidates = [
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Google/Chrome/Application/chrome.exe",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Google/Chrome/Application/chrome.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe",
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Microsoft/Edge/Application/msedge.exe",
+    ]
+    for path in candidates:
+        try:
+            if path.is_file():
+                return str(path)
+        except OSError:
+            continue
+    return None
 
 
 def _launch_kwargs(headless: bool) -> dict:
@@ -45,11 +87,18 @@ def _launch_kwargs(headless: bool) -> dict:
             "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ),
     }
+    frozen = bool(getattr(sys, "frozen", False))
+    chrome = _system_chrome_path()
+    # 冻结态必须绑本机浏览器，禁止落到 Playwright 自带 chromium_headless_shell
+    if frozen and chrome:
+        kwargs["executable_path"] = chrome
+    elif BROWSER_CHANNEL:
+        kwargs["channel"] = BROWSER_CHANNEL
+    elif chrome:
+        kwargs["executable_path"] = chrome
+
     if headless:
         kwargs["args"].append("--headless=new")
-    elif BROWSER_CHANNEL:
-        # 仅有头模式使用本机 Chrome；无头 + channel=chrome 在 Windows 常会弹出可见窗口
-        kwargs["channel"] = BROWSER_CHANNEL
     return kwargs
 
 
@@ -129,6 +178,47 @@ def open_temu_context(
             yield p, context
         finally:
             context.close()
+
+
+def launch_managed_temu_context(tenant_id: int, *, headless: bool | None = None) -> ManagedBrowserContext:
+    profile_dir: Path = resolve_profile_dir(tenant_id)
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    effective_headless = is_headless() if headless is None else headless
+    launch_kwargs = _launch_kwargs(effective_headless)
+    playwright = sync_playwright().start()
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir=str(profile_dir),
+        **launch_kwargs,
+    )
+    context.add_init_script(STEALTH_INIT_SCRIPT)
+    return ManagedBrowserContext(playwright=playwright, context=context)
+
+
+def is_runtime_context_usable(context: ManagedBrowserContext | BrowserContext) -> bool:
+    if getattr(context, "closed", False):
+        return False
+    try:
+        _ = list(context.pages)
+        return True
+    except Exception:
+        return False
+
+
+def get_or_create_temu_runtime(tenant_id: int, *, headless: bool | None = None):
+    effective_headless = is_headless() if headless is None else headless
+    return browser_runtime.get_or_create_browser_runtime(
+        tenant_id=tenant_id,
+        headless=effective_headless,
+        launcher=lambda runtime_tenant_id, runtime_headless: launch_managed_temu_context(
+            runtime_tenant_id,
+            headless=runtime_headless,
+        ),
+        is_usable=is_runtime_context_usable,
+    )
+
+
+def close_temu_runtime(tenant_id: int) -> None:
+    browser_runtime.close_browser_runtime(tenant_id=tenant_id)
 
 
 def get_or_open_seller_page(context: BrowserContext) -> Page:

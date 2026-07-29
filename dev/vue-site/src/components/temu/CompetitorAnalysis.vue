@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Link, Refresh, Search, Setting } from '@element-plus/icons-vue'
 import SearchableTable from '@/components/common/SearchableTable.vue'
 import { resolveAppError } from '@/utils/appErrorCode'
+import { openTemuFrontendLogin } from '@/api/temuApi'
 import {
   analyzeCompetitors,
   deleteCompetitor,
@@ -21,6 +22,7 @@ defineProps({
 const loading = ref(false)
 const analyzing = ref(false)
 const discovering = ref(false)
+const openingFrontendLogin = ref(false)
 const competitors = ref([])
 const reports = ref([])
 const settingsOpen = ref(true)
@@ -208,6 +210,24 @@ async function discoverFishingCompetitors() {
     ElMessage.error(analysisError.value.title || err.message || '候选竞店发现失败')
   } finally {
     discovering.value = false
+  }
+}
+
+async function openBuyerFrontendLogin() {
+  openingFrontendLogin.value = true
+  try {
+    await openTemuFrontendLogin({
+      url: 'https://www.temu.com/za/search_result.html?search_key=fishing%20tackle',
+    })
+    ElMessage.success('已打开普通 Chrome 买家前台登录窗口，完成后请关闭该窗口再点「发现渔具 Top10」')
+  } catch (err) {
+    analysisError.value = resolveAppError(
+      { errorCode: err.errorCode, message: err.message },
+      null,
+    )
+    ElMessage.error(analysisError.value.title || err.message || '打开前台登录失败')
+  } finally {
+    openingFrontendLogin.value = false
   }
 }
 
@@ -405,7 +425,24 @@ onBeforeUnmount(() => {
             >
               发现渔具 Top10
             </el-button>
+            <el-button
+              plain
+              :loading="openingFrontendLogin"
+              @click="openBuyerFrontendLogin"
+            >
+              打开买家前台登录
+            </el-button>
           </div>
+
+          <el-alert
+            v-if="analysisError && ['COMPETITOR_LOGIN_REQUIRED', 'COMPETITOR_FRONTEND_LOGIN_REQUIRED'].includes(analysisError.errorCode)"
+            class="discovery-login-alert"
+            type="warning"
+            :closable="false"
+            show-icon
+            :title="analysisError.title"
+            :description="analysisError.summary"
+          />
 
           <SearchableTable
             v-if="discoveryCandidates.length"
@@ -813,6 +850,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.discovery-login-alert {
+  margin-bottom: 4px;
 }
 
 .discovery-head strong {

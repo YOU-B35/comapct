@@ -13,10 +13,13 @@ const props = defineProps({
 const filterLoss = ref('all')
 
 const categoryFiltered = computed(() => {
-  if (filterLoss.value === 'loss') return props.products.filter((p) => p.isLoss)
-  if (filterLoss.value === 'profit') return props.products.filter((p) => !p.isLoss)
-  return props.products
+  const withCost = props.products.filter((p) => p.hasCost)
+  if (filterLoss.value === 'loss') return withCost.filter((p) => p.isLoss)
+  if (filterLoss.value === 'profit') return withCost.filter((p) => !p.isLoss)
+  return withCost
 })
+
+const costReadyCount = computed(() => props.products.filter((p) => p.hasCost).length)
 
 const { keyword, page, pageSize, total, paged } = useFuzzySearchPagination(categoryFiltered, {
   fields: ['sku', 'name', 'storeName', 'spuId', 'skcId'],
@@ -29,6 +32,7 @@ const { keyword, page, pageSize, total, paged } = useFuzzySearchPagination(categ
       <template #header>
         <el-space>
           <span>价格利润分析</span>
+          <el-tag type="info" effect="plain">已录入成本 {{ costReadyCount }} / {{ products.length }}</el-tag>
           <el-radio-group v-model="filterLoss" size="small">
             <el-radio-button value="all">全部</el-radio-button>
             <el-radio-button value="loss">仅亏损</el-radio-button>

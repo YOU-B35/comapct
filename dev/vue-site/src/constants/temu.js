@@ -147,8 +147,10 @@ export const RESTOCK_CONFIG = {
   safetyDays: 14,
   targetCoverDays: 21,
   leadTimeDays: 5,
+  /** 当日 / 7 日均 ≥ 此倍数，且当日销量 ≥ hotMinDailySales */
   hotSurgeRatio: 1.5,
-  hotMinDailySales: 80,
+  /** 真实店铺日销可能很小；用相对增幅为主，最低 1 件即可参与爆款判定 */
+  hotMinDailySales: 1,
 }
 
 export const HOT_BROADCASTS = [

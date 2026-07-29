@@ -11,6 +11,7 @@ const props = defineProps({
   stores: { type: Array, default: () => [] },
   assigneeMap: { type: Object, default: () => ({}) },
   showStoreList: { type: Boolean, default: true },
+  storeName: { type: String, default: '' },
   salesTrend: { type: Object, default: () => ({ labels: [], values: [] }) },
 })
 
@@ -85,6 +86,8 @@ function storeAlerts(summary) {
       v-if="salesTrend.labels?.length"
       :labels="salesTrend.labels"
       :values="salesTrend.values"
+      :estimated="salesTrend.estimated || []"
+      :store-name="storeName"
     />
 
     <el-table

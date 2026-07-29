@@ -15,7 +15,10 @@ import com.crosshub.platform.repository.PlatformAccountRepository;
 import com.crosshub.security.AuthContext;
 
 import com.crosshub.temu.dto.TemuCompetitorDiscoverRequest;
+import com.crosshub.temu.dto.TemuSkuCostUpsertRequest;
 import com.crosshub.temu.service.TemuCompetitorService;
+import com.crosshub.temu.service.TemuSkuCostService;
+import com.crosshub.temu.service.TemuAgentService;
 import com.crosshub.temu.service.TemuHotBroadcastService;
 import com.crosshub.temu.service.TemuOperationalService;
 import com.crosshub.temu.service.TemuRestockStatusService;
@@ -56,6 +59,8 @@ public class TemuController {
     private final PlatformAccountRepository platformAccountRepository;
 
     private final AuthContext authContext;
+    private final TemuAgentService temuAgentService;
+    private final TemuSkuCostService skuCostService;
 
 
 
@@ -75,7 +80,9 @@ public class TemuController {
 
             PlatformAccountRepository platformAccountRepository,
 
-            AuthContext authContext
+            AuthContext authContext,
+            TemuAgentService temuAgentService,
+            TemuSkuCostService skuCostService
 
     ) {
 
@@ -94,6 +101,8 @@ public class TemuController {
         this.platformAccountRepository = platformAccountRepository;
 
         this.authContext = authContext;
+        this.temuAgentService = temuAgentService;
+        this.skuCostService = skuCostService;
 
     }
 
@@ -122,14 +131,46 @@ public class TemuController {
         return ApiResult.ok(sessionService.getSessionStatus());
     }
 
+    @GetMapping("/integration/status")
+    public Map<String, Object> integrationStatus() {
+        Long tenantId = authContext.tenantId();
+        return ApiResult.ok(temuAgentService.integrationStatus(tenantId));
+    }
+
+    /**
+     * Temu 会话诊断：用于排查“需要商家后台登录/刷新数据跳登录”等问题。
+     * 返回 tenant 维度的 session 快照 + 最近登录/探测 agent_task 记录。
+     */
+    @GetMapping("/session/debug")
+    public Map<String, Object> sessionDebug() {
+        Long tenantId = authContext.tenantId();
+        return ApiResult.ok(temuAgentService.sessionDebug(tenantId));
+    }
+
     @PostMapping("/login/open")
     public Map<String, Object> openLogin() {
         return ApiResult.ok(sessionService.openLoginWindow());
     }
 
+    @PostMapping("/frontend-login/open")
+    public Map<String, Object> openFrontendLogin(@RequestBody(required = false) Map<String, Object> body) {
+        String url = body == null || body.get("url") == null ? null : String.valueOf(body.get("url"));
+        return ApiResult.ok(sessionService.openFrontendLoginWindow(url));
+    }
+
     @PostMapping("/competitors/discover")
     public Map<String, Object> discoverCompetitors(@RequestBody(required = false) TemuCompetitorDiscoverRequest request) {
         return ApiResult.ok(competitorService.discoverCandidates(request));
+    }
+
+    @PostMapping("/sku-costs")
+    public Map<String, Object> upsertSkuCosts(@RequestBody TemuSkuCostUpsertRequest request) {
+        Long tenantId = authContext.tenantId();
+        skuCostService.upsertCosts(tenantId, request == null ? List.of() : request.items());
+        return ApiResult.ok(Map.of(
+                "updated", request == null || request.items() == null ? 0 : request.items().size(),
+                "tenant_id", tenantId
+        ));
     }
 
     @GetMapping("/operational")

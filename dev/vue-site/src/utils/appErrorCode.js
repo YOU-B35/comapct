@@ -8,19 +8,22 @@ export const APP_ERROR_MESSAGES = {
   UNKNOWN: '操作失败，请稍后重试',
 
   CRAWL_IN_PROGRESS: '已有爬取任务进行中，请稍后再试',
-  CRAWL_NOT_LOGGED_IN: 'Temu 卖家后台未登录，请先在页面点击「打开登录窗口」完成登录',
-  CRAWL_AE_NOT_LOGGED_IN: 'AliExpress 卖家后台未登录，请先运行 login_aliexpress.py',
-  CRAWL_MALL_NOT_SELECTED: '卖家后台未选择店铺，请联系管理员',
+  CRAWL_NOT_LOGGED_IN: 'Temu 卖家后台未登录，请联系运维在肉机完成登录；数据由定时任务自动同步',
+  CRAWL_AE_NOT_LOGGED_IN: 'AliExpress 卖家后台未登录，请联系运维处理',
+  CRAWL_MALL_NOT_SELECTED: '卖家后台未选择店铺，请联系运维在肉机选店后等待定时同步',
   CRAWL_SCRIPT_MISSING: '爬虫环境未配置，请联系管理员',
-  CRAWL_TIMEOUT: '数据同步超时，请稍后重试',
+  CRAWL_TIMEOUT: '数据同步超时，请稍后查看侧栏同步状态或等待下次定时同步',
   CRAWL_PYTHON_ENV: '爬虫运行环境异常，请检查 Python 与依赖',
-  CRAWL_PROCESS_FAILED: '数据同步失败，请稍后重试',
+  CRAWL_PROCESS_FAILED: '数据同步失败，请稍后查看同步状态或联系运维',
   CRAWL_SEED_DISABLED: '当前环境不允许演示数据同步',
   CRAWL_JOB_NOT_FOUND: '同步任务不存在',
-  CRAWL_INTERRUPTED: '同步任务已中断，请重新刷新',
-  CRAWL_COOLDOWN: '同步冷却中，请稍后再试或使用侧栏「重新同步」强制刷新',
+  CRAWL_INTERRUPTED: '同步任务已中断，请等待下次定时同步或联系运维',
+  CRAWL_COOLDOWN: '同步冷却中，请稍后再查看；日常数据由运维机定时同步',
+  TEMU_AGENT_OFFLINE: '运维同步节点未在线，请联系运维启动 CrossHub-Sync-Helper.exe',
+  TEMU_REGION_NO_PERMISSION: 'Temu 页面提示「该区暂无权限」：请留在全球商家中心，打开侧栏「销售管理」（全托管），不要进美区/欧区',
 
   COMPETITOR_LOGIN_REQUIRED: 'Temu 前台需要登录或验证，已打开登录窗口，请完成后关闭窗口再重试',
+  COMPETITOR_FRONTEND_LOGIN_REQUIRED: 'Temu 前台需要登录或验证，已打开登录窗口，请完成后关闭窗口再重试',
   COMPETITOR_STORE_UNAVAILABLE: '该竞店在当前地区或账号下不可访问，请更换可访问的店铺链接',
   COMPETITOR_NO_PRODUCTS: '未识别到竞店商品，请确认填写的是店铺页或商品列表页',
   COMPETITOR_DISCOVERY_NO_RESULTS: '南非站未找到渔具候选，可稍后重试或手动输入链接',
@@ -78,7 +81,7 @@ export const APP_ERROR_MESSAGES = {
   MEMBER_SHOP_PLATFORM_MISMATCH: '所选店铺与平台不匹配',
   MEMBER_SHOP_PLATFORM_UNKNOWN: '无法识别店铺所属平台',
 
-  AMAZON_AGENT_OFFLINE: 'Amazon 同步助手未运行，请到「设置 → Amazon 同步助手」下载并启动',
+  AMAZON_AGENT_OFFLINE: '本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe',
   AMAZON_ZINIAO_OFFLINE: '紫鸟 WebDriver 未就绪，请确认开发者模式已启动',
   AMAZON_SYNC_IN_PROGRESS: '已有 Amazon 同步任务进行中，请稍后再试',
   AMAZON_SYNC_JOB_NOT_FOUND: 'Amazon 同步任务不存在',
@@ -92,23 +95,34 @@ export const APP_ERROR_MESSAGES = {
 }
 
 const CRAWL_ERROR_UI = {
-  CRAWL_NOT_LOGGED_IN: {
-    title: '需要完成 Temu 卖家后台登录',
-    summary: '同步数据前，需在本机浏览器登录 Temu 卖家后台并选择店铺。系统可自动打开登录窗口，无需安装或运行任何命令。',
+  CRAWL_COOLDOWN: {
+    title: '同步冷却中',
+    summary: '请稍后再查看侧栏同步状态。日常数据由运维机定时自动同步，网页不提供手动强制刷新。',
+    steps: [],
+  },
+  TEMU_AGENT_OFFLINE: {
+    title: '运维同步节点离线',
+    summary: '未检测到当前企业的运维机同步心跳。登录与爬取只在运维肉机执行，运营网页不提供助手下载。',
     steps: [
-      '点击「打开登录窗口」，等待 CrossHub 弹出专用浏览器（不是普通 Chrome）。',
-      '在该窗口中用手机号登录 Temu 卖家后台，并在左上角选择店铺。',
-      '回到本页点击「我已完成登录」，确认状态变为已就绪。',
-      '再点击「刷新数据」，系统会自动继续同步，请勿手动关闭登录窗口。',
+      '联系运维确认已启动 CrossHub-Sync-Helper.exe（运维机常驻）。',
+      '等待服务端定时同步完成后刷新本页查看数据。',
+    ],
+  },
+  CRAWL_NOT_LOGGED_IN: {
+    title: 'Temu 卖家后台未登录',
+    summary: '运维肉机上的 Temu 会话未就绪，无法完成同步。运营成员无需在网页操作登录或同步。',
+    steps: [
+      '联系运维在肉机完成 Temu 卖家后台登录并选择店铺。',
+      '确认运维机 CrossHub-Sync-Helper.exe 常驻在线。',
+      '等待每天定时同步完成后刷新本页查看数据。',
     ],
   },
   CRAWL_MALL_NOT_SELECTED: {
     title: '请在卖家后台选择店铺',
-    summary: '已登录 Temu，但尚未选定要同步的店铺。',
+    summary: '运维肉机已登录 Temu，但尚未选定要同步的店铺。',
     steps: [
-      '点击「打开登录窗口」重新进入卖家后台。',
-      '在左上角店铺下拉框中选择正确店铺。',
-      '关闭浏览器后，回到本页点击「刷新数据」。',
+      '联系运维在肉机浏览器左上角选择正确店铺。',
+      '等待定时同步完成后刷新本页。',
     ],
   },
   CRAWL_PYTHON_ENV: {
@@ -123,32 +137,42 @@ const CRAWL_ERROR_UI = {
   },
   CRAWL_TIMEOUT: {
     title: '数据同步超时',
-    summary: '同步耗时过长已自动停止，请稍后重试。',
+    summary: '同步耗时过长已自动停止，请等待下次定时同步或联系运维。',
     steps: [],
   },
   CRAWL_IN_PROGRESS: {
     title: '同步进行中',
-    summary: '已有爬取任务正在执行，请稍后再试。',
+    summary: '已有爬取任务正在执行，请稍后再查看本页数据。',
     steps: [],
   },
   CRAWL_INTERRUPTED: {
     title: '同步任务已中断',
-    summary: '上次同步未完成，请重新点击「刷新数据」。',
+    summary: '上次同步未完成，请等待下次定时同步或联系运维。',
     steps: [],
   },
   CRAWL_PROCESS_FAILED: {
     title: '数据同步失败',
-    summary: '请稍后重试；若持续失败，请联系管理员检查 Temu 登录与网络配置。',
+    summary: '请稍后查看同步状态；若持续失败，请联系运维检查 Temu 登录与网络配置。',
     steps: [],
   },
   COMPETITOR_LOGIN_REQUIRED: {
     title: '需要完成 Temu 前台登录或验证',
-    summary: '系统已打开一个普通 Chrome 登录窗口。请在该窗口完成 Temu/Google 登录或验证，回到 Temu 页面后关闭这个 Chrome 窗口，再点击「执行今日爬取分析」。登录态会保存在当前租户 profile 中，后续无需重复登录；失效时才会再次唤起。',
+    summary: '系统已打开普通 Chrome（非 Playwright）登录窗口。请在该窗口完成 Temu/Google 登录或验证，确认回到 www.temu.com 后关闭该 Chrome，再点击「发现渔具 Top10」。卖家后台登录不能代替买家前台登录。',
     steps: [
-      '在弹出的 Chrome 窗口完成登录或验证。',
-      '确认页面不再是 about:blank、login.html 或验证页。',
-      '关闭弹出的 Chrome 窗口，释放爬虫 profile。',
-      '回到本页面再次点击「执行今日爬取分析」。',
+      '在弹出的普通 Chrome 窗口完成买家前台登录或验证。',
+      '确认页面不再是 about:blank、login.html 空白页或验证页。',
+      '完全关闭该 Chrome 窗口，释放租户 profile。',
+      '回到本页再次点击「发现渔具 Top10」。',
+    ],
+  },
+  COMPETITOR_FRONTEND_LOGIN_REQUIRED: {
+    title: '需要完成 Temu 前台登录或验证',
+    summary: '系统已打开普通 Chrome（非 Playwright）登录窗口。请在该窗口完成 Temu/Google 登录或验证，确认回到 www.temu.com 后关闭该 Chrome，再点击「发现渔具 Top10」。卖家后台登录不能代替买家前台登录。',
+    steps: [
+      '在弹出的普通 Chrome 窗口完成买家前台登录或验证。',
+      '确认页面不再是 about:blank、login.html 空白页或验证页。',
+      '完全关闭该 Chrome 窗口，释放租户 profile。',
+      '回到本页再次点击「发现渔具 Top10」。',
     ],
   },
   COMPETITOR_STORE_UNAVAILABLE: {

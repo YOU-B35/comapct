@@ -17,6 +17,7 @@ public enum AppErrorCode {
     CRAWL_NOT_LOGGED_IN("CRAWL_NOT_LOGGED_IN", "Temu 卖家后台未登录，请先在本机完成登录"),
     CRAWL_AE_NOT_LOGGED_IN("CRAWL_AE_NOT_LOGGED_IN", "AliExpress 卖家后台未登录，请先运行 login_aliexpress.py"),
     CRAWL_MALL_NOT_SELECTED("CRAWL_MALL_NOT_SELECTED", "Temu 卖家后台未选择店铺，请登录后选择店铺"),
+    TEMU_PRODUCT_MAPPING_ERROR("TEMU_PRODUCT_MAPPING_ERROR", "Temu 货品映射异常：请在卖家后台「商品管理」补全 SKU 货号，并在「销售管理」页确认当前店铺后重试"),
     CRAWL_SCRIPT_MISSING("CRAWL_SCRIPT_MISSING", "爬虫环境未配置，请联系管理员"),
     CRAWL_TIMEOUT("CRAWL_TIMEOUT", "数据同步超时，请稍后重试"),
     CRAWL_PYTHON_ENV("CRAWL_PYTHON_ENV", "爬虫运行环境异常，请检查 Python 与依赖"),
@@ -68,7 +69,8 @@ public enum AppErrorCode {
     MEMBER_SHOP_PLATFORM_MISMATCH("MEMBER_SHOP_PLATFORM_MISMATCH", "所选店铺与平台不匹配"),
     MEMBER_SHOP_PLATFORM_UNKNOWN("MEMBER_SHOP_PLATFORM_UNKNOWN", "无法识别店铺所属平台"),
 
-    AMAZON_AGENT_OFFLINE("AMAZON_AGENT_OFFLINE", "Amazon 同步助手未运行，请到「设置 → Amazon 同步助手」下载并启动"),
+    AMAZON_AGENT_OFFLINE("AMAZON_AGENT_OFFLINE", "本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe"),
+    TEMU_AGENT_OFFLINE("TEMU_AGENT_OFFLINE", "本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe"),
     AMAZON_ZINIAO_OFFLINE("AMAZON_ZINIAO_OFFLINE", "紫鸟 WebDriver 未就绪，请确认开发者模式已启动"),
     AMAZON_SYNC_IN_PROGRESS("AMAZON_SYNC_IN_PROGRESS", "已有 Amazon 同步任务进行中，请稍后再试"),
     AMAZON_SYNC_JOB_NOT_FOUND("AMAZON_SYNC_JOB_NOT_FOUND", "Amazon 同步任务不存在"),
@@ -83,7 +85,23 @@ public enum AppErrorCode {
 
     MONITOR_TARGET_NOT_FOUND("MONITOR_TARGET_NOT_FOUND", "竞店监控目标不存在"),
     MONITOR_JOB_NOT_FOUND("MONITOR_JOB_NOT_FOUND", "竞店监控任务不存在"),
-    MONITOR_JOB_IN_PROGRESS("MONITOR_JOB_IN_PROGRESS", "该竞店已有监控任务进行中");
+    MONITOR_JOB_IN_PROGRESS("MONITOR_JOB_IN_PROGRESS", "该竞店已有监控任务进行中"),
+
+    COMPETITOR_LOGIN_REQUIRED(
+            "COMPETITOR_LOGIN_REQUIRED",
+            "Temu 前台需要登录或验证，已打开普通 Chrome 登录窗口，请完成后关闭窗口再重试发现"
+    ),
+    COMPETITOR_FRONTEND_LOGIN_REQUIRED(
+            "COMPETITOR_FRONTEND_LOGIN_REQUIRED",
+            "Temu 前台需要登录或验证，已打开普通 Chrome 登录窗口，请完成后关闭窗口再重试发现"
+    ),
+    COMPETITOR_STORE_UNAVAILABLE("COMPETITOR_STORE_UNAVAILABLE", "该竞店在当前地区或账号下不可访问"),
+    COMPETITOR_NO_PRODUCTS("COMPETITOR_NO_PRODUCTS", "未识别到竞店商品"),
+    COMPETITOR_DISCOVERY_NO_RESULTS("COMPETITOR_DISCOVERY_NO_RESULTS", "南非站未找到渔具候选"),
+    COMPETITOR_CRAWL_TIMEOUT("COMPETITOR_CRAWL_TIMEOUT", "竞店爬取超时"),
+    COMPETITOR_BROWSER_PROFILE_UNAVAILABLE("COMPETITOR_BROWSER_PROFILE_UNAVAILABLE", "Temu 前台浏览器配置无法打开"),
+    COMPETITOR_CRAWL_FAILED("COMPETITOR_CRAWL_FAILED", "竞店爬取失败"),
+    COMPETITOR_NAVIGATION_TIMEOUT("COMPETITOR_NAVIGATION_TIMEOUT", "打开 Temu 前台搜索页超时");
 
     private static final Map<String, AppErrorCode> BY_CODE = new HashMap<>();
     private static final Map<String, AppErrorCode> BY_REASON = new HashMap<>();
@@ -158,7 +176,11 @@ public enum AppErrorCode {
         if (code == null || code.isBlank()) {
             return UNKNOWN;
         }
-        return BY_CODE.getOrDefault(code.trim(), UNKNOWN);
+        AppErrorCode resolved = BY_CODE.getOrDefault(code.trim(), UNKNOWN);
+        if (resolved == COMPETITOR_FRONTEND_LOGIN_REQUIRED) {
+            return COMPETITOR_LOGIN_REQUIRED;
+        }
+        return resolved;
     }
 
     public static AppErrorCode fromReason(String reason) {
@@ -169,6 +191,25 @@ public enum AppErrorCode {
         AppErrorCode exact = BY_REASON.get(trimmed);
         if (exact != null) {
             return exact;
+        }
+        // Agent / Python often returns "ERROR_CODE: detail"
+        int colon = trimmed.indexOf(':');
+        if (colon > 0) {
+            String codePrefix = trimmed.substring(0, colon).trim();
+            AppErrorCode byPrefix = BY_CODE.get(codePrefix);
+            if (byPrefix != null) {
+                if (byPrefix == COMPETITOR_FRONTEND_LOGIN_REQUIRED) {
+                    return COMPETITOR_LOGIN_REQUIRED;
+                }
+                return byPrefix;
+            }
+        }
+        AppErrorCode byCode = BY_CODE.get(trimmed);
+        if (byCode != null) {
+            if (byCode == COMPETITOR_FRONTEND_LOGIN_REQUIRED) {
+                return COMPETITOR_LOGIN_REQUIRED;
+            }
+            return byCode;
         }
         if (trimmed.contains("已存在名为") || trimmed.contains("已存在同名店铺")) {
             return ACCOUNT_NAME_CONFLICT;
@@ -208,14 +249,30 @@ public enum AppErrorCode {
         if (text.contains("SQLITE_BUSY") || text.contains("database is locked")) {
             return CRAWL_DB_BUSY;
         }
+        if (text.startsWith("COMPETITOR_") || text.contains("COMPETITOR_LOGIN_REQUIRED")
+                || text.contains("COMPETITOR_FRONTEND_LOGIN_REQUIRED")) {
+            AppErrorCode competitor = fromReason(text);
+            if (competitor != UNKNOWN) {
+                return competitor;
+            }
+        }
         if (AE_LOGIN_PATTERN.matcher(text).find()) {
             return CRAWL_AE_NOT_LOGGED_IN;
         }
         if (LOGIN_PATTERN.matcher(text).find()) {
             return CRAWL_NOT_LOGGED_IN;
         }
+        if (text.contains("Target page, context or browser has been closed")
+                || text.contains("browser has been closed")
+                || text.contains("Browser closed")
+                || text.contains("登录窗口仍在使用")) {
+            return CRAWL_NOT_LOGGED_IN;
+        }
         if (MALL_PATTERN.matcher(text).find()) {
             return CRAWL_MALL_NOT_SELECTED;
+        }
+        if (text.contains("映射关系") || text.contains("2000000") || text.contains("TEMU_PRODUCT_MAPPING")) {
+            return TEMU_PRODUCT_MAPPING_ERROR;
         }
         if (PYTHON_ENV_PATTERN.matcher(text).find()) {
             return CRAWL_PYTHON_ENV;

@@ -13,4 +13,8 @@ public interface TemuCrawlJobRepository extends JpaRepository<TemuCrawlJob, Stri
     );
 
     Optional<TemuCrawlJob> findByIdAndTenantId(String id, Long tenantId);
+
+    Optional<TemuCrawlJob> findFirstByAgentTaskId(String agentTaskId);
+
+    Optional<TemuCrawlJob> findFirstByTenantIdOrderByCreatedAtDesc(Long tenantId);
 }

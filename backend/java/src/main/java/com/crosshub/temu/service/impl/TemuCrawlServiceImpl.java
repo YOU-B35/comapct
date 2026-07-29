@@ -6,6 +6,7 @@ import com.crosshub.platform.service.PlatformAccountService;
 import com.crosshub.temu.service.TemuCrawlService;
 import com.crosshub.common.TenantCrawlCooldownService;
 import com.crosshub.temu.service.TemuCrawlAuthService;
+import com.crosshub.temu.service.TemuAgentService;
 import com.crosshub.temu.service.TemuSessionService;
 import com.crosshub.temu.service.CrawlConflictException;
 
@@ -26,8 +27,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +34,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -63,6 +63,7 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
     private final PlatformAccountService platformAccountService;
     private final TemuSessionService temuSessionService;
     private final TenantCrawlCooldownService crawlCooldownService;
+    private final TemuAgentService temuAgentService;
 
     public TemuCrawlServiceImpl(
             TemuCrawlJobRepository jobRepository,
@@ -75,7 +76,8 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
             @Qualifier("crawlExecutor") Executor crawlExecutor,
             PlatformAccountService platformAccountService,
             TemuSessionService temuSessionService,
-            TenantCrawlCooldownService crawlCooldownService
+            TenantCrawlCooldownService crawlCooldownService,
+            TemuAgentService temuAgentService
     ) {
         this.jobRepository = jobRepository;
         this.crawlAuthService = crawlAuthService;
@@ -88,6 +90,7 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         this.platformAccountService = platformAccountService;
         this.temuSessionService = temuSessionService;
         this.crawlCooldownService = crawlCooldownService;
+        this.temuAgentService = temuAgentService;
     }
 
     @Transactional
@@ -114,6 +117,8 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         }
 
         assertProfileAvailable(tenantId);
+        temuAgentService.assertAgentOnline(tenantId);
+        assertSessionReady();
 
         Optional<TemuCrawlJob> active = jobRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(
                 tenantId, ACTIVE_STATUSES
@@ -137,7 +142,11 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         crawlCooldownService.registerJobRecordPolicy(job.getId(), recordCooldown);
 
         String jobId = job.getId();
-        scheduleAfterCommit(() -> crawlJobExecutor.execute(() -> executeJob(jobId)));
+        if (temuAgentService.useAgentMode()) {
+            temuAgentService.enqueueCrawlJob(job);
+        } else {
+            scheduleAfterCommit(() -> crawlJobExecutor.execute(() -> executeJob(jobId)));
+        }
         return job;
     }
 
@@ -211,6 +220,9 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.directory(scriptDir.toFile());
         builder.environment().put("TENANT_ID", String.valueOf(job.getTenantId()));
+        // Windows 控制台默认 GBK；强制 Python 用 UTF-8，便于错误分类（未登录等）
+        builder.environment().put("PYTHONIOENCODING", "utf-8");
+        builder.environment().put("PYTHONUTF8", "1");
         builder.redirectErrorStream(false);
 
         long started = System.currentTimeMillis();
@@ -305,6 +317,32 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         } catch (Exception ex) {
             log.debug("Temu session pre-check skipped: {}", ex.getMessage());
         }
+    }
+
+    private void assertSessionReady() {
+        try {
+            Map<String, Object> session = temuSessionService.getSessionStatus();
+            if (Boolean.TRUE.equals(session.get("ready"))) {
+                return;
+            }
+            String hint = stringValue(session.get("error_hint"));
+            AppErrorCode code = AppErrorCode.fromCode(hint);
+            if (code == AppErrorCode.UNKNOWN) {
+                boolean loggedIn = Boolean.TRUE.equals(session.get("logged_in"));
+                code = loggedIn
+                        ? AppErrorCode.CRAWL_MALL_NOT_SELECTED
+                        : AppErrorCode.CRAWL_NOT_LOGGED_IN;
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, code.getUserMessage());
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.debug("Temu session ready pre-check skipped: {}", ex.getMessage());
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private TemuCrawlJob reconcileStaleJob(TemuCrawlJob job) {
@@ -421,17 +459,15 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
     }
 
     private String readStream(java.io.InputStream stream) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!sb.isEmpty()) {
-                    sb.append(System.lineSeparator());
-                }
-                sb.append(line);
-            }
-            return sb.toString();
+        byte[] bytes = stream.readAllBytes();
+        if (bytes.length == 0) {
+            return "";
         }
+        String utf8 = new String(bytes, StandardCharsets.UTF_8);
+        if (!utf8.contains("\uFFFD")) {
+            return utf8;
+        }
+        return new String(bytes, java.nio.charset.Charset.forName("GBK"));
     }
 
     private String trimMessage(String message) {

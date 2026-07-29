@@ -86,6 +86,13 @@ def read_session_cache(tenant_id: int, *, max_age_seconds: int = 300) -> dict[st
     return cached
 
 
+def clear_session_cache(tenant_id: int) -> None:
+    try:
+        _cache_path(tenant_id).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False

@@ -19,7 +19,6 @@ export const SYS_MENU_SNAPSHOT = [
   { code: 'boss.employees', parent_code: 'boss.settings', portal: 'boss', platform: null, path: '/boss/employees', label: '运营绑定', menu_type: 'admin', sort_order: 121 },
   { code: 'boss.warehouse_sites', parent_code: 'boss.settings', portal: 'boss', platform: null, path: '/boss/warehouse-sites', label: '仓库设置', menu_type: 'admin', sort_order: 122 },
   { code: 'boss.warehouse_staff', parent_code: 'boss.settings', portal: 'boss', platform: null, path: '/boss/warehouse-staff', label: '仓库人员', menu_type: 'admin', sort_order: 123 },
-  { code: 'boss.agent_nodes', parent_code: 'boss.settings', portal: 'boss', platform: null, path: '/boss/agent-nodes', label: 'Amazon 同步助手', menu_type: 'admin', sort_order: 124 },
   { code: 'boss.accounts', parent_code: 'boss.settings', portal: 'boss', platform: null, path: '/boss/accounts', label: '账户绑定', menu_type: 'admin', sort_order: 125 },
   { code: 'boss.features', parent_code: 'boss.settings', portal: 'boss', platform: null, path: '/boss/features', label: '功能开关', menu_type: 'admin', sort_order: 126 },
 

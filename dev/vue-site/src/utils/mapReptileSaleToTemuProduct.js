@@ -1,4 +1,8 @@
 /** 分 → 元 */
+import {
+  estimateDaysWithoutSaleFromRow,
+} from '@/utils/temuSlowAlgo'
+
 export function centsToYuan(value) {
   const n = Number(value)
   if (Number.isNaN(n)) return 0
@@ -10,28 +14,19 @@ export function statusToListing(status) {
   return String(status) === '400' ? 'offline' : 'online'
 }
 
-/** 由 7 日总销量估算每日序列（Commander 仅存总量） */
+/**
+ * Temu 入库的 son_sales_seven_days 是「近 7 日总销量」。
+ * 拆成 7 天序列时必须保证 sum === total7（不可 Math.round(total/7) 再 ×7，否则小销量被抹成 0）。
+ */
 export function salesLast7DaysFromRow(row) {
-  const total7 = Number(row.son_sales_seven_days ?? row.sonSalesSevenDays ?? 0)
-  const daily = Math.round(total7 / 7)
-  return Array.from({ length: 7 }, () => daily)
+  const total7 = Math.max(0, Math.floor(Number(row.son_sales_seven_days ?? row.sonSalesSevenDays ?? 0) || 0))
+  const base = Math.floor(total7 / 7)
+  const rem = total7 - base * 7
+  return Array.from({ length: 7 }, (_, i) => base + (i < rem ? 1 : 0))
 }
 
-/** 无 Commander 滞销明细时，用 join_site_time 与销量粗估 */
-export function estimateDaysWithoutSale(row) {
-  const s30 = Number(row.son_sales_thirty_days ?? row.sonSalesThirtyDays ?? 0)
-  const s7 = Number(row.son_sales_seven_days ?? row.sonSalesSevenDays ?? 0)
-  const today = Number(row.son_today_sales ?? row.sonTodaySales ?? 0)
-  const joinDays = Number(row.join_site_time ?? row.joinSiteTime ?? 0)
-
-  if (s30 === 0 && today === 0) {
-    if (joinDays >= 45) return 45
-    if (joinDays >= 30) return 30
-    if (joinDays >= 15) return 15
-    return joinDays || 15
-  }
-  if (today === 0 && s7 === 0) return 15
-  return 0
+export function sales7TotalFromRow(row) {
+  return Math.max(0, Math.floor(Number(row.son_sales_seven_days ?? row.sonSalesSevenDays ?? 0) || 0))
 }
 
 /**
@@ -43,6 +38,11 @@ export function mapReptileSaleToTemuProduct(row, overrides = {}) {
   const sku = String(row.ext_code ?? row.extCode ?? row.son_ext_code ?? '').trim()
   const sellingPrice = centsToYuan(row.son_price ?? row.sonPrice)
   const costPrice = centsToYuan(row.cost ?? 0)
+  const sales7Total = sales7TotalFromRow(row)
+  const localStockRaw = row.local_stock ?? row.localStock
+  const localStock = localStockRaw == null || localStockRaw === ''
+    ? null
+    : Math.max(0, Math.floor(Number(localStockRaw) || 0))
 
   return {
     sku,
@@ -53,9 +53,11 @@ export function mapReptileSaleToTemuProduct(row, overrides = {}) {
     platformFeeRate: 0.15,
     logisticsFee: 0,
     officialStock: Number(row.warehouse_available_stock ?? row.warehouseAvailableStock ?? 0),
-    localStock: 0,
-    daysWithoutSale: estimateDaysWithoutSale(row),
+    localStock,
+    daysWithoutSale: estimateDaysWithoutSaleFromRow(row),
     dailySales: Number(row.son_today_sales ?? row.sonTodaySales ?? 0),
+    sales7Total,
+    sales30Total: Math.max(0, Math.floor(Number(row.son_sales_thirty_days ?? row.sonSalesThirtyDays ?? 0) || 0)),
     salesLast7Days: salesLast7DaysFromRow(row),
     category: String(row.category_name ?? row.categoryName ?? ''),
     owner: String(row.nickname ?? row.username ?? overrides.owner ?? ''),
@@ -64,6 +66,7 @@ export function mapReptileSaleToTemuProduct(row, overrides = {}) {
     skcId: String(row.skc ?? ''),
     skuId: String(row.son_sku ?? row.sonSku ?? ''),
     imgUrl: String(row.img_url ?? row.imgUrl ?? ''),
+    joinSiteTime: Math.max(0, Math.floor(Number(row.join_site_time ?? row.joinSiteTime ?? 0) || 0)),
     ...overrides,
   }
 }

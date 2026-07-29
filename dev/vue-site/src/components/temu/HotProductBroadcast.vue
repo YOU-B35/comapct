@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { formatPercent } from '@/utils/format'
 import { RESTOCK_CONFIG } from '@/constants/temu'
+import { formatSurgeDisplay } from '@/utils/temu'
 import {
   loadHotBroadcasts,
   markHotBroadcastRead,
@@ -34,8 +34,14 @@ watch(
 
 const hotProducts = computed(() =>
   [...props.products]
-    .filter((p) => p.dailySales > 0)
-    .sort((a, b) => b.surgeRatio - a.surgeRatio),
+    .filter((p) => Number(p.dailySales) > 0)
+    .sort((a, b) => {
+      const salesDiff = Number(b.dailySales) - Number(a.dailySales)
+      if (salesDiff !== 0) return salesDiff
+      const ra = a.surgeRatio == null ? -1 : Number(a.surgeRatio)
+      const rb = b.surgeRatio == null ? -1 : Number(b.surgeRatio)
+      return rb - ra
+    }),
 )
 
 const {
@@ -78,10 +84,15 @@ onMounted(async () => {
   }
 })
 
-function surgeTagType(ratio) {
-  if (ratio >= RESTOCK_CONFIG.hotSurgeRatio) return 'danger'
-  if (ratio >= 1.2) return 'warning'
+function surgeTagType(row) {
+  if (row.surgeIsNew || row.surgeRatio == null) return 'info'
+  if (row.surgeRatio >= RESTOCK_CONFIG.hotSurgeRatio) return 'danger'
+  if (row.surgeRatio >= 1.2) return 'warning'
   return 'info'
+}
+
+function surgeLabel(row) {
+  return formatSurgeDisplay(row)
 }
 
 function hasRead(item) {
@@ -171,17 +182,17 @@ async function markRead(item) {
             <el-table-column label="7 日均值" width="100" align="right">
               <template #default="{ row }">{{ row.avg7DayDaily }}</template>
             </el-table-column>
-            <el-table-column label="增幅" width="100" align="right" sortable prop="surgeRatio">
+            <el-table-column label="增幅" width="110" align="right">
               <template #default="{ row }">
-                <el-tag :type="surgeTagType(row.surgeRatio)" size="small">
-                  {{ formatPercent((row.surgeRatio - 1) * 100) }}
+                <el-tag :type="surgeTagType(row)" size="small">
+                  {{ surgeLabel(row) }}
                 </el-tag>
               </template>
             </el-table-column>
             <el-table-column label="判定" width="90">
               <template #default="{ row }">
                 <el-tag v-if="row.isHot" type="danger" effect="dark">爆款</el-tag>
-                <el-tag v-else type="info" effect="plain">正常</el-tag>
+                <el-tag v-else type="info" effect="plain">观察</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="110" fixed="right">
@@ -230,7 +241,7 @@ async function markRead(item) {
             >
               <strong>{{ item.name }}</strong>
               <el-text tag="p" size="small" type="info">
-                通报人 {{ item.operator || '系统' }} · 当日 {{ item.dailySales }} 件 · 7 日均 {{ item.avg7DayDaily }} · 增幅 {{ formatPercent((item.surgeRatio - 1) * 100) }}
+                通报人 {{ item.operator || '系统' }} · 当日 {{ item.dailySales }} 件 · 7 日均 {{ item.avg7DayDaily }} · 增幅 {{ formatSurgeDisplay(item) }}
               </el-text>
               <el-text v-if="item.readBy?.length" size="small" type="success">
                 已读：{{ item.readBy.join('、') }}

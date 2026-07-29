@@ -9,6 +9,7 @@ import com.crosshub.common.AppErrorCode;
 import com.crosshub.security.AgentContext;
 import com.crosshub.security.AuthContext;
 import com.crosshub.amazon.service.AmazonWriteService;
+import com.crosshub.temu.service.TemuAgentTasks;
 import com.crosshub.tenant.service.DataScopeService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +49,7 @@ public class AgentServiceImpl implements AgentService {
 
     private final AmazonSyncBridge amazonSyncBridge;
     private final AmazonWriteBridge amazonWriteBridge;
+    private final TemuBridge temuBridge;
     private final TransactionTemplate transactionTemplate;
 
     public AgentServiceImpl(
@@ -59,7 +61,8 @@ public class AgentServiceImpl implements AgentService {
             ObjectMapper objectMapper,
             TransactionTemplate transactionTemplate,
             @Autowired(required = false) @Lazy AmazonSyncBridge amazonSyncBridge,
-            @Autowired(required = false) @Lazy AmazonWriteBridge amazonWriteBridge
+            @Autowired(required = false) @Lazy AmazonWriteBridge amazonWriteBridge,
+            @Autowired(required = false) @Lazy TemuBridge temuBridge
     ) {
         this.agentRepository = agentRepository;
         this.taskRepository = taskRepository;
@@ -70,9 +73,15 @@ public class AgentServiceImpl implements AgentService {
         this.transactionTemplate = transactionTemplate;
         this.amazonSyncBridge = amazonSyncBridge;
         this.amazonWriteBridge = amazonWriteBridge;
+        this.temuBridge = temuBridge;
     }
 
     public interface AmazonSyncBridge {
+        void onAgentTaskStarted(AgentTask task);
+        void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
+    }
+
+    public interface TemuBridge {
         void onAgentTaskStarted(AgentTask task);
         void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
     }
@@ -183,6 +192,9 @@ public class AgentServiceImpl implements AgentService {
                         TASK_TYPE.equals(task.getTaskType())
                                 || AmazonWriteService.WRITE_TASK_TYPE.equals(task.getTaskType())
                 );
+        boolean temuBrowserBusy = taskRepository.findByTenantIdAndStatusOrderByCreatedAtAsc(tenantId, "running")
+                .stream()
+                .anyMatch(task -> TemuAgentTasks.BROWSER_BUSY_TYPES.contains(task.getTaskType()));
         List<Map<String, Object>> result = new ArrayList<>();
         for (AgentTask task : pending) {
             if (result.size() >= 5) {
@@ -190,6 +202,9 @@ public class AgentServiceImpl implements AgentService {
             }
             if ((TASK_TYPE.equals(task.getTaskType()) || AmazonWriteService.WRITE_TASK_TYPE.equals(task.getTaskType()))
                     && amazonBrowserBusy) {
+                continue;
+            }
+            if (TemuAgentTasks.BROWSER_BUSY_TYPES.contains(task.getTaskType()) && temuBrowserBusy) {
                 continue;
             }
             task.setStatus("running");
@@ -200,6 +215,9 @@ public class AgentServiceImpl implements AgentService {
             result.add(toTaskDto(task));
             if (TASK_TYPE.equals(task.getTaskType()) || AmazonWriteService.WRITE_TASK_TYPE.equals(task.getTaskType())) {
                 amazonBrowserBusy = true;
+            }
+            if (TemuAgentTasks.BROWSER_BUSY_TYPES.contains(task.getTaskType())) {
+                temuBrowserBusy = true;
             }
         }
         return result;
@@ -234,6 +252,9 @@ public class AgentServiceImpl implements AgentService {
         if (amazonWriteBridge != null) {
             amazonWriteBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
         }
+        if (temuBridge != null) {
+            temuBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
+        }
         return Map.of("task_id", task.getId(), "status", task.getStatus());
     }
 
@@ -244,6 +265,9 @@ public class AgentServiceImpl implements AgentService {
         }
         if (amazonWriteBridge != null) {
             amazonWriteBridge.onAgentTaskStarted(task);
+        }
+        if (temuBridge != null) {
+            temuBridge.onAgentTaskStarted(task);
         }
     }
 
@@ -295,6 +319,15 @@ public class AgentServiceImpl implements AgentService {
                         task.getErrorMessage()
                 );
             }
+            if (temuBridge != null) {
+                temuBridge.onAgentTaskCompleted(
+                        task,
+                        "failed",
+                        Map.of(),
+                        task.getErrorCode(),
+                        task.getErrorMessage()
+                );
+            }
         }
     }
 
@@ -306,7 +339,7 @@ public class AgentServiceImpl implements AgentService {
         if (base == null) {
             return true;
         }
-        long ttl = TASK_TYPE.equals(task.getTaskType())
+        long ttl = TASK_TYPE.equals(task.getTaskType()) || TemuAgentTasks.CRAWL.equals(task.getTaskType())
                 ? AGENT_TASK_RUNNING_TTL_SECONDS
                 : AGENT_TASK_DEFAULT_TTL_SECONDS;
         return base.plusSeconds(ttl).isBefore(LocalDateTime.now());

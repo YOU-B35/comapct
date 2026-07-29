@@ -1,10 +1,11 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { fetchAmazonIntegrationStatus } from '@/api/agentApi'
 import { probeLocalZiniao } from '@/utils/ziniaoProbe'
 import { probeLocalAgent } from '@/utils/agentProbe'
+import { resolveAgentPresence } from '@/utils/agentPresence'
+import AgentPresenceStatus from '@/components/agent/AgentPresenceStatus.vue'
 import {
   bindZiniaoStores,
   discoverZiniaoStoresWithPoll,
@@ -23,7 +24,6 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value),
 })
 
-const router = useRouter()
 const loadingStatus = ref(false)
 const discovering = ref(false)
 const binding = ref(false)
@@ -34,9 +34,13 @@ const candidates = ref([])
 const selectedIds = ref([])
 const tableRef = ref(null)
 
-const agentOnline = computed(
-  () => localAgentOnline.value || Boolean(integrationStatus.value.agent_online),
+const presence = computed(() =>
+  resolveAgentPresence({
+    tenantOnline: Boolean(integrationStatus.value.agent_online),
+    localProcessOnline: localAgentOnline.value,
+  }),
 )
+const agentOnline = computed(() => presence.value.tenantOnline)
 const ziniaoOnline = computed(() => localZiniaoOnline.value || Boolean(integrationStatus.value.ziniao_online))
 
 const selectableCandidates = computed(() =>
@@ -85,11 +89,6 @@ function syncTableSelection() {
 
 function onSelectionChange(rows) {
   selectedIds.value = (rows || []).map((row) => row.browserId)
-}
-
-function goAgentSetup() {
-  visible.value = false
-  router.push('/boss/agent-nodes')
 }
 
 async function runDiscover() {
@@ -159,21 +158,20 @@ watch(
         type="info"
         :closable="false"
         show-icon
-        title="需在本机启动 Amazon 同步助手"
-        description="请到「设置 → Amazon 同步助手」下载启动文件，双击运行后会自动启动紫鸟与同步助手，请保持窗口打开。"
+        title="需在运维机启动同步程序"
+        description="请联系运维确认已启动 CrossHub-Sync-Helper.exe（运维机常驻，不在网页下载）。已安装紫鸟时会一并拉起 WebDriver。"
       />
 
+      <AgentPresenceStatus
+        :tenant-online="Boolean(integrationStatus.agent_online)"
+        :local-process-online="localAgentOnline"
+        compact
+      />
       <div class="status-row">
-        <el-tag :type="agentOnline ? 'success' : 'danger'" effect="plain">
-          同步助手 {{ agentOnline ? '在线' : '离线' }}
-        </el-tag>
         <el-tag :type="ziniaoOnline ? 'success' : 'warning'" effect="plain">
           紫鸟 {{ ziniaoOnline ? '已就绪' : '未就绪' }}
         </el-tag>
         <el-button link type="primary" @click="loadStatus">刷新状态</el-button>
-        <el-button v-if="!agentOnline || !ziniaoOnline" link type="primary" @click="goAgentSetup">
-          去下载助手
-        </el-button>
       </div>
 
       <div class="actions-row">

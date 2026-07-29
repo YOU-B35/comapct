@@ -15,7 +15,7 @@ class AgentApiClient:
         self.token = (token or AGENT_TOKEN).strip()
         if not self.token:
             raise ValueError(
-                "同步助手尚未配置。请到 CrossHub「设置 → Agent 节点」下载并双击「Amazon 同步助手」启动文件。"
+                "同步助手尚未配置。请到 CrossHub 下载并双击「CrossHub-Sync-Helper.bat」启动文件（Temu/Amazon 共用）。"
             )
 
     def _headers(self) -> dict[str, str]:
@@ -44,6 +44,17 @@ class AgentApiClient:
             payload = resp.json()
             data = payload.get("data")
             return data if isinstance(data, list) else []
+
+    def ingest_temu(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/temu/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
 
     def complete_task(
         self,

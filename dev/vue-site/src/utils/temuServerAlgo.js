@@ -1,43 +1,8 @@
-import { SLOW_MOVING_THRESHOLDS } from '@/constants/temu'
 import { productKeyFromRow } from '@/utils/mapReptileSaleToTemuProduct'
+import { buildSlowMovingFromRow, isSlowCandidateRow } from '@/utils/temuSlowAlgo'
 
 function round1(n) {
   return Math.round(n * 10) / 10
-}
-
-export function isOnlineListingStatus(status) {
-  return String(status) === '300'
-}
-
-/** Commander 滞销：已上架且 30 日销量为 0 */
-export function isServerSlowMovingRow(row) {
-  const s30 = Number(row.son_sales_thirty_days ?? row.sonSalesThirtyDays ?? 0)
-  return isOnlineListingStatus(row.status) && s30 === 0
-}
-
-/** 用 join_site_time 映射 SaaS 15/30/45 日分级 */
-export function buildServerSlowMoving(row) {
-  const joinDays = Number(row.join_site_time ?? row.joinSiteTime ?? 0)
-  const s15 = Number(row.s15 ?? 0)
-  const s10 = Number(row.s10 ?? 0)
-
-  let tierIndex = 0
-  if (joinDays >= 45 || (s15 === 0 && s10 === 0 && joinDays >= 30)) {
-    tierIndex = 2
-  } else if (joinDays >= 30 || s15 === 0) {
-    tierIndex = 1
-  }
-
-  const tier = SLOW_MOVING_THRESHOLDS[tierIndex]
-  const daysWithoutSale = joinDays >= 45 ? joinDays : joinDays >= 30 ? joinDays : Math.max(joinDays, 15)
-
-  return {
-    ...tier,
-    daysWithoutSale,
-    severity: tierIndex + 1,
-    alertTitle: tierIndex === 2 ? '严重滞销' : tierIndex === 1 ? '滞销预警' : '动销放缓',
-    fromServer: true,
-  }
 }
 
 export function buildServerRestock(product, inv) {
@@ -76,7 +41,7 @@ export function buildServerRestock(product, inv) {
 }
 
 /**
- * 将 Commander 预警结果合并到已 enrich 的产品列表（以服务端算法为准）
+ * 将 Commander 预警结果合并到已 enrich 的产品列表
  */
 export function applyServerAlgorithms(products, { loseProducts = [], lowWarnings = [], inventoryWarnings = [], overloadProducts = [] } = {}) {
   const loseSet = new Set(loseProducts.map(productKeyFromRow).filter(Boolean))
@@ -85,7 +50,7 @@ export function applyServerAlgorithms(products, { loseProducts = [], lowWarnings
   const lowMap = new Map()
   for (const row of lowWarnings) {
     const key = productKeyFromRow(row)
-    if (key && isServerSlowMovingRow(row)) lowMap.set(key, row)
+    if (key && isSlowCandidateRow(row)) lowMap.set(key, row)
   }
 
   const invMap = new Map()
@@ -98,23 +63,24 @@ export function applyServerAlgorithms(products, { loseProducts = [], lowWarnings
     let next = { ...product }
 
     if (loseSet.size) {
-      next.isLoss = loseSet.has(product.sku)
+      next.isLoss = loseSet.has(product.sku) && Number(next.costPrice) > 0
     }
 
     const lowRow = lowMap.get(product.sku)
-    if (lowMap.size) {
-      next.slowMoving = lowRow ? buildServerSlowMoving(lowRow) : null
+    if (lowRow) {
+      const slow = buildSlowMovingFromRow(lowRow)
+      if (slow) {
+        next.slowMoving = slow
+        next.daysWithoutSale = slow.daysWithoutSale
+      }
     }
 
     const invRow = invMap.get(product.sku)
     if (invRow) {
       next.restock = buildServerRestock(product, invRow)
-    } else if (invMap.size) {
-      next.restock = { ...product.restock, urgency: 'normal', urgencyLabel: '正常', suggestedRestock: 0, fromServer: true }
     }
 
     if (overloadSet.has(product.sku)) {
-      next.isHot = true
       next.isOverload = true
     }
 

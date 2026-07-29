@@ -94,7 +94,12 @@ function tierTagType(row) {
         <el-table-column prop="officialStock" label="官方仓库存" width="110" align="right" />
         <el-table-column label="7 日总销量" width="110" align="right">
           <template #default="{ row }">
-            {{ row.salesLast7Days.reduce((s, n) => s + n, 0) }}
+            {{ Number.isFinite(Number(row.sales7Total)) ? row.sales7Total : (row.salesLast7Days || []).reduce((s, n) => s + n, 0) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="30 日总销量" width="110" align="right">
+          <template #default="{ row }">
+            {{ row.sales30Total ?? '—' }}
           </template>
         </el-table-column>
         <el-table-column label="处理建议" min-width="160">

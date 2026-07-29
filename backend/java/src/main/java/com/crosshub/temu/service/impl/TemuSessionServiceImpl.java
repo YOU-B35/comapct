@@ -1,153 +1,434 @@
 package com.crosshub.temu.service.impl;
 
+
+
 import com.crosshub.common.AppErrorCode;
+
 import com.crosshub.config.CrawlerProperties;
+
+import com.crosshub.temu.service.TemuAgentService;
+
 import com.crosshub.temu.service.TemuSessionService;
+
 import com.crosshub.tenant.service.DataScopeService;
+
 import com.fasterxml.jackson.databind.JsonNode;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.beans.factory.annotation.Qualifier;
+
 import org.springframework.http.HttpStatus;
+
 import org.springframework.stereotype.Service;
+
 import org.springframework.web.server.ResponseStatusException;
 
+
+
 import java.io.BufferedReader;
+
 import java.io.InputStreamReader;
+
 import java.nio.charset.StandardCharsets;
+
 import java.nio.file.Files;
+
 import java.nio.file.Path;
+
 import java.util.ArrayList;
+
+import java.util.LinkedHashMap;
+
 import java.util.List;
+
+import java.util.Map;
+
 import java.util.concurrent.CompletableFuture;
+
 import java.util.concurrent.Executor;
+
 import java.util.concurrent.TimeUnit;
+
 import java.util.concurrent.TimeoutException;
 
+
+
 @Service
+
 public class TemuSessionServiceImpl implements TemuSessionService {
+
     private final DataScopeService dataScopeService;
+
     private final CrawlerProperties crawlerProperties;
+
     private final ObjectMapper objectMapper;
+
     private final Executor crawlExecutor;
 
+    private final TemuAgentService temuAgentService;
+
+
+
     public TemuSessionServiceImpl(
+
             DataScopeService dataScopeService,
+
             CrawlerProperties crawlerProperties,
+
             ObjectMapper objectMapper,
-            @Qualifier("crawlExecutor") Executor crawlExecutor
+
+            @Qualifier("crawlExecutor") Executor crawlExecutor,
+
+            TemuAgentService temuAgentService
+
     ) {
+
         this.dataScopeService = dataScopeService;
+
         this.crawlerProperties = crawlerProperties;
+
         this.objectMapper = objectMapper;
+
         this.crawlExecutor = crawlExecutor;
+
+        this.temuAgentService = temuAgentService;
+
+    }
+
+
+
+    @Override
+
+    public Map<String, Object> getSessionStatus() {
+
+        Long tenantId = dataScopeService.requireTenantId();
+
+        if (temuAgentService.useAgentMode()) {
+
+            temuAgentService.maybeEnqueueSessionProbe(tenantId);
+
+            Map<String, Object> snapshot = temuAgentService.readSessionSnapshot(tenantId);
+
+            Map<String, Object> integration = temuAgentService.integrationStatus(tenantId);
+
+            Map<String, Object> out = new LinkedHashMap<>(snapshot);
+
+            out.put("mode", "agent");
+
+            out.put("agent_online", integration.get("agent_online"));
+
+            enrichSessionSemantics(out);
+
+            if (!Boolean.TRUE.equals(integration.get("agent_online"))) {
+
+                out.put("ready", false);
+
+                out.put("requires_agent", true);
+
+                out.put("message", AppErrorCode.TEMU_AGENT_OFFLINE.getUserMessage());
+
+                out.put("error_hint", "");
+
+            }
+
+            return out;
+
+        }
+
+
+
+        JsonNode json = runPythonJson(tenantId, "seller_session_status.py", List.of("--cache-only"));
+
+        if (json == null || !json.isObject()) {
+
+            return Map.of(
+
+                    "ready", false,
+
+                    "logged_in", false,
+
+                    "profile_busy", false,
+
+                    "mall_id", "",
+
+                    "mall_count", 0,
+
+                    "malls", List.of(),
+
+                    "message", "未检测到会话",
+
+                    "mode", "local"
+
+            );
+
+        }
+
+        Map<String, Object> payload = objectMapper.convertValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+
+        payload.put("mode", "local");
+
+        enrichSessionSemantics(payload);
+
+        return payload;
+
+    }
+
+
+
+    @Override
+
+    public Map<String, Object> openLoginWindow() {
+
+        Long tenantId = dataScopeService.requireTenantId();
+
+        if (temuAgentService.useAgentMode()) {
+
+            return temuAgentService.enqueueLoginOpen(tenantId);
+
+        }
+
+
+
+        JsonNode json = runPythonJson(tenantId, "seller_login.py", List.of("--open-only"));
+
+        if (json == null || !json.isObject()) {
+
+            return Map.of("opened", true, "tenant_id", tenantId, "mode", "local");
+
+        }
+
+        Map<String, Object> payload = objectMapper.convertValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+
+        payload.put("mode", "local");
+
+        return payload;
+
     }
 
     @Override
-    public java.util.Map<String, Object> getSessionStatus() {
+    public Map<String, Object> openFrontendLoginWindow(String url) {
         Long tenantId = dataScopeService.requireTenantId();
-        JsonNode json = runPythonJson(tenantId, "seller_session_status.py", List.of("--cache-only"));
+        if (temuAgentService.useAgentMode()) {
+            return temuAgentService.enqueueFrontendLoginOpen(tenantId, url);
+        }
+        List<String> args = new ArrayList<>();
+        args.add("--open-only");
+        args.add("--mode");
+        args.add("manual");
+        if (url != null && !url.isBlank()) {
+            args.add("--url");
+            args.add(url.trim());
+        }
+        JsonNode json = runPythonJson(tenantId, "frontend_login.py", args);
         if (json == null || !json.isObject()) {
-            return java.util.Map.of(
-                    "ready", false,
-                    "logged_in", false,
-                    "profile_busy", false,
-                    "mall_id", "",
-                    "mall_count", 0,
-                    "malls", java.util.List.of(),
-                    "message", "未检测到会话"
+            return Map.of(
+                    "opened", true,
+                    "tenant_id", tenantId,
+                    "mode", "local",
+                    "engine", "manual_chrome"
             );
         }
-        return objectMapper.convertValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+        Map<String, Object> payload = objectMapper.convertValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+        payload.put("mode", "local");
+        return payload;
     }
 
-    @Override
-    public java.util.Map<String, Object> openLoginWindow() {
-        Long tenantId = dataScopeService.requireTenantId();
-        JsonNode json = runPythonJson(tenantId, "seller_login.py", List.of("--open-only"));
-        if (json == null || !json.isObject()) {
-            return java.util.Map.of("opened", true, "tenant_id", tenantId);
+
+
+    private void enrichSessionSemantics(Map<String, Object> out) {
+        if (out == null || Boolean.TRUE.equals(out.get("ready"))) {
+            return;
         }
-        return objectMapper.convertValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+        boolean loggedIn = Boolean.TRUE.equals(out.get("logged_in"));
+        boolean requiresAuth = Boolean.TRUE.equals(out.get("requires_auth"));
+        String mallId = stringValue(out.get("mall_id"));
+        int mallCount = intValue(out.get("mall_count"));
+
+        if (loggedIn && mallId.isBlank() && mallCount <= 0) {
+            out.put("error_hint", AppErrorCode.CRAWL_MALL_NOT_SELECTED.getCode());
+            out.put("message", AppErrorCode.CRAWL_MALL_NOT_SELECTED.getUserMessage());
+            return;
+        }
+        if (requiresAuth || !loggedIn) {
+            out.put("error_hint", AppErrorCode.CRAWL_NOT_LOGGED_IN.getCode());
+            out.put("message", AppErrorCode.CRAWL_NOT_LOGGED_IN.getUserMessage());
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private int intValue(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value).split("\\.")[0]);
+        } catch (Exception ex) {
+            return 0;
+        }
     }
 
     private JsonNode runPythonJson(Long tenantId, String script, List<String> extraArgs) {
+
         Path scriptDir = Path.of(crawlerProperties.getScriptDir()).toAbsolutePath().normalize();
+
         if (!Files.isDirectory(scriptDir)) {
+
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, AppErrorCode.CRAWL_SCRIPT_MISSING.getUserMessage());
+
         }
+
         List<String> command = new ArrayList<>();
+
         command.add(crawlerProperties.getPythonExecutable());
+
         command.add(script);
+
         command.add("--tenant-id");
+
         command.add(String.valueOf(tenantId));
+
         command.add("--json");
+
         if (extraArgs != null) {
+
             command.addAll(extraArgs);
+
         }
+
+
 
         ProcessBuilder builder = new ProcessBuilder(command);
+
         builder.directory(scriptDir.toFile());
+
         builder.environment().put("TENANT_ID", String.valueOf(tenantId));
+
         builder.redirectErrorStream(false);
 
+
+
         try {
+
             Process process = builder.start();
+
             CompletableFuture<String> stdoutFuture = CompletableFuture.supplyAsync(
+
                     () -> safeReadStream(process.getInputStream()),
+
                     crawlExecutor
+
             );
+
             CompletableFuture<String> stderrFuture = CompletableFuture.supplyAsync(
+
                     () -> safeReadStream(process.getErrorStream()),
+
                     crawlExecutor
+
             );
+
+
 
             boolean finished = process.waitFor(Math.max(30, crawlerProperties.getTimeoutSeconds()), TimeUnit.SECONDS);
+
             if (!finished) {
+
                 process.destroyForcibly();
+
                 stdoutFuture.cancel(true);
+
                 stderrFuture.cancel(true);
+
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, AppErrorCode.CRAWL_TIMEOUT.getUserMessage());
+
             }
+
+
 
             String stdout = "";
+
             String stderr = "";
+
             try { stdout = stdoutFuture.get(2, TimeUnit.SECONDS); } catch (TimeoutException ignored) { stdoutFuture.cancel(true); }
+
             try { stderr = stderrFuture.get(2, TimeUnit.SECONDS); } catch (TimeoutException ignored) { stderrFuture.cancel(true); }
 
+
+
             if (process.exitValue() != 0) {
+
                 AppErrorCode code = AppErrorCode.classifyCrawlRaw(stderr + "\n" + stdout);
+
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, code.getUserMessage());
+
             }
+
+
 
             for (String line : stdout.split("\\R")) {
+
                 String trimmed = line.trim();
+
                 if (!trimmed.startsWith("{")) continue;
+
                 try {
+
                     return objectMapper.readTree(trimmed);
+
                 } catch (Exception ignored) {
+
                     // try next line
+
                 }
+
             }
+
             return null;
+
         } catch (ResponseStatusException ex) {
+
             throw ex;
+
         } catch (Exception ex) {
+
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, AppErrorCode.CRAWL_PROCESS_FAILED.getUserMessage());
+
         }
+
     }
 
+
+
     private String safeReadStream(java.io.InputStream stream) {
+
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+
             StringBuilder sb = new StringBuilder();
+
             String line;
+
             while ((line = reader.readLine()) != null) {
+
                 if (!sb.isEmpty()) sb.append(System.lineSeparator());
+
                 sb.append(line);
+
             }
+
             return sb.toString();
+
         } catch (Exception ex) {
+
             return "";
+
         }
+
     }
+
 }
+
 

@@ -42,7 +42,7 @@ const router = createRouter({
         { path: '1688', name: 'boss-1688', component: () => import('@/views/alibaba1688/Alibaba1688ModuleView.vue'), meta: { title: '1688 运营', menuCode: 'boss.platform.1688' } },
         { path: 'dtc', name: 'boss-dtc', component: () => import('@/views/dtc/DtcModuleView.vue'), meta: { title: '独立站运营', menuCode: 'boss.platform.dtc' } },
         { path: 'accounts', name: 'boss-accounts', component: () => import('@/views/boss/AccountBindingView.vue'), meta: { title: '账户绑定', menuCode: 'boss.accounts' } },
-        { path: 'agent-nodes', name: 'boss-agent-nodes', component: () => import('@/views/boss/AgentNodesView.vue'), meta: { title: 'Amazon 同步助手', menuCode: 'boss.agent_nodes' } },
+        { path: 'agent-nodes', name: 'boss-agent-nodes', component: () => import('@/views/boss/AgentNodesView.vue'), meta: { title: '本机同步助手', menuCode: 'boss.agent_nodes' } },
         { path: 'features', name: 'boss-features', component: () => import('@/views/boss/TenantFeaturesView.vue'), meta: { title: '功能开关', menuCode: 'boss.features' } },
         { path: 'warehouse-orders', name: 'boss-warehouse-orders', component: () => import('@/views/warehouse/WarehouseOrdersView.vue'), meta: { title: '仓库下单', menuCode: 'boss.warehouse' } },
       ],
