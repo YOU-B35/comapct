@@ -7,6 +7,7 @@ import java.util.Map;
 
 public interface AmazonSyncService {
     Map<String, Object> triggerSync(AmazonSyncRequest request);
+    Map<String, Object> triggerSyncForTenant(Long tenantId, AmazonSyncRequest request);
     AmazonSyncJob getJob(String jobId);
     void onAgentTaskStarted(String taskId);
     void onAgentTaskCompleted(String taskId, String status, Map<String, Object> result, String errorCode, String errorMessage);
@@ -19,4 +20,7 @@ public interface AmazonSyncService {
 
     /** 打开应用展示用：最近一次 Amazon 任务摘要 */
     Map<String, Object> buildSyncStatus(Long tenantId);
+
+    /** Helper 运维日志：列出租户最近 Amazon 同步任务 */
+    Map<String, Object> listRecentJobsForTenant(Long tenantId);
 }

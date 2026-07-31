@@ -33,6 +33,7 @@ export const APP_ERROR_MESSAGES = {
 
   MONITOR_NO_PRODUCTS: '未抓到竞店商品',
   MONITOR_INVALID_URL: '竞店链接无效',
+  MONITOR_TARGET_URL_INVALID: '请填写 Temu 店铺链接（含 mall_id），商品详情页无法作为竞店抓取',
   MONITOR_SOURCE_UNAVAILABLE: '缺少页面卡片证据',
   MONITOR_PARSER_CHANGED: '页面卡片解析规则已变化',
   MONITOR_AUTH_REQUIRED: '数据来源需要授权',
@@ -223,6 +224,14 @@ const CRAWL_ERROR_UI = {
     title: '竞店链接无效',
     summary: '请填写有效的 Temu 店铺链接，通常应为 temu.com 的 mall 页面或包含 mall_id 的店铺 URL。',
     steps: [],
+  },
+  MONITOR_TARGET_URL_INVALID: {
+    title: '竞店链接格式不正确',
+    summary: '请填写含 mall_id 的 Temu 店铺链接，或从「发现竞店」选入可用店铺；商品详情页无法作为竞店抓取。',
+    steps: [
+      '将链接改为 https://www.temu.com/mall.html?mall_id=... 形式。',
+      '或使用「发现渔具 Top10」从候选列表选入。',
+    ],
   },
   MONITOR_NO_PRODUCTS: {
     title: '未抓到竞店商品',

@@ -13,7 +13,7 @@ const props = defineProps({
 })
 
 const loading = ref(false)
-const opening = ref(false)
+const openingKey = ref('')
 const status = ref({})
 
 let pollAbort = null
@@ -23,12 +23,54 @@ const agentOnline = computed(() => Boolean(status.value.agent_online))
 const agentMode = computed(() => status.value.mode === 'agent')
 const openLoginDisabled = computed(() => agentMode.value && !agentOnline.value)
 
-const mallNames = computed(() =>
-  (status.value.malls || [])
-    .map((mall) => mall.mall_name || mall.mallName)
-    .filter(Boolean)
-    .join('、'),
-)
+const sellerRows = computed(() => {
+  const bindings = status.value.seller_sessions || []
+  const live = status.value.sessions || []
+  const liveByKey = new Map(
+    live.map((row) => [String(row.session_key || 'default'), row]),
+  )
+  if (bindings.length) {
+    return bindings.map((binding) => {
+      const key = String(binding.session_key || 'default')
+      const liveRow = liveByKey.get(key) || {}
+      return {
+        sessionKey: key,
+        account: binding.account || liveRow.account || key,
+        platformAccountId: binding.platform_account_id || liveRow.platform_account_id || '',
+        storeNames: binding.store_names || [],
+        ready: Boolean(liveRow.ready),
+        mallCount: Number(liveRow.mall_count || 0),
+        malls: liveRow.malls || [],
+        profileBusy: Boolean(liveRow.profile_busy),
+        message: liveRow.message || '',
+      }
+    })
+  }
+  if (live.length) {
+    return live.map((row) => ({
+      sessionKey: String(row.session_key || 'default'),
+      account: row.account || row.session_key || 'default',
+      platformAccountId: row.platform_account_id || '',
+      storeNames: row.store_names || [],
+      ready: Boolean(row.ready),
+      mallCount: Number(row.mall_count || 0),
+      malls: row.malls || [],
+      profileBusy: Boolean(row.profile_busy),
+      message: row.message || '',
+    }))
+  }
+  return [{
+    sessionKey: 'default',
+    account: '',
+    platformAccountId: '',
+    storeNames: [],
+    ready: sessionReady.value,
+    mallCount: Number(status.value.mall_count || 0),
+    malls: status.value.malls || [],
+    profileBusy: Boolean(status.value.profile_busy),
+    message: status.value.message || '',
+  }]
+})
 
 const sessionHint = computed(() => {
   if (openLoginDisabled.value) {
@@ -50,8 +92,20 @@ const sessionHint = computed(() => {
 
 const alertTitle = computed(() => {
   if (sessionHint.value?.title) return sessionHint.value.title
+  if (sellerRows.value.length > 1) {
+    return '同步前需为每个 Temu 卖家账号登录'
+  }
   return '同步前需登录 Temu 卖家后台'
 })
+
+function mallLabel(row) {
+  const names = (row.malls || [])
+    .map((mall) => mall.mall_name || mall.mallName)
+    .filter(Boolean)
+  if (names.length) return names.join('、')
+  if (row.mallCount > 0) return `${row.mallCount} 个店铺`
+  return ''
+}
 
 async function loadStatus({ notifyIfPending = false } = {}) {
   loading.value = true
@@ -61,7 +115,7 @@ async function loadStatus({ notifyIfPending = false } = {}) {
       const hint = status.value.error_hint
       const message =
         status.value.message ||
-        (hint ? getAppErrorMessage(hint) : '会话尚未就绪，请完成登录并选择店铺')
+        (hint ? getAppErrorMessage(hint) : '会话尚未就绪，请为每个卖家账号完成登录')
       ElMessage.warning(message)
     }
   } catch {
@@ -78,7 +132,6 @@ function stopGuidePoll() {
   }
 }
 
-/** TM-P3：引导可见时轻量轮询（2s→5s，最多 20 次），登录完成后自动收起 */
 async function startGuidePoll() {
   stopGuidePoll()
   if (sessionReady.value || (agentMode.value && !agentOnline.value)) return
@@ -96,22 +149,24 @@ async function startGuidePoll() {
       status.value = session
     }
   } catch {
-    // 超时 / 取消：保持引导可见，由用户手动点「我已完成登录」
+    // timeout / cancel
   }
 }
 
-async function handleOpenLogin() {
+async function handleOpenLogin(row) {
   if (openLoginDisabled.value) {
     ElMessage.warning(getAppErrorMessage('TEMU_AGENT_OFFLINE'))
     return
   }
-  if (status.value.profile_busy) {
-    ElMessage.warning('登录窗口已在运行，请在已弹出的 CrossHub 浏览器中完成登录')
+  if (row.profileBusy) {
+    ElMessage.warning('该卖家账号登录窗口已在运行，请在已弹出的 CrossHub 浏览器中完成登录')
     return
   }
-  opening.value = true
+  openingKey.value = row.sessionKey
   try {
-    const res = await openTemuSellerLogin()
+    const res = await openTemuSellerLogin({
+      platformAccountId: row.platformAccountId || undefined,
+    })
     if (res.already_open) {
       ElMessage.warning(res.message || '登录窗口已在运行')
     } else if (res.queued) {
@@ -124,7 +179,7 @@ async function handleOpenLogin() {
   } catch (err) {
     ElMessage.error(err.message || '打开登录窗口失败')
   } finally {
-    opening.value = false
+    openingKey.value = ''
   }
 }
 
@@ -173,23 +228,47 @@ defineExpose({ reload: loadStatus, sessionReady })
       </p>
       <template v-else>
         <p class="guide-lead">
-          登录在<strong>本机弹出的 CrossHub 浏览器</strong>中完成（不是普通 Chrome）。
+          每个 Temu 卖家账号需单独登录一次；同一账号下的多个店铺会在同步时自动切换。
+          登录在<strong>本机弹出的 CrossHub 浏览器</strong>中完成。
         </p>
-        <ol class="guide-steps">
+        <div v-if="sellerRows.length > 1" class="seller-session-list">
+          <div v-for="row in sellerRows" :key="row.sessionKey" class="seller-session-row">
+            <div class="seller-session-main">
+              <strong>{{ row.account || row.sessionKey }}</strong>
+              <span v-if="row.storeNames?.length" class="seller-stores">
+                绑定：{{ row.storeNames.join('、') }}
+              </span>
+              <el-tag size="small" :type="row.ready ? 'success' : 'warning'">
+                {{ row.ready ? '已登录' : '未登录' }}
+              </el-tag>
+              <span v-if="mallLabel(row)" class="seller-malls">店铺：{{ mallLabel(row) }}</span>
+            </div>
+            <el-button
+              size="small"
+              type="primary"
+              :loading="openingKey === row.sessionKey"
+              :disabled="openLoginDisabled"
+              @click="handleOpenLogin(row)"
+            >
+              打开登录
+            </el-button>
+          </div>
+        </div>
+        <ol v-else class="guide-steps">
           <li>确认运维机已运行 <strong>CrossHub-Sync-Helper.exe</strong></li>
           <li>点击 <strong>打开登录窗口</strong></li>
-          <li>在本机 CrossHub 浏览器中登录 Temu 卖家后台并选择店铺</li>
+          <li>在本机 CrossHub 浏览器中登录 Temu 卖家后台</li>
           <li>回到本页点击 <strong>我已完成登录</strong>，再点 <strong>刷新数据</strong></li>
         </ol>
       </template>
-      <p v-if="mallNames" class="guide-meta">已识别店铺：{{ mallNames }}</p>
       <div class="guide-actions">
         <el-button
+          v-if="sellerRows.length <= 1"
           size="small"
           type="primary"
-          :loading="opening"
+          :loading="openingKey === 'default'"
           :disabled="openLoginDisabled"
-          @click="handleOpenLogin"
+          @click="handleOpenLogin(sellerRows[0])"
         >
           打开登录窗口
         </el-button>
@@ -202,6 +281,9 @@ defineExpose({ reload: loadStatus, sessionReady })
           我已完成登录
         </el-button>
       </div>
+      <p v-if="status.ready_count != null && status.session_count > 1" class="guide-meta">
+        已就绪 {{ status.ready_count }}/{{ status.session_count }} 个卖家账号
+      </p>
     </template>
   </el-alert>
 </template>
@@ -227,6 +309,38 @@ defineExpose({ reload: loadStatus, sessionReady })
   margin: 8px 0 12px 18px;
   padding: 0;
   line-height: 1.7;
+}
+
+.seller-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+.seller-session-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.seller-session-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.seller-stores,
+.seller-malls {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 
 .guide-meta {

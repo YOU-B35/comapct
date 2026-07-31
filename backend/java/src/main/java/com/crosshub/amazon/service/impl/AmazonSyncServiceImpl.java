@@ -29,8 +29,9 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Set<String> ACTIVE = Set.of("pending", "running");
     private static final Set<String> NEEDS_PRODUCT_ROWS = Set.of("daily", "insights", "reports");
-    private static final long RUNNING_TTL_SECONDS = 40 * 60;
-    private static final long PENDING_TTL_SECONDS = 10 * 60;
+    private static final long RUNNING_TTL_SECONDS = 6 * 60;
+    private static final long PENDING_TTL_SECONDS = 3 * 60;
+    private static final int MAX_AUTO_RETRY_COUNT = 2;
 
     private final AmazonSyncJobRepository syncJobRepository;
     private final PlatformAccountRepository platformAccountRepository;
@@ -64,6 +65,19 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
     @Transactional
     public Map<String, Object> triggerSync(AmazonSyncRequest request) {
         Long tenantId = dataScopeService.requireTenantId();
+        return triggerSyncInternal(tenantId, request);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> triggerSyncForTenant(Long tenantId, AmazonSyncRequest request) {
+        if (tenantId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "缺少租户上下文");
+        }
+        return triggerSyncInternal(tenantId, request);
+    }
+
+    private Map<String, Object> triggerSyncInternal(Long tenantId, AmazonSyncRequest request) {
         boolean force = request != null && request.resolvedForce();
         boolean recordCooldown = request == null || request.resolvedRecordCooldown();
         crawlCooldownService.assertAllowed(tenantId, force);
@@ -89,22 +103,8 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
                 }
             }
 
-            String taskId = "agt_" + UUID.randomUUID();
-            AmazonSyncJob job = new AmazonSyncJob();
-            job.setId("amz_sync_" + UUID.randomUUID());
-            job.setTenantId(tenantId);
-            job.setPlatformAccountId(account.getId());
-            job.setAgentTaskId(taskId);
-            job.setAgentId("");
-            job.setScope(scope);
-            job.setStatus("pending");
-            job.setMode("ziniao_webdriver");
-            job.setCreatedAt(now());
-            job.setResultSummary("{}");
-            syncJobRepository.save(job);
+            AmazonSyncJob job = createPendingJob(tenantId, account, scope, 0, "manual");
             crawlCooldownService.registerJobRecordPolicy(job.getId(), recordCooldown);
-
-            enqueueAgentTask(tenantId, taskId, scope, account);
             jobs.add(jobDto(job));
         }
 
@@ -183,21 +183,8 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
                 }
             }
 
-            String taskId = "agt_" + UUID.randomUUID();
-            AmazonSyncJob job = new AmazonSyncJob();
-            job.setId("amz_sync_" + UUID.randomUUID());
-            job.setTenantId(tenantId);
-            job.setPlatformAccountId(account.getId());
-            job.setAgentTaskId(taskId);
-            job.setAgentId("");
-            job.setScope(scope);
-            job.setStatus("pending");
-            job.setMode("ziniao_webdriver");
-            job.setCreatedAt(now());
-            job.setResultSummary("{\"trigger\":\"daily_schedule\"}");
-            syncJobRepository.save(job);
+            AmazonSyncJob job = createPendingJob(tenantId, account, scope, 0, "daily_schedule");
             crawlCooldownService.registerJobRecordPolicy(job.getId(), false);
-            enqueueAgentTask(tenantId, taskId, scope, account);
             jobs.add(statusJobMap(job));
         }
         out.put("action", jobs.isEmpty() ? "skipped_active" : "enqueued");
@@ -227,6 +214,43 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         out.put("error_code", failed ? defaultText(job.getErrorCode(), "") : "");
         out.put("error_message", failed ? defaultText(job.getErrorMessage(), "") : "");
         return out;
+    }
+
+    @Override
+    public Map<String, Object> listRecentJobsForTenant(Long tenantId) {
+        List<AmazonSyncJob> jobs = syncJobRepository.findTop60ByTenantIdOrderByCreatedAtDesc(tenantId);
+        List<Map<String, Object>> items = new ArrayList<>();
+        int unread = 0;
+        for (AmazonSyncJob raw : jobs) {
+            AmazonSyncJob job = reconcileJob(raw);
+            Map<String, Object> summary = readMap(job.getResultSummary());
+            PlatformAccount account = platformAccountRepository.findByIdAndTenantId(job.getPlatformAccountId(), tenantId).orElse(null);
+            int retryCount = readInt(summary.get("retry_count"), 0);
+            int maxRetryCount = readInt(summary.get("max_retry_count"), MAX_AUTO_RETRY_COUNT);
+            boolean retryExhausted = Boolean.TRUE.equals(summary.get("retry_exhausted"));
+            if ("failed".equalsIgnoreCase(job.getStatus()) && retryExhausted) {
+                unread++;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("job_id", job.getId());
+            item.put("platform_account_id", job.getPlatformAccountId());
+            item.put("agent_task_id", job.getAgentTaskId());
+            item.put("scope", job.getScope());
+            item.put("status", job.getStatus());
+            item.put("store_name", account == null ? "" : defaultText(account.getStoreName(), ""));
+            item.put("account", account == null ? "" : defaultText(account.getAccount(), ""));
+            item.put("created_at", defaultText(job.getCreatedAt(), ""));
+            item.put("started_at", defaultText(job.getStartedAt(), ""));
+            item.put("finished_at", defaultText(job.getFinishedAt(), ""));
+            item.put("retry_count", retryCount);
+            item.put("max_retry_count", maxRetryCount);
+            item.put("retry_exhausted", retryExhausted);
+            item.put("failed_at", defaultText(String.valueOf(summary.getOrDefault("last_failed_at", "")), defaultText(job.getFinishedAt(), "")));
+            item.put("failure_code", defaultText(String.valueOf(summary.getOrDefault("last_error_code", "")), defaultText(job.getErrorCode(), "")));
+            item.put("failure_reason", defaultText(String.valueOf(summary.getOrDefault("last_error_message", "")), defaultText(job.getErrorMessage(), "")));
+            items.add(item);
+        }
+        return Map.of("items", items, "unread", unread);
     }
 
     private AmazonSyncJob createTerminalDailyJob(Long tenantId, String accountId, String errorCode, String errorMessage) {
@@ -289,6 +313,9 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         if (job == null) {
             return;
         }
+        if (!ACTIVE.contains(job.getStatus())) {
+            return;
+        }
 
         if (!"running".equals(job.getStatus())) {
             job.setStatus("running");
@@ -298,15 +325,51 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         }
 
         if (!"success".equalsIgnoreCase(status)) {
+            Map<String, Object> previousSummary = readMap(job.getResultSummary());
+            int retryCount = readInt(previousSummary.get("retry_count"), 0);
+            String trigger = defaultText(String.valueOf(previousSummary.getOrDefault("trigger", "")), "manual");
             job.setStatus("failed");
-            job.setErrorCode(defaultText(errorCode, AppErrorCode.AMAZON_SYNC_FAILED.getCode()));
-            job.setErrorMessage(defaultText(errorMessage, AppErrorCode.AMAZON_SYNC_FAILED.getUserMessage()));
+            String finalErrorCode = defaultText(errorCode, AppErrorCode.AMAZON_SYNC_FAILED.getCode());
+            String finalErrorMessage = defaultText(errorMessage, AppErrorCode.AMAZON_SYNC_FAILED.getUserMessage());
+            job.setErrorCode(finalErrorCode);
+            job.setErrorMessage(finalErrorMessage);
             job.setFinishedAt(now());
+            boolean retryScheduled = false;
+            String retryTaskId = "";
+            if (retryCount < MAX_AUTO_RETRY_COUNT) {
+                PlatformAccount account = platformAccountRepository.findByIdAndTenantId(job.getPlatformAccountId(), job.getTenantId()).orElse(null);
+                if (account != null) {
+                    AmazonSyncJob retryJob = createPendingJob(
+                            job.getTenantId(),
+                            account,
+                            job.getScope(),
+                            retryCount + 1,
+                            trigger
+                    );
+                    crawlCooldownService.registerJobRecordPolicy(retryJob.getId(), false);
+                    retryTaskId = retryJob.getAgentTaskId();
+                    retryScheduled = true;
+                }
+            }
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("trigger", trigger);
+            summary.put("retry_count", retryCount);
+            summary.put("max_retry_count", MAX_AUTO_RETRY_COUNT);
+            summary.put("retry_scheduled", retryScheduled);
+            summary.put("retry_exhausted", !retryScheduled && retryCount >= MAX_AUTO_RETRY_COUNT);
+            summary.put("last_error_code", finalErrorCode);
+            summary.put("last_error_message", finalErrorMessage);
+            summary.put("last_failed_at", job.getFinishedAt());
+            if (!retryTaskId.isBlank()) {
+                summary.put("next_task_id", retryTaskId);
+            }
+            job.setResultSummary(writeJson(summary));
             syncJobRepository.save(job);
             return;
         }
 
         Map<String, Object> safe = result == null ? Map.of() : result;
+        Map<String, Object> previousSummary = readMap(job.getResultSummary());
         persistenceService.persistSyncResult(job, safe);
 
         Map<String, Object> summary = readMap(safe.get("summary"));
@@ -331,6 +394,11 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
             job.setErrorCode("");
             job.setErrorMessage("");
         }
+        summary = new LinkedHashMap<>(summary);
+        summary.put("trigger", defaultText(String.valueOf(previousSummary.getOrDefault("trigger", "")), "manual"));
+        summary.put("retry_count", readInt(previousSummary.get("retry_count"), 0));
+        summary.put("max_retry_count", MAX_AUTO_RETRY_COUNT);
+        summary.put("retry_exhausted", false);
         job.setResultSummary(writeJson(summary));
         job.setFinishedAt(now());
         persistenceService.finalizeSyncVersion(job.getId(), job.getStatus(), job.getResultSummary());
@@ -362,7 +430,34 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         return new ArrayList<>(deduped.values());
     }
 
+    private AmazonSyncJob createPendingJob(Long tenantId, PlatformAccount account, String scope, int retryCount, String trigger) {
+        String taskId = "agt_" + UUID.randomUUID();
+        AmazonSyncJob job = new AmazonSyncJob();
+        job.setId("amz_sync_" + UUID.randomUUID());
+        job.setTenantId(tenantId);
+        job.setPlatformAccountId(account.getId());
+        job.setAgentTaskId(taskId);
+        job.setAgentId("");
+        job.setScope(scope);
+        job.setStatus("pending");
+        job.setMode("ziniao_webdriver");
+        job.setCreatedAt(now());
+        job.setResultSummary(writeJson(new LinkedHashMap<>(Map.of(
+                "trigger", trigger == null || trigger.isBlank() ? "manual" : trigger,
+                "retry_count", Math.max(0, retryCount),
+                "max_retry_count", MAX_AUTO_RETRY_COUNT,
+                "retry_exhausted", false
+        ))));
+        syncJobRepository.save(job);
+        enqueueAgentTask(tenantId, taskId, scope, account, retryCount);
+        return job;
+    }
+
     private void enqueueAgentTask(Long tenantId, String taskId, String scope, PlatformAccount account) {
+        enqueueAgentTask(tenantId, taskId, scope, account, 0);
+    }
+
+    private void enqueueAgentTask(Long tenantId, String taskId, String scope, PlatformAccount account, int retryCount) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("scope", scope);
         payload.put("platform", "amazon");
@@ -372,6 +467,7 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         payload.put("browser_oauth", defaultText(account.getZiniaoBrowserOauth(), ""));
         payload.put("store_name", defaultText(account.getStoreName(), ""));
         payload.put("merchant_id", defaultText(account.getAmazonMerchantId(), ""));
+        payload.put("retry_count", Math.max(0, retryCount));
 
         jdbc.update(
                 """
@@ -538,6 +634,20 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
             }
         }
         return 0;
+    }
+
+    private int readInt(Object val, int fallback) {
+        if (val instanceof Number n) {
+            return n.intValue();
+        }
+        if (val instanceof String text) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (Exception ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
     }
 
     private int sizeOf(Object value) {

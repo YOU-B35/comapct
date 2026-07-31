@@ -16,4 +16,6 @@ public interface AmazonSyncJobRepository extends JpaRepository<AmazonSyncJob, St
     );
 
     Optional<AmazonSyncJob> findFirstByTenantIdOrderByCreatedAtDesc(Long tenantId);
+
+    List<AmazonSyncJob> findTop60ByTenantIdOrderByCreatedAtDesc(Long tenantId);
 }

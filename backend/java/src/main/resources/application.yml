@@ -4,6 +4,19 @@ server:
 crosshub:
   jwt-secret: crosshub-dev-secret-change-in-production
   db-path: ${CROSSHUB_DB_PATH:../data/crosshub.db}
+  agent:
+    concurrency:
+      # 16GB 机器默认：Temu≤3 / AE≤2 / Amazon≤1 / 全局≤5；按 session_key·browser_id 互斥
+      max-temu: ${CROSSHUB_AGENT_MAX_TEMU:3}
+      max-aliexpress: ${CROSSHUB_AGENT_MAX_AE:2}
+      max-amazon: ${CROSSHUB_AGENT_MAX_AMAZON:1}
+      max-global: ${CROSSHUB_AGENT_MAX_GLOBAL:5}
+      max-claim-batch: ${CROSSHUB_AGENT_MAX_CLAIM:5}
+      temu-parallel-sessions: ${CROSSHUB_AGENT_TEMU_PARALLEL:3}
+    profiles:
+      enabled: true
+      root: ${CROSSHUB_AGENT_PROFILES_ROOT:./backend/data/agent-profiles}
+      max-bytes: 10485760
   crawler:
     python-executable: ${CROSSHUB_PYTHON:py}
     script-dir: ${CROSSHUB_PYTHON_DIR:../python}
@@ -17,6 +30,8 @@ crosshub:
       zone: Asia/Shanghai
 
 spring:
+  codec:
+    max-in-memory-size: 12MB
   datasource:
     url: jdbc:sqlite:${crosshub.db-path}?busy_timeout=30000
     driver-class-name: org.sqlite.JDBC

@@ -88,35 +88,76 @@ export function calcCoverDays(officialStock, dailyDemand) {
 }
 
 /**
- * 备货建议：本地仓 → Temu 官方仓
- * 目标库存 = 日均需求 × (目标覆盖天数 + 备货提前期)
- * 建议补货 = max(0, 目标库存 - 官方仓现有)；本地仓为 0 时仍展示需求量（shortfall）
+ * 备货建议（对齐 Java calcReplenish）：
+ * dAdj = (s7/7*0.7 + s30/30*0.3) * trend(0.8~1.5)
+ * warningDays = leadTime + safetyBuffer；cover < warning → 需补货
+ * 目标库存 = dAdj * targetCoverDays
  */
 export function calcRestockPlan(product, config = RESTOCK_CONFIG) {
-  const avg7DayDaily = calcAvg7DayDaily(product.salesLast7Days, product.sales7Total)
-  const dailyDemand = Math.max(product.dailySales, avg7DayDaily)
-  const targetStock = Math.ceil(dailyDemand * (config.targetCoverDays + config.leadTimeDays))
-  const rawSuggest = Math.max(0, targetStock - product.officialStock)
+  const s7 = Number.isFinite(Number(product.sales7Total))
+    ? Math.max(0, Math.floor(Number(product.sales7Total)))
+    : normalizeSalesLast7Days(product.salesLast7Days).reduce((s, n) => s + n, 0)
+  const s30 = Math.max(s7, Math.max(0, Math.floor(Number(product.sales30Total) || 0)))
+  const stock = Math.max(0, Number(product.officialStock) || 0)
+  const leadTime = Number(config.leadTimeDays) || 7
+  const safetyBuffer = Number(config.safetyBufferDays ?? 3)
+  const targetDays = Number(config.targetCoverDays) || 15
+  const w1 = Number(config.demandWeight7 ?? 0.7)
+  const w2 = Number(config.demandWeight30 ?? 0.3)
+  const trendMin = Number(config.trendMin ?? 0.8)
+  const trendMax = Number(config.trendMax ?? 1.5)
+
+  const d7 = s7 / 7
+  const d30 = s30 / 30
+  let trend = 1
+  if (d30 > 0) {
+    trend = Math.max(trendMin, Math.min(d7 / d30, trendMax))
+  }
+  const dailyDemand = (d7 * w1 + d30 * w2) * trend
+  const warningDays = leadTime + safetyBuffer
+  const avg7DayDaily = calcAvg7DayDaily(product.salesLast7Days, s7)
+
+  if (dailyDemand <= 0) {
+    const isHot = isHotProduct(product.dailySales, avg7DayDaily, config)
+    return {
+      avg7DayDaily,
+      dailyDemand: 0,
+      targetStock: 0,
+      suggestedRestock: 0,
+      coverDays: stock > 0 ? 999 : 0,
+      safetyStock: Math.ceil(warningDays),
+      stockGap: stock,
+      urgency: 'normal',
+      urgencyLabel: '正常',
+      isHot,
+      canFulfill: null,
+      shortfall: 0,
+      localStockKnown: false,
+      warningDays,
+      fromServer: false,
+    }
+  }
+
+  const coverDays = calcCoverDays(stock, dailyDemand)
+  const needReplenish = coverDays < warningDays
+  const targetStock = needReplenish ? Math.ceil(dailyDemand * targetDays) : 0
+  const rawSuggest = needReplenish ? Math.max(0, Math.ceil(targetStock - stock)) : 0
   const localStock = product.localStock
   const hasLocalStock = localStock != null && localStock !== '' && Number(localStock) > 0
   const suggestedRestock = hasLocalStock
     ? Math.min(rawSuggest, Number(localStock))
     : rawSuggest
-  const coverDays = calcCoverDays(product.officialStock, dailyDemand)
-  const safetyStock = Math.ceil(dailyDemand * config.safetyDays)
-  const stockGap = product.officialStock - safetyStock
 
   let urgency = 'normal'
   let urgencyLabel = '正常'
-  if (coverDays <= config.leadTimeDays) {
-    urgency = 'critical'
-    urgencyLabel = '紧急补货'
-  } else if (coverDays <= config.safetyDays) {
-    urgency = 'warning'
-    urgencyLabel = '建议补货'
-  } else if (stockGap < 0) {
-    urgency = 'caution'
-    urgencyLabel = '低于安全线'
+  if (needReplenish && rawSuggest > 0) {
+    if (coverDays <= warningDays) {
+      urgency = 'critical'
+      urgencyLabel = '紧急补货'
+    } else {
+      urgency = 'warning'
+      urgencyLabel = '建议补货'
+    }
   }
 
   const isHot = isHotProduct(product.dailySales, avg7DayDaily, config)
@@ -126,15 +167,17 @@ export function calcRestockPlan(product, config = RESTOCK_CONFIG) {
     dailyDemand: round1(dailyDemand),
     targetStock,
     suggestedRestock,
-    coverDays,
-    safetyStock,
-    stockGap,
+    coverDays: round1(coverDays),
+    safetyStock: Math.ceil(warningDays),
+    stockGap: stock - Math.ceil(warningDays),
     urgency,
     urgencyLabel,
     isHot,
     canFulfill: hasLocalStock ? Number(localStock) >= rawSuggest : null,
     shortfall: hasLocalStock ? Math.max(0, rawSuggest - Number(localStock)) : rawSuggest,
     localStockKnown: hasLocalStock,
+    warningDays,
+    fromServer: false,
   }
 }
 

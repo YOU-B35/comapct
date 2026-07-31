@@ -4,6 +4,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Link, Refresh, Search, Setting } from '@element-plus/icons-vue'
 import SearchableTable from '@/components/common/SearchableTable.vue'
 import { resolveAppError } from '@/utils/appErrorCode'
+import {
+  isTemuMallUrl,
+  temuMallUrlErrorMessage,
+  temuMallUrlExample,
+  temuMallUrlGuideLines,
+} from '@/utils/temuMonitorUrl'
 import { openTemuFrontendLogin } from '@/api/temuApi'
 import {
   analyzeCompetitors,
@@ -151,6 +157,10 @@ async function submitCompetitor() {
     ElMessage.warning('请填写竞店链接')
     return
   }
+  if (!isTemuMallUrl(form.url.trim())) {
+    ElMessage.warning(temuMallUrlErrorMessage)
+    return
+  }
 
   loading.value = true
   try {
@@ -272,25 +282,56 @@ async function selectCandidateAndAnalyze(candidate) {
   }
 }
 
-async function runAnalysis() {
+async function applyAnalysisResult(res) {
+  competitors.value = res.competitors || []
+  reports.value = res.data || []
+  if (!reports.value.length) {
+    ElMessage.warning('未生成分析结果，请稍后重试')
+    return
+  }
+  if (reports.value.some(hasActiveReport)) {
+    ElMessage.info('任务已入队，正在同步竞店抓取结果')
+    void pollReportsUntilSettled({ notifyOnSettle: true })
+    return
+  }
+  notifyAnalysisOutcome(reports.value)
+}
+
+async function runAnalysis({ force = false } = {}) {
   analyzing.value = true
   analysisError.value = null
+  const list = competitors.value
+  const invalidUrlCount = list.filter((item) => !isTemuMallUrl(item.url)).length
+  if (invalidUrlCount > 0) {
+    if (invalidUrlCount === list.length) {
+      ElMessage.warning('所选竞店链接均非 Temu 店铺（需含 mall_id），无法执行爬取分析')
+    } else {
+      ElMessage.warning(`已跳过 ${invalidUrlCount} 个非店铺链接，仅对有效竞店执行爬取分析`)
+    }
+  }
   try {
     stopReportPolling()
-    const res = await analyzeCompetitors(competitors.value)
-    competitors.value = res.competitors || []
-    reports.value = res.data || []
-    if (!reports.value.length) {
-      ElMessage.warning('未生成分析结果，请稍后重试')
-      return
-    }
-    if (reports.value.some(hasActiveReport)) {
-      ElMessage.info('任务已入队，正在同步竞店抓取结果')
-      void pollReportsUntilSettled({ notifyOnSettle: true })
-      return
-    }
-    notifyAnalysisOutcome(reports.value)
+    const res = await analyzeCompetitors(
+      list,
+      force ? { force: true, bypassCooldown: true } : undefined,
+    )
+    await applyAnalysisResult(res)
   } catch (err) {
+    if (!force && err?.errorCode === 'CRAWL_COOLDOWN') {
+      try {
+        await ElMessageBox.confirm('该竞店冷却中，是否强制刷新？', '确认强制刷新', {
+          type: 'warning',
+          confirmButtonText: '强制刷新',
+          cancelButtonText: '取消',
+        })
+        analyzing.value = false
+        await runAnalysis({ force: true })
+        return
+      } catch {
+        ElMessage.info('已取消强制刷新')
+        return
+      }
+    }
     analysisError.value = resolveAppError(
       { errorCode: err.errorCode, message: err.message },
       null,
@@ -518,6 +559,26 @@ onBeforeUnmount(() => {
 
         <el-divider content-position="left">手动添加竞店</el-divider>
 
+        <el-alert
+          type="warning"
+          :closable="false"
+          show-icon
+          class="mall-url-guide"
+          title="店铺链接格式（必填 mall_id）"
+        >
+          <ul class="mall-url-guide-list">
+            <li v-for="(line, idx) in temuMallUrlGuideLines" :key="idx">
+              <template v-if="idx === 1">
+                正确示例：
+                <el-link :href="temuMallUrlExample" target="_blank" type="primary" :underline="false">
+                  {{ temuMallUrlExample }}
+                </el-link>
+              </template>
+              <template v-else>{{ line }}</template>
+            </li>
+          </ul>
+        </el-alert>
+
         <el-form label-width="100px" class="settings-form" @submit.prevent="submitCompetitor">
           <el-form-item label="店铺备注">
             <el-input
@@ -531,13 +592,21 @@ onBeforeUnmount(() => {
           <el-form-item label="店铺网址">
             <el-input
               v-model="form.url"
-              placeholder="https://www.temu.com/xxx 或完整店铺链接"
+              :placeholder="temuMallUrlExample"
               clearable
             >
               <template #prefix>
                 <el-icon><Link /></el-icon>
               </template>
             </el-input>
+            <el-text
+              v-if="form.url.trim() && !isTemuMallUrl(form.url.trim())"
+              size="small"
+              type="danger"
+              class="url-inline-hint"
+            >
+              {{ temuMallUrlErrorMessage }}
+            </el-text>
           </el-form-item>
           <el-form-item>
             <el-space>
@@ -560,11 +629,21 @@ onBeforeUnmount(() => {
           class="competitor-table"
         >
           <el-table-column prop="label" label="备注名称" min-width="120" />
-          <el-table-column label="店铺网址" min-width="220" show-overflow-tooltip>
+          <el-table-column label="店铺网址" min-width="260" show-overflow-tooltip>
             <template #default="{ row }">
-              <el-link :href="row.url" target="_blank" type="primary" :underline="false">
-                {{ row.url }}
-              </el-link>
+              <div class="url-cell">
+                <el-link :href="row.url" target="_blank" type="primary" :underline="false">
+                  {{ row.url }}
+                </el-link>
+                <el-tag
+                  v-if="!isTemuMallUrl(row.url)"
+                  size="small"
+                  type="warning"
+                  effect="plain"
+                >
+                  链接非店铺
+                </el-tag>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="最近爬取" width="160">
@@ -592,7 +671,7 @@ onBeforeUnmount(() => {
             执行今日爬取分析
           </el-button>
           <el-text size="small" type="info">
-            每日爬取一次，自动对比昨日快照，抽取竞店新品与销量激增商品
+            默认遵守冷却；冷却时可强制刷新。每日爬取一次，自动对比昨日快照，抽取竞店新品与销量激增商品
           </el-text>
         </div>
       </div>
@@ -834,9 +913,29 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.mall-url-guide {
+  margin-bottom: 12px;
+}
+
+.mall-url-guide-list {
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: 1.65;
+}
+
+.mall-url-guide-list li + li {
+  margin-top: 4px;
+}
+
 .settings-form {
   max-width: 720px;
   margin-bottom: 8px;
+}
+
+.url-inline-hint {
+  display: block;
+  margin-top: 6px;
+  line-height: 1.5;
 }
 
 .discovery-panel {
@@ -894,6 +993,19 @@ onBeforeUnmount(() => {
 
 .competitor-table {
   margin-bottom: 16px;
+}
+
+.url-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.url-cell .el-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-actions {

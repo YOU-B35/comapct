@@ -144,9 +144,20 @@ export const SLOW_MOVING_THRESHOLDS = [
 ]
 
 export const RESTOCK_CONFIG = {
-  safetyDays: 14,
-  targetCoverDays: 21,
-  leadTimeDays: 5,
+  /**
+   * 与 Java TemuWarningServiceImpl.calcReplenish 对齐：
+   * dailyAdj = (s7/7*0.7 + s30/30*0.3) * trend；warningDays = lead + safetyBuffer；
+   * 覆盖 < warningDays 则需补货；目标库存 = dailyAdj * targetCoverDays。
+   */
+  leadTimeDays: 7,
+  safetyBufferDays: 3,
+  targetCoverDays: 15,
+  demandWeight7: 0.7,
+  demandWeight30: 0.3,
+  trendMin: 0.8,
+  trendMax: 1.5,
+  /** @deprecated 仅兼容旧文案；告警阈值请用 leadTimeDays + safetyBufferDays */
+  safetyDays: 10,
   /** 当日 / 7 日均 ≥ 此倍数，且当日销量 ≥ hotMinDailySales */
   hotSurgeRatio: 1.5,
   /** 真实店铺日销可能很小；用相对增幅为主，最低 1 件即可参与爆款判定 */

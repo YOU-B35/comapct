@@ -1,6 +1,11 @@
 import { computed, ref, unref, watch } from 'vue'
 import { fuzzyMatchRow } from '@/utils/fuzzyMatch'
 
+function resolveSourceList(source) {
+  const raw = typeof source === 'function' ? source() : unref(source)
+  return Array.isArray(raw) ? raw : []
+}
+
 export function useFuzzySearchPagination(source, options = {}) {
   const keyword = ref('')
   const page = ref(1)
@@ -8,7 +13,7 @@ export function useFuzzySearchPagination(source, options = {}) {
   const fields = options.fields ?? ['sku', 'name', 'storeName']
 
   const filtered = computed(() => {
-    const list = unref(source) ?? []
+    const list = resolveSourceList(source)
     if (!String(keyword.value || '').trim()) return list
     if (typeof options.matchRow === 'function') {
       return list.filter((row) => options.matchRow(row, keyword.value))
@@ -23,7 +28,7 @@ export function useFuzzySearchPagination(source, options = {}) {
     return filtered.value.slice(start, start + pageSize.value)
   })
 
-  watch([keyword, () => unref(source), pageSize], () => {
+  watch([keyword, () => resolveSourceList(source), pageSize], () => {
     page.value = 1
   })
 

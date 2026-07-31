@@ -25,7 +25,7 @@ class TemuTaskThreadingTests(unittest.TestCase):
         get_page.assert_called_once_with(fake_runtime.context)
         fake_page.bring_to_front.assert_called_once()
 
-    def test_handle_temu_competitor_discover_runs_inline(self):
+    def test_handle_temu_competitor_discover_runs_via_discover_competitors(self):
         client = MagicMock()
         task = {
             "task_id": "agt-test",
@@ -38,8 +38,7 @@ class TemuTaskThreadingTests(unittest.TestCase):
         }
         result = {"keyword": "fishing tackle", "region": "za", "candidates": []}
 
-        with patch("agent.handlers.discover_competitors", return_value=result) as discover, \
-                patch("agent.handlers.ThreadPoolExecutor", side_effect=AssertionError("should not use executor")):
+        with patch("agent.handlers.discover_competitors", return_value=result) as discover:
             handle_temu_competitor_discover(client, task)
 
         discover.assert_called_once_with(5, "fishing tackle", "za", 5)
@@ -48,6 +47,25 @@ class TemuTaskThreadingTests(unittest.TestCase):
             status="success",
             result=result,
         )
+
+    def test_discover_competitors_runs_in_worker_thread(self):
+        from agent import temu_tasks
+
+        seen: dict[str, int] = {}
+
+        def fake_discover(**kwargs):
+            import threading
+
+            seen["thread"] = threading.get_ident()
+            return {"candidates": [], "tenant_id": kwargs["tenant_id"]}
+
+        with patch.object(temu_tasks, "close_temu_runtime") as close_rt, \
+                patch("app.crawler.competitor_discovery.discover_competitor_candidates", side_effect=fake_discover):
+            out = temu_tasks.discover_competitors(5, "fishing", "za", 3)
+
+        self.assertEqual(out["tenant_id"], 5)
+        close_rt.assert_called_once_with(5)
+        self.assertNotEqual(seen.get("thread"), __import__("threading").get_ident())
 
 
 if __name__ == "__main__":

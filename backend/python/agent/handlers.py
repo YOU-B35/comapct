@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import time
+import sys
 from typing import Any
 
 from agent.java_client import AgentApiClient
@@ -50,6 +52,13 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
     browser_oauth = str(payload.get("browser_oauth") or "")
     store_name = str(payload.get("store_name") or "")
     merchant_id = str(payload.get("merchant_id") or "")
+    started = time.time()
+    print(
+        f"[Agent][Amazon] start task_id={task_id} scope={scope} "
+        f"browser_id={browser_id or '-'} oauth={'yes' if bool(browser_oauth) else 'no'} "
+        f"store={store_name or '-'} merchant={merchant_id or '-'}",
+        file=sys.stderr,
+    )
 
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -62,8 +71,20 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
                 merchant_id=merchant_id,
             )
             result = future.result(timeout=CRAWL_TIMEOUT_SECONDS)
+        elapsed = int((time.time() - started) * 1000)
+        summary = result.get("result_summary") if isinstance(result, dict) else {}
+        print(
+            f"[Agent][Amazon] success task_id={task_id} elapsed_ms={elapsed} "
+            f"products={summary.get('products_count', '-') if isinstance(summary, dict) else '-'} "
+            f"orders={summary.get('orders_count', '-') if isinstance(summary, dict) else '-'}",
+            file=sys.stderr,
+        )
         client.complete_task_with_retry(task_id, status="success", result=result)
     except FutureTimeoutError:
+        print(
+            f"[Agent][Amazon] timeout task_id={task_id} after={CRAWL_TIMEOUT_SECONDS}s",
+            file=sys.stderr,
+        )
         client.complete_task_with_retry(
             task_id,
             status="failed",
@@ -71,6 +92,7 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
             error_message=f"Amazon 爬取超时（超过 {CRAWL_TIMEOUT_MINUTES} 分钟），请稍后重试",
         )
     except AmazonLoginRequiredError as exc:
+        print(f"[Agent][Amazon] login-required task_id={task_id}: {exc}", file=sys.stderr)
         client.complete_task_with_retry(
             task_id,
             status="failed",
@@ -82,6 +104,10 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
         error_code = "AMAZON_SYNC_FAILED"
         if "未登录" in message or "login" in message.lower() or "sign in" in message.lower():
             error_code = "AMAZON_LOGIN_REQUIRED"
+        print(
+            f"[Agent][Amazon] failed task_id={task_id} code={error_code} msg={message}",
+            file=sys.stderr,
+        )
         client.complete_task_with_retry(
             task_id,
             status="failed",
@@ -144,13 +170,20 @@ def handle_temu_login_open(client: AgentApiClient, task: dict[str, Any]) -> None
         return
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
+    session_key = payload.get("session_key")
     try:
-        login_result = open_login_window(tenant_id)
-        # 打开登录窗后不要立刻 live probe：会与有头登录助手争用同一 Profile 导致卡死。
-        # 仅读缓存即可；未就绪由前端轮询 session。
         from agent.temu_tasks import _run_json_script
 
-        session = _run_json_script("seller_session_status.py", tenant_id, "--cache-only")
+        extra = []
+        if session_key:
+            extra.extend(["--session-key", str(session_key)])
+        login_result = open_login_window(tenant_id, session_key=str(session_key or ""))
+        session = _run_json_script(
+            "seller_session_status.py",
+            tenant_id,
+            "--cache-only",
+            *extra,
+        )
         client.complete_task_with_retry(
             task_id,
             status="success",
@@ -190,8 +223,12 @@ def handle_temu_session_probe(client: AgentApiClient, task: dict[str, Any]) -> N
         return
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
+    seller_sessions = payload.get("seller_sessions")
     try:
-        session = probe_session(tenant_id)
+        session = probe_session(
+            tenant_id,
+            seller_sessions=seller_sessions if isinstance(seller_sessions, list) else None,
+        )
         client.complete_task_with_retry(task_id, status="success", result=session)
     except Exception as exc:
         client.complete_task_with_retry(
@@ -213,9 +250,18 @@ def handle_temu_crawl(client: AgentApiClient, task: dict[str, Any]) -> None:
     if report_day == "":
         report_day = None
     job_id = str(payload.get("job_id") or "")
+    seller_sessions = payload.get("seller_sessions")
+    session_key = payload.get("session_key")
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(crawl_and_ingest, client, tenant_id, report_day)
+            future = executor.submit(
+                crawl_and_ingest,
+                client,
+                tenant_id,
+                report_day,
+                seller_sessions if isinstance(seller_sessions, list) else None,
+                str(session_key).strip() if session_key else None,
+            )
             result = future.result(timeout=CRAWL_TIMEOUT_SECONDS)
         if job_id:
             result["job_id"] = job_id

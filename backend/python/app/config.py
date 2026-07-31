@@ -41,9 +41,17 @@ def resolve_profile_root() -> Path:
     return ROOT / ".temu-browser-profile"
 
 
-def resolve_profile_dir(tenant_id: int) -> Path:
-    """每次调用读环境变量，避免冻结态误用 _internal 空 Profile。"""
-    return resolve_profile_root() / f"tenant-{tenant_id}"
+def resolve_profile_dir(tenant_id: int, session_key: str | None = None) -> Path:
+    """每次调用读环境变量，避免冻结态误用 _internal 空 Profile。
+
+    session_key 按卖家登录账号分组；缺省为 default。
+    兼容旧版扁平目录 tenant-{id}（仅在 default 且新目录不存在时使用）。
+    """
+    from app.session_scope import resolve_platform_profile_dir
+
+    return resolve_platform_profile_dir(
+        "temu", tenant_id, session_key, root=resolve_profile_root()
+    )
 
 
 def resolve_tenant_id(cli_value: int | None = None) -> int:
@@ -91,6 +99,9 @@ MIN_ACTION_DELAY_MS = int(os.getenv("TEMU_MIN_DELAY_MS", "800"))
 MAX_ACTION_DELAY_MS = int(os.getenv("TEMU_MAX_DELAY_MS", "2200"))
 TEMU_LOGIN_WAIT_SECONDS = int(os.getenv("TEMU_LOGIN_WAIT_SECONDS", "240"))
 TEMU_LOGIN_POLL_SECONDS = int(os.getenv("TEMU_LOGIN_POLL_SECONDS", "3"))
+AMAZON_LOGIN_WAIT_SECONDS = int(os.getenv("AMAZON_LOGIN_WAIT_SECONDS", "180"))
+AMAZON_LOGIN_POLL_SECONDS = float(os.getenv("AMAZON_LOGIN_POLL_SECONDS", "5"))
+AMAZON_LOGIN_MAX_ATTEMPTS = int(os.getenv("AMAZON_LOGIN_MAX_ATTEMPTS", "3"))
 
 STATUS_TO_CODE = {10: "100", 11: "200", 12: "300", 13: "400"}
 
@@ -105,8 +116,13 @@ def resolve_ae_profile_root() -> Path:
 AE_PROFILE_ROOT = resolve_ae_profile_root()
 
 
-def resolve_aliexpress_profile_dir(tenant_id: int) -> Path:
-    return resolve_ae_profile_root() / f"tenant-{tenant_id}"
+def resolve_aliexpress_profile_dir(tenant_id: int, session_key: str | None = None) -> Path:
+    """AliExpress Profile：tenant-{id}/account-{session_key}，兼容旧扁平目录。"""
+    from app.session_scope import resolve_platform_profile_dir
+
+    return resolve_platform_profile_dir(
+        "aliexpress", tenant_id, session_key, root=resolve_ae_profile_root()
+    )
 
 
 AE_CSP_HOME = os.getenv("AE_CSP_HOME", "https://csp.aliexpress.com/")

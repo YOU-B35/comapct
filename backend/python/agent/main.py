@@ -7,7 +7,10 @@ import sys
 import threading
 import time
 
+from concurrent.futures import ThreadPoolExecutor, Future
+
 from agent.config import (
+    AGENT_DISPATCH_WORKERS,
     AGENT_HEALTH_PORT,
     HEARTBEAT_INTERVAL_SECONDS,
     POLL_INTERVAL_SECONDS,
@@ -77,7 +80,8 @@ def main() -> int:
 
     print(
         f"==> CrossHub Agent 已启动，任务轮询 {POLL_INTERVAL_SECONDS}s，"
-        f"心跳 {HEARTBEAT_INTERVAL_SECONDS}s，API {client.base_url}",
+        f"心跳 {HEARTBEAT_INTERVAL_SECONDS}s，并行 worker={AGENT_DISPATCH_WORKERS}，"
+        f"API {client.base_url}",
     )
     ziniao_holder: list[ZiniaoClient | None] = [create_ziniao_client()]
     stop_event = threading.Event()
@@ -88,16 +92,32 @@ def main() -> int:
     )
     heartbeat_thread.start()
 
-    while True:
-        try:
-            tasks = client.poll_tasks()
-            for task in tasks:
-                print(f"==> 执行任务: {task.get('task_type')} ({task.get('task_id')})")
-                dispatch_task(client, task)
-        except Exception as exc:
-            print(f"Agent 轮询失败: {exc}", file=sys.stderr)
+    inflight: set[Future] = set()
 
-        time.sleep(POLL_INTERVAL_SECONDS)
+    def _on_done(fut: Future) -> None:
+        inflight.discard(fut)
+        try:
+            fut.result()
+        except Exception as exc:  # noqa: BLE001
+            print(f"Agent 任务执行失败: {exc}", file=sys.stderr)
+
+    with ThreadPoolExecutor(max_workers=AGENT_DISPATCH_WORKERS, thread_name_prefix="agent-task") as pool:
+        while True:
+            try:
+                # 清理已完成 future，避免集合膨胀
+                done = {f for f in inflight if f.done()}
+                for fut in done:
+                    _on_done(fut)
+                tasks = client.poll_tasks()
+                for task in tasks:
+                    print(f"==> 执行任务: {task.get('task_type')} ({task.get('task_id')})")
+                    fut = pool.submit(dispatch_task, client, task)
+                    inflight.add(fut)
+                    fut.add_done_callback(lambda f: inflight.discard(f))
+            except Exception as exc:
+                print(f"Agent 轮询失败: {exc}", file=sys.stderr)
+
+            time.sleep(POLL_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

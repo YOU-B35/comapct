@@ -18,6 +18,15 @@ const invalidUrl = resolveAppError({
 assert.equal(invalidUrl.title, '竞店链接无效')
 assert.match(invalidUrl.summary, /Temu 店铺链接/)
 
+const targetUrlInvalid = resolveAppError({
+  errorCode: 'MONITOR_TARGET_URL_INVALID',
+  message: '请填写 Temu 店铺链接（含 mall_id），商品详情页无法作为竞店抓取',
+})
+
+assert.equal(targetUrlInvalid.title, '竞店链接格式不正确')
+assert.match(targetUrlInvalid.summary, /mall_id|发现竞店/)
+assert.ok(targetUrlInvalid.steps.some((step) => /mall\.html|发现渔具/.test(step)))
+
 const legacyDisabled = resolveAppError({
   errorCode: 'MONITOR_LEGACY_ANALYZE_DISABLED',
   message: '旧竞店分析入口已停用，请使用 /api/monitor 任务链路',

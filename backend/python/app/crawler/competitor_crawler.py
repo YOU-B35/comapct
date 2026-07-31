@@ -19,7 +19,13 @@ from app.external_snapshot.ctf_website.temu_page_card_lib import (
     parse_mall_id,
 )
 
-PRICE_RE = re.compile(r"(?:US)?\$\s*([0-9]+(?:[,.][0-9]{3})*(?:\.[0-9]{1,2})?)|(?:^|\s)R\s*([0-9]+(?:[,.][0-9]{3})*(?:\.[0-9]{1,2})?)", re.I)
+PRICE_RE = re.compile(
+    r"(?:US)?\$\s*([0-9]+(?:[,.][0-9]{3})*(?:\.[0-9]{1,2})?)"
+    r"|(?:^|\s)R\s*([0-9]+(?:[,.][0-9]{3})*(?:\.[0-9]{1,2})?)"
+    r"|[¥￥]\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)"
+    r"|([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)\s*円",
+    re.I,
+)
 SALES_RE = re.compile(
     r"([0-9]+(?:\.[0-9]+)?\s*[kKmM万]?)\s*(?:\+?\s*)?"
     r"(?:sold|已售|销量|人已买|件已售|orders?|販売)",
@@ -261,7 +267,9 @@ def extract_price(text: str) -> float:
     match = PRICE_RE.search(text or "")
     if not match:
         return 0.0
-    value = match.group(1) or match.group(2)
+    value = next((group for group in match.groups() if group), None)
+    if not value:
+        return 0.0
     return round(float(value.replace(",", "")), 2)
 
 

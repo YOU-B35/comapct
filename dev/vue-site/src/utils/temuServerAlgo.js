@@ -41,11 +41,14 @@ export function buildServerRestock(product, inv) {
 }
 
 /**
- * 将 Commander 预警结果合并到已 enrich 的产品列表
+ * 将服务端预警结果合并到已 enrich 的产品列表。
+ * 爆款：以后端 overload_products（与 isHot 同公式）为准，避免列表/徽标/API 三口径。
+ * 备货：有 inventory_warnings 时覆盖本地 restock。
  */
 export function applyServerAlgorithms(products, { loseProducts = [], lowWarnings = [], inventoryWarnings = [], overloadProducts = [] } = {}) {
   const loseSet = new Set(loseProducts.map(productKeyFromRow).filter(Boolean))
   const overloadSet = new Set(overloadProducts.map(productKeyFromRow).filter(Boolean))
+  const useServerHot = Array.isArray(overloadProducts)
 
   const lowMap = new Map()
   for (const row of lowWarnings) {
@@ -80,7 +83,10 @@ export function applyServerAlgorithms(products, { loseProducts = [], lowWarnings
       next.restock = buildServerRestock(product, invRow)
     }
 
-    if (overloadSet.has(product.sku)) {
+    if (useServerHot) {
+      next.isHot = overloadSet.has(product.sku)
+      next.isOverload = next.isHot
+    } else if (overloadSet.has(product.sku)) {
       next.isOverload = true
     }
 

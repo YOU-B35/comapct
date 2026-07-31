@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrossHub Sync Helper</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <h1>CrossHub Sync Helper</h1>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openAddDialog()">+ 添加账号</button>
+        <button class="btn btn-success" onclick="syncAll()">全部同步</button>
+      </div>
+    </header>
+
+    <div class="status-bar" id="statusBar"></div>
+
+    <section class="account-grid" id="accountGrid">
+      <div class="loading">加载中...</div>
+    </section>
+
+    <!-- 添加账号弹窗 -->
+    <div class="modal-overlay" id="addModal" style="display:none">
+      <div class="modal">
+        <h3>添加 Temu 卖家账号</h3>
+        <div class="form-group">
+          <label>登录手机号</label>
+          <input type="text" id="inputPhone" placeholder="如 18012345678">
+        </div>
+        <div class="form-group">
+          <label>备注名称</label>
+          <input type="text" id="inputName" placeholder="如 yituo">
+        </div>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeAddDialog()">取消</button>
+          <button class="btn btn-primary" onclick="submitAdd()">确认添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

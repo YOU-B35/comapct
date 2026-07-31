@@ -61,22 +61,29 @@ def _ae_launch_kwargs(headless: bool) -> dict:
     return kwargs
 
 
-def wait_for_ae_login(page: Page, *, tenant_id: int, context: BrowserContext | None = None) -> None:
+def wait_for_ae_login(
+    page: Page,
+    *,
+    tenant_id: int,
+    context: BrowserContext | None = None,
+    session_key: str | None = None,
+) -> None:
     ctx = context or page.context
     deadline = time.time() + AE_LOGIN_WAIT_SECONDS
     while time.time() < deadline:
         url = page.url or ""
         cookies = ctx.cookies()
         if ae_session_ready(url, cookies):
-            persist_ae_session(tenant_id, page, ctx)
+            persist_ae_session(tenant_id, page, ctx, session_key=session_key)
             human_pause()
             return
         if time.time() >= deadline:
             break
         time.sleep(AE_LOGIN_POLL_SECONDS)
+    key_hint = f" --session-key {session_key}" if session_key else ""
     raise RuntimeError(
         f"AliExpress 卖家后台未登录（tenant={tenant_id}），"
-        f"请先运行: py login_aliexpress.py --tenant-id {tenant_id}"
+        f"请先运行: py login_aliexpress.py --tenant-id {tenant_id}{key_hint}"
     )
 
 
@@ -85,8 +92,9 @@ def open_aliexpress_context(
     tenant_id: int,
     *,
     headless: bool | None = None,
+    session_key: str | None = None,
 ) -> Generator[tuple[Playwright, BrowserContext], None, None]:
-    profile_dir = resolve_aliexpress_profile_dir(tenant_id)
+    profile_dir = resolve_aliexpress_profile_dir(tenant_id, session_key)
     profile_dir.mkdir(parents=True, exist_ok=True)
     resolved_headless = is_ae_headless() if headless is None else headless
 

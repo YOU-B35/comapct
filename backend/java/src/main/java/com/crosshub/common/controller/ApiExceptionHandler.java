@@ -20,11 +20,15 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(CrawlCooldownException.class)
     public ResponseEntity<Map<String, Object>> handleCooldown(CrawlCooldownException ex) {
+        String msg = ex.getMessage();
+        if (msg == null || msg.isBlank()) {
+            msg = AppErrorCode.CRAWL_COOLDOWN.getUserMessage();
+        }
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(ApiResult.error(
                         HttpStatus.TOO_MANY_REQUESTS.value(),
                         AppErrorCode.CRAWL_COOLDOWN.getCode(),
-                        AppErrorCode.CRAWL_COOLDOWN.getUserMessage()
+                        msg
                 ));
     }
 

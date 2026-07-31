@@ -8,6 +8,8 @@ import com.crosshub.config.CrawlerProperties;
 
 import com.crosshub.temu.service.TemuAgentService;
 
+import com.crosshub.temu.service.TemuSellerSessionService;
+
 import com.crosshub.temu.service.TemuSessionService;
 
 import com.crosshub.tenant.service.DataScopeService;
@@ -68,6 +70,8 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
     private final TemuAgentService temuAgentService;
 
+    private final TemuSellerSessionService sellerSessionService;
+
 
 
     public TemuSessionServiceImpl(
@@ -80,7 +84,9 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
             @Qualifier("crawlExecutor") Executor crawlExecutor,
 
-            TemuAgentService temuAgentService
+            TemuAgentService temuAgentService,
+
+            TemuSellerSessionService sellerSessionService
 
     ) {
 
@@ -93,6 +99,8 @@ public class TemuSessionServiceImpl implements TemuSessionService {
         this.crawlExecutor = crawlExecutor;
 
         this.temuAgentService = temuAgentService;
+
+        this.sellerSessionService = sellerSessionService;
 
     }
 
@@ -118,6 +126,8 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
             out.put("agent_online", integration.get("agent_online"));
 
+            out.put("seller_sessions", sellerSessionService.listSellerSessions(tenantId));
+
             enrichSessionSemantics(out);
 
             if (!Boolean.TRUE.equals(integration.get("agent_online"))) {
@@ -138,7 +148,7 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
 
 
-        JsonNode json = runPythonJson(tenantId, "seller_session_status.py", List.of("--cache-only"));
+        JsonNode json = runPythonJson(tenantId, "seller_session_status.py", buildSessionProbeArgs(tenantId));
 
         if (json == null || !json.isObject()) {
 
@@ -168,6 +178,8 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
         payload.put("mode", "local");
 
+        payload.put("seller_sessions", sellerSessionService.listSellerSessions(tenantId));
+
         enrichSessionSemantics(payload);
 
         return payload;
@@ -178,19 +190,33 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
     @Override
 
-    public Map<String, Object> openLoginWindow() {
+    public Map<String, Object> openLoginWindow(String platformAccountId) {
 
         Long tenantId = dataScopeService.requireTenantId();
 
         if (temuAgentService.useAgentMode()) {
 
-            return temuAgentService.enqueueLoginOpen(tenantId);
+            return temuAgentService.enqueueLoginOpen(tenantId, platformAccountId);
 
         }
 
 
 
-        JsonNode json = runPythonJson(tenantId, "seller_login.py", List.of("--open-only"));
+        List<String> args = new ArrayList<>();
+
+        args.add("--open-only");
+
+        String sessionKey = sellerSessionService.resolveSessionKey(tenantId, platformAccountId);
+
+        if (!"default".equals(sessionKey)) {
+
+            args.add("--session-key");
+
+            args.add(sessionKey);
+
+        }
+
+        JsonNode json = runPythonJson(tenantId, "seller_login.py", args);
 
         if (json == null || !json.isObject()) {
 
@@ -269,6 +295,21 @@ public class TemuSessionServiceImpl implements TemuSessionService {
         } catch (Exception ex) {
             return 0;
         }
+    }
+
+    private List<String> buildSessionProbeArgs(Long tenantId) {
+        List<String> args = new ArrayList<>();
+        args.add("--cache-only");
+        List<Map<String, Object>> sessions = sellerSessionService.listSellerSessions(tenantId);
+        if (sessions.size() > 1 || !sessions.isEmpty() && !"default".equals(String.valueOf(sessions.get(0).get("session_key")))) {
+            try {
+                args.add("--seller-sessions-json");
+                args.add(objectMapper.writeValueAsString(sessions));
+            } catch (Exception ignored) {
+                // fall back to single default probe
+            }
+        }
+        return args;
     }
 
     private JsonNode runPythonJson(Long tenantId, String script, List<String> extraArgs) {

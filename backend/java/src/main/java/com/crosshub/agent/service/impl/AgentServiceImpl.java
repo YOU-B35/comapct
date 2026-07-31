@@ -5,10 +5,11 @@ import com.crosshub.agent.entity.IntegrationAgent;
 import com.crosshub.agent.repository.AgentTaskRepository;
 import com.crosshub.agent.repository.IntegrationAgentRepository;
 import com.crosshub.agent.service.AgentService;
+import com.crosshub.agent.service.AgentTaskConcurrency;
 import com.crosshub.common.AppErrorCode;
+import com.crosshub.config.AgentProperties;
 import com.crosshub.security.AgentContext;
 import com.crosshub.security.AuthContext;
-import com.crosshub.amazon.service.AmazonWriteService;
 import com.crosshub.temu.service.TemuAgentTasks;
 import com.crosshub.tenant.service.DataScopeService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -33,6 +34,7 @@ import java.util.UUID;
 @Service
 public class AgentServiceImpl implements AgentService {
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final long AMAZON_TASK_RUNNING_TTL_SECONDS = 6 * 60;
     private static final long AGENT_TASK_RUNNING_TTL_SECONDS = 40 * 60;
     private static final long AGENT_TASK_DEFAULT_TTL_SECONDS = 10 * 60;
 
@@ -51,6 +53,7 @@ public class AgentServiceImpl implements AgentService {
     private final AmazonWriteBridge amazonWriteBridge;
     private final TemuBridge temuBridge;
     private final TransactionTemplate transactionTemplate;
+    private final AgentProperties agentProperties;
 
     public AgentServiceImpl(
             IntegrationAgentRepository agentRepository,
@@ -60,6 +63,7 @@ public class AgentServiceImpl implements AgentService {
             DataScopeService dataScopeService,
             ObjectMapper objectMapper,
             TransactionTemplate transactionTemplate,
+            AgentProperties agentProperties,
             @Autowired(required = false) @Lazy AmazonSyncBridge amazonSyncBridge,
             @Autowired(required = false) @Lazy AmazonWriteBridge amazonWriteBridge,
             @Autowired(required = false) @Lazy TemuBridge temuBridge
@@ -71,9 +75,22 @@ public class AgentServiceImpl implements AgentService {
         this.dataScopeService = dataScopeService;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
+        this.agentProperties = agentProperties == null ? new AgentProperties() : agentProperties;
         this.amazonSyncBridge = amazonSyncBridge;
         this.amazonWriteBridge = amazonWriteBridge;
         this.temuBridge = temuBridge;
+    }
+
+    private AgentTaskConcurrency.Limits concurrencyLimits() {
+        AgentProperties.Concurrency cfg = agentProperties.getConcurrency();
+        return new AgentTaskConcurrency.Limits(
+                cfg.getMaxTemu(),
+                cfg.getMaxAliExpress(),
+                cfg.getMaxAmazon(),
+                cfg.getMaxGlobal(),
+                cfg.getMaxClaimBatch(),
+                cfg.getTemuParallelSessions()
+        );
     }
 
     public interface AmazonSyncBridge {
@@ -159,7 +176,11 @@ public class AgentServiceImpl implements AgentService {
                     row.setZiniaoOnline(ziniaoFlag);
                     agentRepository.save(row);
                 });
-                return Map.of("node_id", agent.getId(), "status", "ok");
+                return Map.of(
+                        "node_id", agent.getId(),
+                        "tenant_id", agent.getTenantId(),
+                        "status", "ok"
+                );
             } catch (CannotAcquireLockException ex) {
                 if (attempt >= 4) {
                     throw ex;
@@ -185,26 +206,20 @@ public class AgentServiceImpl implements AgentService {
         IntegrationAgent agent = requireAgent();
         Long tenantId = agent.getTenantId();
         reconcileStaleRunningTasks(tenantId);
+        AgentTaskConcurrency.Limits limits = concurrencyLimits();
+        List<AgentTask> running = taskRepository.findByTenantIdAndStatusOrderByCreatedAtAsc(tenantId, "running");
+        AgentTaskConcurrency.State state = new AgentTaskConcurrency.State(limits);
+        for (AgentTask runningTask : running) {
+            state.admit(analyzeTask(runningTask, limits));
+        }
         List<AgentTask> pending = taskRepository.findByTenantIdAndStatusOrderByCreatedAtAsc(tenantId, "pending");
-        boolean amazonBrowserBusy = taskRepository.findByTenantIdAndStatusOrderByCreatedAtAsc(tenantId, "running")
-                .stream()
-                .anyMatch(task ->
-                        TASK_TYPE.equals(task.getTaskType())
-                                || AmazonWriteService.WRITE_TASK_TYPE.equals(task.getTaskType())
-                );
-        boolean temuBrowserBusy = taskRepository.findByTenantIdAndStatusOrderByCreatedAtAsc(tenantId, "running")
-                .stream()
-                .anyMatch(task -> TemuAgentTasks.BROWSER_BUSY_TYPES.contains(task.getTaskType()));
         List<Map<String, Object>> result = new ArrayList<>();
         for (AgentTask task : pending) {
-            if (result.size() >= 5) {
+            if (result.size() >= limits.maxClaimBatch()) {
                 break;
             }
-            if ((TASK_TYPE.equals(task.getTaskType()) || AmazonWriteService.WRITE_TASK_TYPE.equals(task.getTaskType()))
-                    && amazonBrowserBusy) {
-                continue;
-            }
-            if (TemuAgentTasks.BROWSER_BUSY_TYPES.contains(task.getTaskType()) && temuBrowserBusy) {
+            AgentTaskConcurrency.Requirement need = analyzeTask(task, limits);
+            if (!state.canAdmit(need)) {
                 continue;
             }
             task.setStatus("running");
@@ -213,14 +228,18 @@ public class AgentServiceImpl implements AgentService {
             taskRepository.save(task);
             onAgentTaskStarted(task);
             result.add(toTaskDto(task));
-            if (TASK_TYPE.equals(task.getTaskType()) || AmazonWriteService.WRITE_TASK_TYPE.equals(task.getTaskType())) {
-                amazonBrowserBusy = true;
-            }
-            if (TemuAgentTasks.BROWSER_BUSY_TYPES.contains(task.getTaskType())) {
-                temuBrowserBusy = true;
-            }
+            state.admit(need);
         }
         return result;
+    }
+
+    private AgentTaskConcurrency.Requirement analyzeTask(AgentTask task, AgentTaskConcurrency.Limits limits) {
+        return AgentTaskConcurrency.analyze(
+                task.getTaskType(),
+                AgentTaskConcurrency.parsePayload(objectMapper, task.getPayloadJson()),
+                task.getTenantId(),
+                limits
+        );
     }
 
     @Override
@@ -235,6 +254,9 @@ public class AgentServiceImpl implements AgentService {
         IntegrationAgent agent = requireAgent();
         AgentTask task = taskRepository.findByIdAndTenantId(taskId, agent.getTenantId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在"));
+        if (!"pending".equalsIgnoreCase(task.getStatus()) && !"running".equalsIgnoreCase(task.getStatus())) {
+            return Map.of("task_id", task.getId(), "status", task.getStatus(), "ignored", true);
+        }
         String normalized = status == null ? "failed" : status.trim().toLowerCase();
         task.setStatus(normalized);
         task.setFinishedAt(now());
@@ -339,9 +361,14 @@ public class AgentServiceImpl implements AgentService {
         if (base == null) {
             return true;
         }
-        long ttl = TASK_TYPE.equals(task.getTaskType()) || TemuAgentTasks.CRAWL.equals(task.getTaskType())
-                ? AGENT_TASK_RUNNING_TTL_SECONDS
-                : AGENT_TASK_DEFAULT_TTL_SECONDS;
+        long ttl;
+        if (TASK_TYPE.equals(task.getTaskType())) {
+            ttl = AMAZON_TASK_RUNNING_TTL_SECONDS;
+        } else if (TemuAgentTasks.CRAWL.equals(task.getTaskType())) {
+            ttl = AGENT_TASK_RUNNING_TTL_SECONDS;
+        } else {
+            ttl = AGENT_TASK_DEFAULT_TTL_SECONDS;
+        }
         return base.plusSeconds(ttl).isBefore(LocalDateTime.now());
     }
 

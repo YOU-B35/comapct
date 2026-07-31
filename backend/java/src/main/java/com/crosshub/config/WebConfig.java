@@ -50,7 +50,13 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/agent/heartbeat",
                         "/api/agent/tasks",
                         "/api/agent/tasks/**",
-                        "/api/agent/temu/**"
+                        "/api/agent/temu/**",
+                        "/api/agent/tenants",
+                        "/api/agent/platform-accounts",
+                        "/api/agent/platform-accounts/**",
+                        "/api/agent/amazon/**",
+                        "/api/agent/profiles",
+                        "/api/agent/profiles/**"
                 );
     }
 }

@@ -3,8 +3,16 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from app.amazon.page_urls import HOME_URL
+from app.config import (
+    AMAZON_LOGIN_MAX_ATTEMPTS,
+    AMAZON_LOGIN_POLL_SECONDS,
+    AMAZON_LOGIN_WAIT_SECONDS,
+)
 
 CAPTURE_DIR = Path(__file__).resolve().parents[3] / "data" / "amazon-captures"
 
@@ -52,13 +60,35 @@ def looks_logged_in(body_text: str, url: str) -> bool:
 def looks_login_page(body_text: str, url: str) -> bool:
     body = body_text or ""
     lowered = body.lower()
+    url_l = (url or "").lower()
+    if "两步验证" in body or "one-time password" in lowered or "/ap/mfa" in url_l:
+        return True
     if "sign in" in lowered or "sign-in" in lowered:
         return "seller central" not in lowered and "卖家平台" not in body
     if "登录" in body and "账户状况" not in body and "全局快照" not in body:
         return True
-    if "/ap/signin" in (url or "").lower():
+    if "/ap/signin" in url_l:
         return True
     return False
+
+
+def _session_ready(body_text: str, url: str) -> bool:
+    return looks_logged_in(body_text, url) and not looks_login_page(body_text, url)
+
+
+def _read_body_text(page) -> str:
+    try:
+        text = page.evaluate(
+            """() => (document.body && (document.body.innerText || document.body.textContent)) || ''"""
+        )
+        if text:
+            return str(text)
+    except Exception:
+        pass
+    try:
+        return str(page.inner_text("body") or "")
+    except Exception:
+        return ""
 
 
 def require_seller_logged_in(page, body_text: str, *, store_name: str = "") -> None:
@@ -74,6 +104,71 @@ def require_seller_logged_in(page, body_text: str, *, store_name: str = "") -> N
             f"Amazon 卖家后台会话无效，请在紫鸟中重新登录 Seller Central。截图: {capture}",
             capture_path=capture,
         )
+
+
+def ensure_seller_logged_in_with_wait(
+    page,
+    *,
+    body_text: str | None = None,
+    store_name: str = "",
+    timeout_seconds: int | None = None,
+    poll_seconds: float | None = None,
+    max_attempts: int | None = None,
+    sleeper: Callable[[float], None] = time.sleep,
+    home_url: str = HOME_URL,
+) -> str:
+    """登录/2FA 未完成时等待人工（或插件）完成，最多刷新检测 max_attempts 次。
+
+    与 Temu wait_for_login_and_mall 同类：日批不因一次 2FA 页面立刻失败。
+    """
+    wait_total = AMAZON_LOGIN_WAIT_SECONDS if timeout_seconds is None else int(timeout_seconds)
+    poll = AMAZON_LOGIN_POLL_SECONDS if poll_seconds is None else float(poll_seconds)
+    attempts = AMAZON_LOGIN_MAX_ATTEMPTS if max_attempts is None else int(max_attempts)
+    attempts = max(1, attempts)
+    poll = max(0.5, poll)
+
+    current = body_text if body_text is not None else _read_body_text(page)
+    if _session_ready(current, getattr(page, "url", "") or ""):
+        return current
+
+    polls_between = max(1, int(max(wait_total, 1) / (attempts * poll)))
+    print(
+        f"Amazon 卖家后台需要登录或完成两步验证。请在紫鸟窗口完成操作；"
+        f"将等待最多 {wait_total}s，刷新检测 {attempts} 次。",
+        flush=True,
+    )
+
+    for attempt in range(1, attempts + 1):
+        print(f"Amazon 登录检测第 {attempt}/{attempts} 次…", flush=True)
+        try:
+            page.goto(home_url, wait_until="domcontentloaded")
+        except Exception as exc:
+            print(f"Amazon 打开首页失败（第 {attempt} 次）: {exc}", flush=True)
+        try:
+            page.wait_for_timeout(3000)
+        except Exception:
+            sleeper(3)
+
+        current = _read_body_text(page)
+        if _session_ready(current, getattr(page, "url", "") or ""):
+            print("Amazon 卖家后台登录已就绪，继续同步。", flush=True)
+            return current
+
+        if attempt >= attempts:
+            break
+
+        for _ in range(polls_between):
+            sleeper(poll)
+            current = _read_body_text(page)
+            if _session_ready(current, getattr(page, "url", "") or ""):
+                print("Amazon 卖家后台登录已就绪，继续同步。", flush=True)
+                return current
+
+    capture = save_capture(page, store_name=store_name, suffix="login")
+    raise AmazonLoginRequiredError(
+        f"Amazon 卖家后台未登录或两步验证未完成（已重试 {attempts} 次），截图: {capture}",
+        capture_path=capture,
+    )
 
 
 def goto(page, url: str, wait_ms: int = 10000) -> str:

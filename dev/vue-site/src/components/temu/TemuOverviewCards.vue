@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { summarizeTemuProducts } from '@/utils/temuStore'
 import { formatMoneyDecimal } from '@/utils/format'
+import { RESTOCK_CONFIG } from '@/constants/temu'
 
 const props = defineProps({
   products: { type: Array, required: true },
@@ -23,7 +24,7 @@ const summary = computed(() => {
     { label: '亏损 SKU', value: lossItems.length, hint: `潜在亏损 ${formatMoneyDecimal(totalLoss)}`, type: 'danger' },
     { label: '滞销预警', value: slow15.length + slow30.length + slow45.length, hint: `15/30/45 日：${slow15.length}/${slow30.length}/${slow45.length}`, type: 'warning' },
     { label: '爆款 SKU', value: hotItems.length, hint: '当日销量 ≥ 7 日均 × 1.5', type: 'success' },
-    { label: '待备货 SKU', value: restockUrgent.length, hint: '官方仓覆盖不足 14 天', type: 'info' },
+    { label: '待备货 SKU', value: restockUrgent.length, hint: `官方仓覆盖 < 提前期+缓冲（${RESTOCK_CONFIG.leadTimeDays + RESTOCK_CONFIG.safetyBufferDays} 天）`, type: 'info' },
   ]
 })
 </script>

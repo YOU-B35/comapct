@@ -1,11 +1,12 @@
 package com.crosshub.monitor.service.impl;
 
 import com.crosshub.common.AppErrorCode;
+import com.crosshub.common.TenantCrawlCooldownService;
 import com.crosshub.config.CrawlerProperties;
 import com.crosshub.monitor.service.MonitorJobConflictException;
 import com.crosshub.monitor.service.MonitorService;
+import com.crosshub.monitor.util.TemuMonitorUrlValidator;
 import com.crosshub.security.AuthContext;
-import com.crosshub.common.TenantCrawlCooldownService;
 import com.crosshub.tenant.service.DataScopeService;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -78,9 +79,10 @@ public class MonitorServiceImpl implements MonitorService {
         if (label.isBlank() || targetUrl.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, AppErrorCode.BAD_REQUEST.getUserMessage());
         }
-        String host = text(payload, "host", parseHost(targetUrl));
         String status = text(payload, "status", "active");
         String crawlStrategy = text(payload, "crawl_strategy", text(payload, "crawlStrategy", "store_listing"));
+        targetUrl = validateAndMaybeCanonicalizeTemuShopUrl(platform, targetType, crawlStrategy, targetUrl);
+        String host = text(payload, "host", parseHost(targetUrl));
         int freshnessMinutes = intValue(payload.get("freshness_minutes"), intValue(payload.get("freshnessMinutes"), 1440));
 
         jdbc.update("""
@@ -106,11 +108,14 @@ public class MonitorServiceImpl implements MonitorService {
     public Map<String, Object> updateTarget(String id, Map<String, Object> payload) {
         Long tenantId = dataScopeService.requireTenantId();
         Map<String, Object> existing = requireTargetRow(id, tenantId);
+        String platform = text(payload, "platform", String.valueOf(existing.get("platform")));
+        String targetType = text(payload, "target_type", text(payload, "targetType", String.valueOf(existing.get("target_type"))));
         String label = text(payload, "label", String.valueOf(existing.get("label")));
         String targetUrl = text(payload, "target_url", text(payload, "targetUrl", String.valueOf(existing.get("target_url"))));
-        String host = text(payload, "host", parseHost(targetUrl));
         String status = text(payload, "status", String.valueOf(existing.get("status")));
         String crawlStrategy = text(payload, "crawl_strategy", text(payload, "crawlStrategy", String.valueOf(existing.get("crawl_strategy"))));
+        targetUrl = validateAndMaybeCanonicalizeTemuShopUrl(platform, targetType, crawlStrategy, targetUrl);
+        String host = text(payload, "host", parseHost(targetUrl));
         int freshnessMinutes = intValue(payload.get("freshness_minutes"), intValue(payload.get("freshnessMinutes"), intValue(existing.get("freshness_minutes"), 1440)));
 
         jdbc.update("""
@@ -201,7 +206,12 @@ public class MonitorServiceImpl implements MonitorService {
 
         boolean force = boolValue(payload == null ? null : payload.get("force"));
         boolean bypassCooldown = boolValue(payload == null ? null : payload.get("bypass_cooldown"));
-        crawlCooldownService.assertAllowed(tenantId, bypassCooldown);
+        // force / bypass_cooldown 任一即可跳过该竞店 monitor scope 冷却（30min；与平台 3h 解耦）
+        crawlCooldownService.assertAllowed(
+                tenantId,
+                TenantCrawlCooldownService.monitorScope(targetId),
+                force || bypassCooldown
+        );
         String reason = text(payload, "reason", "manual refresh");
         String jobId = "mj_" + UUID.randomUUID().toString().replace("-", "");
         String now = now();
@@ -459,6 +469,22 @@ public class MonitorServiceImpl implements MonitorService {
                 AppErrorCode.CRAWL_INTERRUPTED.getUserMessage(),
                 jobId
         );
+    }
+
+    private String validateAndMaybeCanonicalizeTemuShopUrl(
+            String platform,
+            String targetType,
+            String crawlStrategy,
+            String targetUrl
+    ) {
+        boolean temuShopListing = "temu".equalsIgnoreCase(platform)
+                && "shop".equalsIgnoreCase(targetType)
+                && "store_listing".equalsIgnoreCase(crawlStrategy);
+        if (!temuShopListing) {
+            return targetUrl;
+        }
+        TemuMonitorUrlValidator.requireValidForCreate(targetUrl);
+        return TemuMonitorUrlValidator.canonicalize(targetUrl);
     }
 
     private Map<String, Object> requireTarget(String id, Long tenantId) {

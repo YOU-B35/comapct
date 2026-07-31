@@ -2,10 +2,10 @@
 # Usage:
 #   powershell -File scripts/build-sync-helper-exe.ps1
 # Optional:
-#   powershell -File scripts/build-sync-helper-exe.ps1 -JavaApiUrl "https://www.yoto.work/crosshub-api"
+#   powershell -File scripts/build-sync-helper-exe.ps1 -JavaApiUrl "https://www.yoto.work"
 
 param(
-    [string]$JavaApiUrl = "https://www.yoto.work/crosshub-api",
+    [string]$JavaApiUrl = "https://www.yoto.work",
     [string]$OutDir = ""
 )
 
@@ -27,8 +27,8 @@ if (-not $py) {
     exit 3
 }
 
-Write-Host "==> ensure PyInstaller" -ForegroundColor Cyan
-& py -m pip install --quiet --upgrade pip pyinstaller | Out-Null
+Write-Host "==> ensure PyInstaller + tray deps" -ForegroundColor Cyan
+& py -m pip install --quiet --upgrade pip pyinstaller pystray pillow flask | Out-Null
 
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 New-Item -ItemType Directory -Force -Path $DistRoot | Out-Null
@@ -38,7 +38,7 @@ Write-Host "==> pyinstaller onedir" -ForegroundColor Cyan
     --noconfirm `
     --clean `
     --onedir `
-    --console `
+    --windowed `
     --name "CrossHub-Sync-Helper" `
     --distpath $DistRoot `
     --workpath (Join-Path $WorkDir "build") `
@@ -51,7 +51,13 @@ Write-Host "==> pyinstaller onedir" -ForegroundColor Cyan
     --hidden-import agent.java_client `
     --hidden-import agent.config `
     --hidden-import agent.health_server `
-    --hidden-import app `
+    --hidden-import agent.tray_app `
+    --hidden-import flask `
+    --hidden-import pystray `
+    --hidden-import PIL `
+    --hidden-import PIL.Image `
+    --hidden-import PIL.ImageDraw `
+    --add-data "$PyRoot\agent\panel;agent/panel" `
     --hidden-import app.browser.context `
     --hidden-import app.crawler.temu_crawler `
     --hidden-import app.amazon.report_crawler `
@@ -96,6 +102,10 @@ CrossHub Sync Helper（运维机专用）
 3. 服务端每天 09:30 下发全平台日批；本程序在本机开浏览器执行 Temu/Amazon 等任务。
 
 4. 需要本机已安装 Google Chrome；Amazon 另需紫鸟（可选自动拉起）。
+
+5. 开机自启（推荐）：在仓库根目录执行
+   powershell -File scripts\install-sync-helper-autostart.ps1 -StartNow
+   详见 docs/superpowers/specs/attachments/2026-07-29-rc-auto-checklist.md
 
 不要把本程序的下载入口放到运营人员使用的网页上。
 "@

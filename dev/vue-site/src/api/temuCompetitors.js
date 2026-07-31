@@ -108,8 +108,8 @@ export function discoverCompetitors(payload = {}) {
 }
 
 /** 每日爬取：为列表中每个竞店重建快照并生成报告 */
-export function analyzeCompetitors(competitors) {
-  if (canUseBackend()) return analyzeBackendCompetitors(competitors)
+export function analyzeCompetitors(competitors, options = {}) {
+  if (canUseBackend()) return analyzeBackendCompetitors(competitors, options)
   const targets = resolveTargets(competitors)
   if (!targets.length) {
     return { success: true, data: [], competitors: [] }

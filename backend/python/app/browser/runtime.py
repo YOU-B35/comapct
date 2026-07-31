@@ -4,16 +4,23 @@ from dataclasses import dataclass
 from threading import RLock
 from typing import Callable, Any
 
+from app.temu.session_scope import normalize_session_key
+
 
 @dataclass
 class BrowserRuntime:
     tenant_id: int
+    session_key: str
     headless: bool
     context: Any
 
 
 _LOCK = RLock()
-_RUNTIMES: dict[int, BrowserRuntime] = {}
+_RUNTIMES: dict[str, BrowserRuntime] = {}
+
+
+def runtime_key(tenant_id: int, session_key: str | None = None) -> str:
+    return f"{tenant_id}:{normalize_session_key(session_key)}"
 
 
 def get_or_create_browser_runtime(
@@ -22,14 +29,16 @@ def get_or_create_browser_runtime(
     headless: bool,
     launcher: Callable[[int, bool], Any],
     is_usable: Callable[[Any], bool] | None = None,
+    session_key: str | None = None,
 ) -> BrowserRuntime:
+    key = runtime_key(tenant_id, session_key)
     stale: BrowserRuntime | None = None
     with _LOCK:
-        existing = _RUNTIMES.get(tenant_id)
+        existing = _RUNTIMES.get(key)
         if existing is not None:
             if is_usable is None or is_usable(existing.context):
                 return existing
-            _RUNTIMES.pop(tenant_id, None)
+            _RUNTIMES.pop(key, None)
             stale = existing
     if stale is not None:
         try:
@@ -37,24 +46,30 @@ def get_or_create_browser_runtime(
         except Exception:
             pass
     with _LOCK:
-        existing = _RUNTIMES.get(tenant_id)
+        existing = _RUNTIMES.get(key)
         if existing is not None:
             if is_usable is None or is_usable(existing.context):
                 return existing
-            _RUNTIMES.pop(tenant_id, None)
+            _RUNTIMES.pop(key, None)
             try:
                 existing.context.close()
             except Exception:
                 pass
         context = launcher(tenant_id, headless)
-        runtime = BrowserRuntime(tenant_id=tenant_id, headless=headless, context=context)
-        _RUNTIMES[tenant_id] = runtime
+        runtime = BrowserRuntime(
+            tenant_id=tenant_id,
+            session_key=normalize_session_key(session_key),
+            headless=headless,
+            context=context,
+        )
+        _RUNTIMES[key] = runtime
         return runtime
 
 
-def close_browser_runtime(*, tenant_id: int) -> None:
+def close_browser_runtime(*, tenant_id: int, session_key: str | None = None) -> None:
+    key = runtime_key(tenant_id, session_key)
     with _LOCK:
-        runtime = _RUNTIMES.pop(tenant_id, None)
+        runtime = _RUNTIMES.pop(key, None)
     if runtime is None:
         return
     try:

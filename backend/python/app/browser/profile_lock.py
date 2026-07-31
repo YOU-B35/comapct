@@ -8,17 +8,18 @@ from pathlib import Path
 from typing import Any
 
 from app.config import resolve_profile_dir
+from app.temu.session_scope import normalize_session_key
 
 LOCK_FILENAME = ".crosshub-profile.lock"
 CACHE_FILENAME = ".crosshub-session.json"
 
 
-def _lock_path(tenant_id: int) -> Path:
-    return resolve_profile_dir(tenant_id) / LOCK_FILENAME
+def _lock_path(tenant_id: int, session_key: str | None = None) -> Path:
+    return resolve_profile_dir(tenant_id, session_key) / LOCK_FILENAME
 
 
-def _cache_path(tenant_id: int) -> Path:
-    return resolve_profile_dir(tenant_id) / CACHE_FILENAME
+def _cache_path(tenant_id: int, session_key: str | None = None) -> Path:
+    return resolve_profile_dir(tenant_id, session_key) / CACHE_FILENAME
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -35,26 +36,34 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
-def read_profile_lock(tenant_id: int) -> dict[str, Any] | None:
-    lock = _read_json(_lock_path(tenant_id))
+def read_profile_lock(tenant_id: int, session_key: str | None = None) -> dict[str, Any] | None:
+    lock = _read_json(_lock_path(tenant_id, session_key))
     if not lock:
         return None
     pid = int(lock.get("pid") or 0)
     if pid > 0 and not _pid_alive(pid):
-        clear_profile_lock(tenant_id)
+        clear_profile_lock(tenant_id, session_key)
         return None
     return lock
 
 
-def is_profile_locked(tenant_id: int) -> bool:
-    return read_profile_lock(tenant_id) is not None
+def is_profile_locked(tenant_id: int, session_key: str | None = None) -> bool:
+    return read_profile_lock(tenant_id, session_key) is not None
 
 
-def write_profile_lock(tenant_id: int, *, pid: int, role: str) -> None:
+def write_profile_lock(
+    tenant_id: int,
+    *,
+    pid: int,
+    role: str,
+    session_key: str | None = None,
+) -> None:
+    key = normalize_session_key(session_key)
     _write_json(
-        _lock_path(tenant_id),
+        _lock_path(tenant_id, session_key),
         {
             "tenant_id": tenant_id,
+            "session_key": key,
             "pid": pid,
             "role": role,
             "updated_at": time.time(),
@@ -62,22 +71,49 @@ def write_profile_lock(tenant_id: int, *, pid: int, role: str) -> None:
     )
 
 
-def clear_profile_lock(tenant_id: int) -> None:
+def clear_profile_lock(tenant_id: int, session_key: str | None = None) -> None:
     try:
-        _lock_path(tenant_id).unlink(missing_ok=True)
+        _lock_path(tenant_id, session_key).unlink(missing_ok=True)
     except Exception:
         pass
 
 
-def write_session_cache(tenant_id: int, payload: dict[str, Any]) -> None:
+def write_session_cache(
+    tenant_id: int,
+    payload: dict[str, Any],
+    session_key: str | None = None,
+) -> None:
+    key = normalize_session_key(session_key)
     body = dict(payload)
     body["tenant_id"] = tenant_id
+    body["session_key"] = key
     body["cached_at"] = time.time()
-    _write_json(_cache_path(tenant_id), body)
+    _write_json(_cache_path(tenant_id, session_key), body)
+    if body.get("ready") is True:
+        try:
+            from app.browser.profile_sync import profile_push_enabled, push_profile_async
+            from agent.java_client import AgentApiClient
+
+            if profile_push_enabled():
+                push_profile_async(
+                    AgentApiClient(),
+                    platform="temu",
+                    tenant_id=tenant_id,
+                    session_key=key,
+                    platform_account_id=str(body.get("platform_account_id") or ""),
+                    account=str(body.get("account") or ""),
+                )
+        except Exception:
+            pass
 
 
-def read_session_cache(tenant_id: int, *, max_age_seconds: int = 300) -> dict[str, Any] | None:
-    cached = _read_json(_cache_path(tenant_id))
+def read_session_cache(
+    tenant_id: int,
+    *,
+    max_age_seconds: int = 300,
+    session_key: str | None = None,
+) -> dict[str, Any] | None:
+    cached = _read_json(_cache_path(tenant_id, session_key))
     if not cached:
         return None
     cached_at = float(cached.get("cached_at") or 0)
@@ -86,9 +122,9 @@ def read_session_cache(tenant_id: int, *, max_age_seconds: int = 300) -> dict[st
     return cached
 
 
-def clear_session_cache(tenant_id: int) -> None:
+def clear_session_cache(tenant_id: int, session_key: str | None = None) -> None:
     try:
-        _cache_path(tenant_id).unlink(missing_ok=True)
+        _cache_path(tenant_id, session_key).unlink(missing_ok=True)
     except Exception:
         pass
 

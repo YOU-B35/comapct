@@ -19,6 +19,9 @@ public class TemuWarningServiceImpl implements TemuWarningService {
     private static final double DEFAULT_LEAD = 7.0;
     private static final double TREND_MIN = 0.8;
     private static final double TREND_MAX = 1.5;
+    /** 与前端 RESTOCK_CONFIG.hotSurgeRatio / hotMinDailySales 对齐 */
+    private static final double HOT_SURGE_RATIO = 1.5;
+    private static final int HOT_MIN_DAILY_SALES = 1;
 
 
 
@@ -123,10 +126,36 @@ public class TemuWarningServiceImpl implements TemuWarningService {
     }
 
     public List<TemuSale> overloadProducts(List<TemuSale> sales, int limit) {
+        int cap = Math.max(0, limit);
         return sales.stream()
-                .sorted(Comparator.comparingInt((TemuSale s) -> safeInt(s.getSonSalesSevenDays())).reversed())
-                .limit(limit)
+                .filter(this::isHotProduct)
+                .sorted(Comparator
+                        .comparingDouble(this::hotSurgeScore).reversed()
+                        .thenComparing((TemuSale s) -> safeInt(s.getSonTodaySales()), Comparator.reverseOrder()))
+                .limit(cap)
                 .toList();
+    }
+
+    /** 与前端 isHotProduct 对齐：今日销量 ≥1，且（新动销 或 今日/7日均 ≥ 1.5） */
+    boolean isHotProduct(TemuSale sale) {
+        int today = safeInt(sale.getSonTodaySales());
+        if (today < HOT_MIN_DAILY_SALES) {
+            return false;
+        }
+        double avg7 = safeInt(sale.getSonSalesSevenDays()) / 7.0;
+        if (avg7 <= 0) {
+            return true;
+        }
+        return today / avg7 >= HOT_SURGE_RATIO;
+    }
+
+    private double hotSurgeScore(TemuSale sale) {
+        int today = safeInt(sale.getSonTodaySales());
+        double avg7 = safeInt(sale.getSonSalesSevenDays()) / 7.0;
+        if (avg7 <= 0) {
+            return today > 0 ? Double.MAX_VALUE : 0;
+        }
+        return today / avg7;
     }
 
     private int safeInt(Integer value) {

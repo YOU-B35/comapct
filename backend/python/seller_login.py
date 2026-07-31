@@ -34,39 +34,37 @@ DETACHED_PROCESS = 0x00000008
 
 
 
-def spawn_login_assist(tenant_id: int) -> dict:
+from app.temu.session_scope import normalize_session_key
 
-    if is_profile_locked(tenant_id):
 
-        lock = read_profile_lock(tenant_id) or {}
 
+def spawn_login_assist(tenant_id: int, session_key: str | None = None) -> dict:
+    key = normalize_session_key(session_key)
+    if is_profile_locked(tenant_id, key):
+        lock = read_profile_lock(tenant_id, key) or {}
         return {
-
             "tenant_id": tenant_id,
-
+            "session_key": key,
             "opened": False,
-
             "already_open": True,
-
             "engine": "playwright",
-
             "url": TEMU_SELLER_HOME,
-
             "lock_role": lock.get("role") or "login_assist",
-
         }
 
-
-
-    close_tenant_profile_browsers(tenant_id)
-
-
+    close_tenant_profile_browsers(tenant_id, session_key=key)
 
     script_dir = Path(__file__).resolve().parent
-
     assist = script_dir / "seller_login_assist.py"
-
-    command = [sys.executable, str(assist), "--tenant-id", str(tenant_id), "--json"]
+    command = [
+        sys.executable,
+        str(assist),
+        "--tenant-id",
+        str(tenant_id),
+        "--session-key",
+        key,
+        "--json",
+    ]
 
     popen_kwargs: dict = {
 
@@ -87,17 +85,12 @@ def spawn_login_assist(tenant_id: int) -> dict:
     subprocess.Popen(command, **popen_kwargs)
 
     return {
-
         "tenant_id": tenant_id,
-
+        "session_key": key,
         "opened": True,
-
         "already_open": False,
-
         "engine": "playwright",
-
         "url": TEMU_SELLER_HOME,
-
     }
 
 
@@ -109,6 +102,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Temu 卖家后台登录窗口")
 
     parser.add_argument("--tenant-id", type=int, help="租户 ID（或 TENANT_ID）")
+
+    parser.add_argument("--session-key", help="Temu 卖家账号会话 key")
 
     parser.add_argument(
 
@@ -160,7 +155,7 @@ def main() -> None:
 
 
 
-    result = spawn_login_assist(tenant_id)
+    result = spawn_login_assist(tenant_id, session_key=args.session_key)
 
     if result.get("already_open"):
 

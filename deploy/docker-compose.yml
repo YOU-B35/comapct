@@ -9,9 +9,11 @@ services:
       - /data/crosshub/data:/data
       - /data/crosshub/python-src:/opt/crosshub/python:ro
       - /data/crosshub/browser-profile:/data/temu-browser-profile
+      - /data/crosshub/agent-profiles:/data/agent-profiles
     environment:
       SPRING_PROFILES_ACTIVE: prod
       CROSSHUB_DB_PATH: /data/crosshub.db
+      CROSSHUB_AGENT_PROFILES_ROOT: /data/agent-profiles
       CROSSHUB_JWT_SECRET: crosshub-prod-jwt-secret-must-be-at-least-32-bytes
       CROSSHUB_CRAWLER_USE_AGENT: "true"
       CROSSHUB_PYTHON: python3

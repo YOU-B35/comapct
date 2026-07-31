@@ -18,6 +18,8 @@ from app.browser.context import (
 from app.browser.profile_lock import is_profile_locked, read_profile_lock
 from app.browser.session_state import session_ready
 from app.config import TEMU_SELLER_HOME
+from app.temu.session_aggregate import parse_seller_sessions_payload
+from app.temu.session_scope import normalize_session_key
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON = sys.executable
@@ -36,7 +38,6 @@ def _subprocess_env(tenant_id: int) -> dict[str, str]:
 
 
 def _run_json_script(script_name: str, tenant_id: int, *extra: str) -> dict[str, Any]:
-    # 打包成 .exe 后 sys.executable 指向自身，不能再 subprocess 跑 .py
     if _is_frozen():
         return _run_inprocess(script_name, tenant_id, *extra)
 
@@ -64,31 +65,49 @@ def _run_json_script(script_name: str, tenant_id: int, *extra: str) -> dict[str,
 def _run_inprocess(script_name: str, tenant_id: int, *extra: str) -> dict[str, Any]:
     os.environ["TENANT_ID"] = str(tenant_id)
     if script_name == "seller_session_status.py":
-        from seller_session_status import build_cache_only_payload
+        from seller_session_status import build_cache_only_payload, probe_all_sessions, probe_session_live
 
+        if "--seller-sessions-json" in extra:
+            idx = extra.index("--seller-sessions-json")
+            raw = extra[idx + 1] if idx + 1 < len(extra) else "[]"
+            sessions = json.loads(raw)
+            return probe_all_sessions(tenant_id, sessions)
         if "--cache-only" in extra:
-            return build_cache_only_payload(tenant_id)
-        return _probe_session_live(tenant_id)
+            session_key = None
+            if "--session-key" in extra:
+                idx = extra.index("--session-key")
+                session_key = extra[idx + 1] if idx + 1 < len(extra) else None
+            return build_cache_only_payload(tenant_id, session_key=session_key)
+        session_key = None
+        if "--session-key" in extra:
+            idx = extra.index("--session-key")
+            session_key = extra[idx + 1] if idx + 1 < len(extra) else None
+        return probe_session_live(tenant_id, session_key=session_key)
     if script_name == "seller_login.py":
-        return open_login_window(tenant_id)
+        session_key = None
+        if "--session-key" in extra:
+            idx = extra.index("--session-key")
+            session_key = extra[idx + 1] if idx + 1 < len(extra) else None
+        return open_login_window(tenant_id, session_key=session_key)
     raise RuntimeError(f"frozen 模式不支持脚本: {script_name}")
 
 
-def _probe_session_live(tenant_id: int) -> dict[str, Any]:
+def _probe_session_live(tenant_id: int, session_key: str | None = None) -> dict[str, Any]:
     from app.browser.context import describe_session, get_or_open_seller_page, open_temu_context
-    from app.browser.profile_lock import is_profile_locked, read_session_cache, write_session_cache
+    from app.browser.profile_lock import read_session_cache, write_session_cache
     from app.browser.session_state import build_session_payload
     from seller_session_status import build_cache_only_payload, payload_from_cache, profile_busy_error
 
-    if is_profile_locked(tenant_id):
-        cached = read_session_cache(tenant_id, max_age_seconds=1800)
+    key = normalize_session_key(session_key)
+    if is_profile_locked(tenant_id, key):
+        cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=key)
         if cached:
-            return payload_from_cache(tenant_id, cached, profile_busy=True)
-        return build_cache_only_payload(tenant_id)
+            return payload_from_cache(tenant_id, cached, profile_busy=True, session_key=key)
+        return build_cache_only_payload(tenant_id, session_key=key)
 
     profile_busy = False
     try:
-        with open_temu_context(tenant_id, headless=True) as (_, context):
+        with open_temu_context(tenant_id, headless=True, session_key=key) as (_, context):
             page = get_or_open_seller_page(context)
             page.wait_for_load_state("domcontentloaded", timeout=60_000)
             page.wait_for_timeout(1500)
@@ -96,9 +115,9 @@ def _probe_session_live(tenant_id: int) -> dict[str, Any]:
     except Exception as exc:
         if profile_busy_error(exc):
             profile_busy = True
-            cached = read_session_cache(tenant_id, max_age_seconds=1800)
+            cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=key)
             if cached:
-                return payload_from_cache(tenant_id, cached, profile_busy=True)
+                return payload_from_cache(tenant_id, cached, profile_busy=True, session_key=key)
             status = {
                 "url": "",
                 "title": "",
@@ -112,17 +131,19 @@ def _probe_session_live(tenant_id: int) -> dict[str, Any]:
             raise
 
     payload = build_session_payload(tenant_id, status, profile_busy=profile_busy)
+    payload["session_key"] = key
     if session_ready(status):
-        write_session_cache(tenant_id, payload)
+        write_session_cache(tenant_id, payload, session_key=key)
     return payload
 
 
-def open_login_window(tenant_id: int) -> dict[str, Any]:
-    """在当前 agent 线程直接打开 seller 页面，确保后续 discover 复用同线程 runtime。"""
-    if is_profile_locked(tenant_id):
-        lock = read_profile_lock(tenant_id) or {}
+def open_login_window(tenant_id: int, session_key: str | None = None) -> dict[str, Any]:
+    key = normalize_session_key(session_key)
+    if is_profile_locked(tenant_id, key):
+        lock = read_profile_lock(tenant_id, key) or {}
         return {
             "tenant_id": tenant_id,
+            "session_key": key,
             "opened": False,
             "already_open": True,
             "engine": "playwright",
@@ -130,9 +151,9 @@ def open_login_window(tenant_id: int) -> dict[str, Any]:
             "lock_role": lock.get("role") or "login_assist",
         }
 
-    close_temu_runtime(tenant_id)
-    close_tenant_profile_browsers(tenant_id)
-    runtime = get_or_create_temu_runtime(tenant_id, headless=False)
+    close_temu_runtime(tenant_id, session_key=key)
+    close_tenant_profile_browsers(tenant_id, session_key=key)
+    runtime = get_or_create_temu_runtime(tenant_id, headless=False, session_key=key)
     page = get_or_open_seller_page(runtime.context)
     try:
         page.bring_to_front()
@@ -140,6 +161,7 @@ def open_login_window(tenant_id: int) -> dict[str, Any]:
         pass
     return {
         "tenant_id": tenant_id,
+        "session_key": key,
         "opened": True,
         "already_open": False,
         "engine": "playwright",
@@ -148,34 +170,97 @@ def open_login_window(tenant_id: int) -> dict[str, Any]:
 
 
 def open_frontend_login_window(tenant_id: int, url: str | None = None) -> dict[str, Any]:
-    """Open real Chrome for Temu buyer-side login (never Playwright — blank login.html)."""
     from app.browser.manual_chrome import DEFAULT_FRONTEND_URL, open_manual_frontend_chrome
 
     return open_manual_frontend_chrome(tenant_id, url or DEFAULT_FRONTEND_URL)
 
 
-def probe_session(tenant_id: int) -> dict[str, Any]:
-    cached = _run_json_script("seller_session_status.py", tenant_id, "--cache-only")
+def _sessions_json_arg(seller_sessions: list[dict] | None) -> list[str]:
+    if not seller_sessions:
+        return []
+    return ["--seller-sessions-json", json.dumps(seller_sessions, ensure_ascii=False)]
+
+
+def probe_session(
+    tenant_id: int,
+    seller_sessions: list[dict] | None = None,
+    session_key: str | None = None,
+) -> dict[str, Any]:
+    if seller_sessions:
+        return _run_json_script(
+            "seller_session_status.py",
+            tenant_id,
+            *_sessions_json_arg(seller_sessions),
+        )
+    key = normalize_session_key(session_key)
+    cached = _run_json_script(
+        "seller_session_status.py",
+        tenant_id,
+        "--cache-only",
+        "--session-key",
+        key,
+    )
     if session_ready(cached):
         return cached
-    return _run_json_script("seller_session_status.py", tenant_id)
-
-
-def discover_competitors(tenant_id: int, keyword: str, region: str, limit: int) -> dict[str, Any]:
-    from app.crawler.competitor_discovery import discover_competitor_candidates
-
-    return discover_competitor_candidates(
-        tenant_id=tenant_id,
-        keyword=keyword,
-        region=region,
-        limit=limit,
+    return _run_json_script(
+        "seller_session_status.py",
+        tenant_id,
+        "--session-key",
+        key,
     )
 
 
-def crawl_and_ingest(client: AgentApiClient, tenant_id: int, report_time: str | None) -> dict[str, Any]:
+def discover_competitors(tenant_id: int, keyword: str, region: str, limit: int) -> dict[str, Any]:
+    import threading
+
+    from app.crawler.competitor_discovery import discover_competitor_candidates
+
+    box: dict[str, Any] = {}
+    errors: list[BaseException] = []
+
+    def _run() -> None:
+        try:
+            close_temu_runtime(tenant_id)
+            box["value"] = discover_competitor_candidates(
+                tenant_id=tenant_id,
+                keyword=keyword,
+                region=region,
+                limit=limit,
+            )
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    worker = threading.Thread(
+        target=_run,
+        name=f"temu-discover-{tenant_id}",
+        daemon=True,
+    )
+    worker.start()
+    worker.join(timeout=300)
+    if worker.is_alive():
+        raise TimeoutError("Temu competitor discover timed out after 300s")
+    if errors:
+        raise errors[0]
+    return box["value"]
+
+
+def crawl_and_ingest(
+    client: AgentApiClient,
+    tenant_id: int,
+    report_time: str | None,
+    seller_sessions: list[dict] | None = None,
+    session_key: str | None = None,
+) -> dict[str, Any]:
     from app.crawler.temu_crawler import crawl_temu_sales
 
-    payload = crawl_temu_sales(report_time, use_seed=False, tenant_id=tenant_id)
+    sessions = parse_seller_sessions_payload(seller_sessions)
+    payload = crawl_temu_sales(
+        report_time,
+        use_seed=False,
+        tenant_id=tenant_id,
+        session_key=session_key,
+        seller_sessions=sessions or None,
+    )
     ingest_payload = {
         "tenant_id": tenant_id,
         "report_time": payload["report_time"],
@@ -188,4 +273,6 @@ def crawl_and_ingest(client: AgentApiClient, tenant_id: int, report_time: str | 
         "report_time": payload["report_time"],
         "shops": len(payload.get("shops") or []),
         "rows": len(payload.get("rows") or []),
+        "sessions_synced": payload.get("sessions_synced"),
+        "session_errors": payload.get("session_errors") or [],
     }

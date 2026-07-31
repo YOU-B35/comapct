@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import TableQueryBar from '@/components/common/TableQueryBar.vue'
 import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 
@@ -12,13 +13,12 @@ const props = defineProps({
   showToolbar: { type: Boolean, default: true },
 })
 
-const { keyword, page, pageSize, total, paged } = useFuzzySearchPagination(
-  () => props.data,
-  {
-    fields: props.fields,
-    pageSize: props.pageSize,
-  },
-)
+const sourceList = computed(() => (Array.isArray(props.data) ? props.data : []))
+
+const { keyword, page, pageSize, total, paged } = useFuzzySearchPagination(sourceList, {
+  fields: props.fields,
+  pageSize: props.pageSize,
+})
 </script>
 
 <template>

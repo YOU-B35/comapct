@@ -86,6 +86,7 @@ def crawl_aliexpress_operational(
     scope: str = "all",
     store_id: str | None = None,
     store_name: str | None = None,
+    session_key: str | None = None,
 ) -> dict[str, Any]:
     report_time = report_day or date.today().isoformat()
     stores = _load_bound_stores(tenant_id)
@@ -96,13 +97,13 @@ def crawl_aliexpress_operational(
 
     all_orders: list[dict[str, Any]] = []
     all_violations: list[dict[str, Any]] = []
-    debug: dict[str, Any] = {"stores": [], "permission_errors": []}
+    debug: dict[str, Any] = {"stores": [], "permission_errors": [], "session_key": session_key or "default"}
 
-    headless = resolve_headless_for_ae_crawl(tenant_id)
-    with open_aliexpress_context(tenant_id, headless=headless) as (_, context):
+    headless = resolve_headless_for_ae_crawl(tenant_id, session_key=session_key)
+    with open_aliexpress_context(tenant_id, headless=headless, session_key=session_key) as (_, context):
         page = get_or_open_csp_page(context)
-        wait_for_ae_login(page, tenant_id=tenant_id, context=context)
-        persist_ae_session(tenant_id, page, context)
+        wait_for_ae_login(page, tenant_id=tenant_id, context=context, session_key=session_key)
+        persist_ae_session(tenant_id, page, context, session_key=session_key)
 
         denied = _detect_permission_denied(page)
         if denied and AE_ORDER_PAGE in (page.url or ""):

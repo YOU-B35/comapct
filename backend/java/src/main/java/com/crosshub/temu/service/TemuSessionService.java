@@ -4,7 +4,7 @@ import java.util.Map;
 
 public interface TemuSessionService {
     Map<String, Object> getSessionStatus();
-    Map<String, Object> openLoginWindow();
+    Map<String, Object> openLoginWindow(String platformAccountId);
     Map<String, Object> openFrontendLoginWindow(String url);
 }
 

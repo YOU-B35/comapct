@@ -190,12 +190,19 @@ class ZiniaoClient:
         else:
             raise ValueError("browser_id 或 browser_oauth 至少提供一个")
 
+        print(
+            f"[Ziniao] startBrowser begin id={browser_id or '-'} oauth={'yes' if bool(browser_oauth) else 'no'} "
+            f"headless={headless}",
+            file=sys.stderr,
+        )
         data = self._post_action("/api/browser/start", payload)
         status = data.get("statusCode")
         if status != 0:
             raise RuntimeError(
                 f"startBrowser 失败 statusCode={status} err={data.get('err') or data.get('LastError')}"
             )
+        debug_ref = data.get("debuggingPort") or data.get("ws") or "-"
+        print(f"[Ziniao] startBrowser ok status={status} debug={debug_ref}", file=sys.stderr)
         return data
 
     def stop_browser(
@@ -215,6 +222,7 @@ class ZiniaoClient:
 
     def ensure_webdriver_client(self, wait_seconds: int = 15) -> None:
         if self.ping():
+            print(f"[Ziniao] WebDriver already online: {self.base_url}", file=sys.stderr)
             return
         if self.is_normal_client_running():
             raise RuntimeError(
@@ -227,6 +235,10 @@ class ZiniaoClient:
         if not exe.exists():
             raise FileNotFoundError(f"未找到紫鸟客户端: {exe}")
 
+        print(
+            f"[Ziniao] starting WebDriver client path={exe} port={self.config.socket_port}",
+            file=sys.stderr,
+        )
         subprocess.Popen(
             [
                 str(exe),
@@ -242,6 +254,7 @@ class ZiniaoClient:
         while time.time() < deadline:
             if self.ping():
                 time.sleep(2)
+                print(f"[Ziniao] WebDriver ready: {self.base_url}", file=sys.stderr)
                 return
             time.sleep(1)
         raise TimeoutError(

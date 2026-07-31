@@ -23,12 +23,12 @@ def is_login_page(url: str) -> bool:
     return "login.aliexpress.com" in lowered or "/login" in lowered
 
 
-def _session_cache_path(tenant_id: int) -> Path:
-    return resolve_aliexpress_profile_dir(tenant_id) / AE_SESSION_CACHE
+def _session_cache_path(tenant_id: int, session_key: str | None = None) -> Path:
+    return resolve_aliexpress_profile_dir(tenant_id, session_key) / AE_SESSION_CACHE
 
 
-def _cookie_snapshot_path(tenant_id: int) -> Path:
-    return resolve_aliexpress_profile_dir(tenant_id) / AE_COOKIE_SNAPSHOT
+def _cookie_snapshot_path(tenant_id: int, session_key: str | None = None) -> Path:
+    return resolve_aliexpress_profile_dir(tenant_id, session_key) / AE_COOKIE_SNAPSHOT
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -84,9 +84,10 @@ def ae_session_ready(url: str, cookies: list[dict[str, Any]]) -> bool:
 def read_ae_session_cache(
     tenant_id: int,
     *,
+    session_key: str | None = None,
     max_age_seconds: int = DEFAULT_CACHE_MAX_AGE,
 ) -> dict[str, Any] | None:
-    cached = _read_json(_session_cache_path(tenant_id))
+    cached = _read_json(_session_cache_path(tenant_id, session_key))
     if not cached:
         return None
     cached_at = float(cached.get("cached_at") or 0)
@@ -95,23 +96,36 @@ def read_ae_session_cache(
     return cached
 
 
-def read_ae_cookie_snapshot(tenant_id: int) -> dict[str, Any] | None:
-    return _read_json(_cookie_snapshot_path(tenant_id))
+def read_ae_cookie_snapshot(tenant_id: int, *, session_key: str | None = None) -> dict[str, Any] | None:
+    return _read_json(_cookie_snapshot_path(tenant_id, session_key))
 
 
-def write_ae_session_cache(tenant_id: int, payload: dict[str, Any]) -> None:
+def write_ae_session_cache(
+    tenant_id: int,
+    payload: dict[str, Any],
+    *,
+    session_key: str | None = None,
+) -> None:
     body = dict(payload)
     body["tenant_id"] = tenant_id
+    body["session_key"] = session_key or "default"
     body["cached_at"] = time.time()
-    _write_json(_session_cache_path(tenant_id), body)
+    _write_json(_session_cache_path(tenant_id, session_key), body)
 
 
-def write_ae_cookie_snapshot(tenant_id: int, cookies: list[dict[str, Any]], *, url: str = "") -> None:
+def write_ae_cookie_snapshot(
+    tenant_id: int,
+    cookies: list[dict[str, Any]],
+    *,
+    url: str = "",
+    session_key: str | None = None,
+) -> None:
     ae_cookies = filter_ae_cookies(cookies)
     _write_json(
-        _cookie_snapshot_path(tenant_id),
+        _cookie_snapshot_path(tenant_id, session_key),
         {
             "tenant_id": tenant_id,
+            "session_key": session_key or "default",
             "saved_at": time.time(),
             "url": url,
             "cookie_count": len(ae_cookies),
@@ -121,7 +135,13 @@ def write_ae_cookie_snapshot(tenant_id: int, cookies: list[dict[str, Any]], *, u
     )
 
 
-def persist_ae_session(tenant_id: int, page: Page, context: BrowserContext) -> dict[str, Any]:
+def persist_ae_session(
+    tenant_id: int,
+    page: Page,
+    context: BrowserContext,
+    *,
+    session_key: str | None = None,
+) -> dict[str, Any]:
     url = page.url or ""
     cookies = context.cookies()
     ae_cookies = filter_ae_cookies(cookies)
@@ -133,31 +153,32 @@ def persist_ae_session(tenant_id: int, page: Page, context: BrowserContext) -> d
         "title": "",
         "cookie_count": len(ae_cookies),
         "cookie_names": sorted({c["name"] for c in ae_cookies if c.get("name")}),
+        "session_key": session_key or "default",
     }
     try:
         payload["title"] = page.title()
     except Exception:
         pass
-    write_ae_session_cache(tenant_id, payload)
+    write_ae_session_cache(tenant_id, payload, session_key=session_key)
     if ae_cookies:
-        write_ae_cookie_snapshot(tenant_id, cookies, url=url)
+        write_ae_cookie_snapshot(tenant_id, cookies, url=url, session_key=session_key)
     return payload
 
 
-def resolve_headless_for_ae_crawl(tenant_id: int) -> bool:
+def resolve_headless_for_ae_crawl(tenant_id: int, *, session_key: str | None = None) -> bool:
     """已有有效会话时优先无头复用 Profile Cookie，避免再次弹出登录窗。"""
     from app.config import is_ae_headless
 
     if is_ae_headless():
         return True
-    cached = read_ae_session_cache(tenant_id)
+    cached = read_ae_session_cache(tenant_id, session_key=session_key)
     if cached and cached.get("logged_in"):
         return True
     cookies_file = (
-        resolve_aliexpress_profile_dir(tenant_id) / "Default" / "Network" / "Cookies"
+        resolve_aliexpress_profile_dir(tenant_id, session_key) / "Default" / "Network" / "Cookies"
     )
     if cookies_file.is_file() and cookies_file.stat().st_size > 12_000:
-        snapshot = read_ae_cookie_snapshot(tenant_id)
+        snapshot = read_ae_cookie_snapshot(tenant_id, session_key=session_key)
         if snapshot and snapshot.get("cookies"):
             return True
     return False

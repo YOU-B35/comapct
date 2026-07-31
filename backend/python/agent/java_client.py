@@ -1,7 +1,10 @@
 """Java Agent API 客户端。"""
 from __future__ import annotations
 
+import json
+import os
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -107,3 +110,136 @@ class AgentApiClient:
         if last_error:
             raise last_error
         raise RuntimeError("complete_task_with_retry failed without error")
+
+    def resolve_agent_tenant_id(self) -> int | None:
+        env_tid = (os.environ.get("AGENT_TENANT_ID") or "").strip()
+        if env_tid.isdigit():
+            return int(env_tid)
+        for cfg_path in self._config_paths():
+            try:
+                payload = json.loads(cfg_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            for key in ("agent_tenant_id", "tenant_id"):
+                value = payload.get(key)
+                if value is not None and str(value).strip().isdigit():
+                    return int(str(value).strip())
+        try:
+            with httpx.Client(timeout=15.0) as client:
+                resp = client.post(
+                    f"{self.base_url}/api/agent/heartbeat",
+                    headers=self._headers(),
+                    json={"ziniao_online": False},
+                )
+                resp.raise_for_status()
+                body = resp.json()
+                data = body.get("data") if isinstance(body, dict) else {}
+                if isinstance(data, dict):
+                    tid = data.get("tenant_id")
+                    if tid is not None and str(tid).strip().isdigit():
+                        return int(str(tid).strip())
+        except Exception:
+            return None
+        return None
+
+    def _config_paths(self) -> list[Path]:
+        paths: list[Path] = []
+        local = os.environ.get("LOCALAPPDATA", "")
+        if local:
+            paths.append(Path(local) / "CrossHub" / "SyncHelper" / "config.json")
+        try:
+            import sys
+
+            if getattr(sys, "frozen", False):
+                paths.insert(0, Path(sys.executable).resolve().parent / "config.json")
+        except Exception:
+            pass
+        return paths
+
+    def upload_profile(
+        self,
+        platform: str,
+        tenant_id: int,
+        session_key: str,
+        bundle: bytes,
+        *,
+        if_match: str = "",
+    ) -> dict[str, Any]:
+        headers = {
+            "X-Agent-Token": self.token,
+            "Content-Type": "application/zip",
+        }
+        if if_match:
+            headers["If-Match"] = if_match
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.put(
+                f"{self.base_url}/api/agent/profiles/{platform}/{tenant_id}/{session_key}",
+                headers=headers,
+                content=bundle,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            data = body.get("data") if isinstance(body, dict) else {}
+            return data if isinstance(data, dict) else {}
+
+    def download_profile(
+        self,
+        platform: str,
+        tenant_id: int,
+        session_key: str,
+        *,
+        if_none_match: str = "",
+    ) -> tuple[bytes | None, str]:
+        headers = {"X-Agent-Token": self.token}
+        if if_none_match:
+            headers["If-None-Match"] = if_none_match
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.get(
+                f"{self.base_url}/api/agent/profiles/{platform}/{tenant_id}/{session_key}",
+                headers=headers,
+            )
+            if resp.status_code == 304:
+                return None, resp.headers.get("ETag", if_none_match)
+            if resp.status_code == 404:
+                return None, ""
+            resp.raise_for_status()
+            return resp.content, resp.headers.get("ETag", "")
+
+    def head_profile(
+        self,
+        platform: str,
+        tenant_id: int,
+        session_key: str,
+    ) -> tuple[int, str]:
+        headers = {"X-Agent-Token": self.token}
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.head(
+                f"{self.base_url}/api/agent/profiles/{platform}/{tenant_id}/{session_key}",
+                headers=headers,
+            )
+            return resp.status_code, resp.headers.get("ETag", "")
+
+    def list_profiles(self, platform: str, tenant_id: int) -> list[dict[str, Any]]:
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.get(
+                f"{self.base_url}/api/agent/profiles/{platform}/{tenant_id}",
+                headers=self._headers(),
+            )
+            if resp.status_code == 404:
+                return []
+            resp.raise_for_status()
+            body = resp.json()
+            data = body.get("data") if isinstance(body, dict) else []
+            return data if isinstance(data, list) else []
+
+    def list_platform_accounts(self, tenant_id: int) -> dict[str, list[dict[str, Any]]]:
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.get(
+                f"{self.base_url}/api/agent/platform-accounts",
+                headers=self._headers(),
+                params={"tenant_id": tenant_id},
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            data = body.get("data") if isinstance(body, dict) else {}
+            return data if isinstance(data, dict) else {}

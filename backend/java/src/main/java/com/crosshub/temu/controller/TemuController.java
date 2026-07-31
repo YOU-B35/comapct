@@ -148,8 +148,11 @@ public class TemuController {
     }
 
     @PostMapping("/login/open")
-    public Map<String, Object> openLogin() {
-        return ApiResult.ok(sessionService.openLoginWindow());
+    public Map<String, Object> openLogin(@RequestBody(required = false) Map<String, Object> body) {
+        String platformAccountId = body == null || body.get("platform_account_id") == null
+                ? ""
+                : String.valueOf(body.get("platform_account_id"));
+        return ApiResult.ok(sessionService.openLoginWindow(platformAccountId));
     }
 
     @PostMapping("/frontend-login/open")

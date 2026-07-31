@@ -70,18 +70,20 @@ const selectedStore = computed(
 )
 
 const products = computed(() => {
-  if (!selectedStoreId.value || selectedStoreId.value === 'all') return []
-  const list = productsRaw.value.filter(
-    (p) => scopedStoreIds.value.has(p.storeId) && p.storeId === selectedStoreId.value,
-  )
+  if (!selectedStoreId.value) return []
+  let list = productsRaw.value.filter((p) => scopedStoreIds.value.has(p.storeId))
+  if (selectedStoreId.value !== 'all') {
+    list = list.filter((p) => p.storeId === selectedStoreId.value)
+  }
   return withStoreMeta(list)
 })
 
 const overviewProducts = computed(() => products.value)
 
-const overviewStores = computed(() => (
-  selectedStore.value ? [selectedStore.value] : []
-))
+const overviewStores = computed(() => {
+  if (selectedStoreId.value === 'all') return temuStores.value
+  return selectedStore.value ? [selectedStore.value] : []
+})
 
 const awaitingSync = computed(
   () =>
@@ -94,8 +96,8 @@ const awaitingSync = computed(
     && !dataLoadError.value,
 )
 
-/** 单店视图：明细表不再混入其他店铺列 */
-const showStoreColumn = computed(() => false)
+/** 全部店铺视图展示店铺列 */
+const showStoreColumn = computed(() => selectedStoreId.value === 'all')
 
 const alertCount = computed(() => {
   const p = products.value
@@ -113,8 +115,9 @@ function ensureSelectedStore() {
     selectedStoreId.value = ''
     return
   }
+  if (selectedStoreId.value === 'all') return
   const stillValid = stores.some((s) => s.id === selectedStoreId.value)
-  if (!stillValid || selectedStoreId.value === 'all') {
+  if (!stillValid) {
     selectedStoreId.value = stores[0].id
   }
 }
@@ -136,7 +139,7 @@ async function loadHotBroadcastFeed(products = []) {
 
 async function loadProducts() {
   ensureSelectedStore()
-  if (!temuStores.value.length || !selectedStoreId.value || selectedStoreId.value === 'all') {
+  if (!temuStores.value.length || !selectedStoreId.value) {
     productsRaw.value = []
     salesTrend.value = { labels: [], values: [] }
     return
@@ -148,14 +151,17 @@ async function loadProducts() {
     const shopId = selectedStoreId.value
     const result = await loadTemuModuleData({
       auth,
-      shopId,
+      shopId: shopId === 'all' ? undefined : shopId,
     })
     productsRaw.value = result.products
     await loadHotBroadcastFeed(result.products)
     if (useBackendData.value && result.products?.length > 0) {
+      const scopeLabel = shopId === 'all'
+        ? `全部店铺 · ${result.products.length} 条 SKU`
+        : `已加载 ${result.products.length} 条 SKU（${selectedStore.value?.storeName || shopId}）`
       markSidebarTemuSync({
         status: 'success',
-        message: `已加载 ${result.products.length} 条 SKU（${selectedStore.value?.storeName || shopId}）`,
+        message: scopeLabel,
         rowCount: result.products.length,
         syncedAt: result.meta?.reportTime || '',
       })
@@ -163,7 +169,7 @@ async function loadProducts() {
     if (auth.isBoss) {
       salesTrend.value = await fetchTemuSalesTrend({
         auth,
-        shopId,
+        shopId: shopId === 'all' ? undefined : shopId,
       })
     }
   } catch (err) {
@@ -187,7 +193,7 @@ function markSidebarTemuSync({ status, message, rowCount = 0, syncedAt = '' }) {
     : []
 
   for (const store of stores) {
-    const isCurrent = store.id === selectedStoreId.value
+    const isCurrent = selectedStoreId.value === 'all' || store.id === selectedStoreId.value
     syncStore.updateStoreStatus({
       platform: 'temu',
       storeId: store.accountId || store.id,
@@ -195,7 +201,7 @@ function markSidebarTemuSync({ status, message, rowCount = 0, syncedAt = '' }) {
       externalShopId: store.externalShopId || store.id,
       status,
       message: isCurrent ? message : (status === 'success' ? '账号已同步，请切换店铺查看' : message),
-      rowCount: isCurrent ? rowCount : 0,
+      rowCount: selectedStoreId.value === 'all' ? rowCount : (isCurrent ? rowCount : 0),
       syncedAt,
     })
   }
@@ -301,8 +307,13 @@ watch(selectedStoreId, (id, prev) => {
             v-model="selectedStoreId"
             size="default"
             class="store-switcher-select"
-            placeholder="选择店铺"
+            placeholder="请选择店铺"
           >
+            <el-option
+              v-if="temuStores.length > 1"
+              label="全部店铺"
+              value="all"
+            />
             <el-option
               v-for="store in temuStores"
               :key="store.id"
@@ -354,6 +365,16 @@ watch(selectedStoreId, (id, prev) => {
         </ol>
       </template>
     </el-alert>
+
+    <el-alert
+      v-if="temuStores.length && !selectedStoreId"
+      type="info"
+      show-icon
+      :closable="false"
+      style="margin-bottom: 16px"
+      title="请先选择店铺"
+      description="未选店铺时不展示运营明细。多店账号可选手动「全部店铺」查看汇总。"
+    />
 
     <el-alert
       v-if="dataLoadError"

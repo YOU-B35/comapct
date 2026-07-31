@@ -105,15 +105,16 @@ def _launch_kwargs(headless: bool) -> dict:
 def close_tenant_profile_browsers(
     tenant_id: int,
     *,
+    session_key: str | None = None,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> int:
     """Force-close browser processes that are using this tenant's persistent profile."""
     if not sys.platform.startswith("win"):
         return 0
 
-    profile_dir = resolve_profile_dir(tenant_id)
+    profile_dir = resolve_profile_dir(tenant_id, session_key)
     profile_text = str(profile_dir.resolve())
-    profile_name = f"tenant-{tenant_id}"
+    profile_name = profile_text.replace("\\", "/").split("/tenant-")[-1]
     script = f"""
 $profile = {json.dumps(profile_text)}
 $profileBack = $profile.ToLowerInvariant()
@@ -163,8 +164,25 @@ def open_temu_context(
     tenant_id: int,
     *,
     headless: bool | None = None,
+    session_key: str | None = None,
 ) -> Generator[tuple[Playwright, BrowserContext], None, None]:
-    profile_dir: Path = resolve_profile_dir(tenant_id)
+    from app.browser.profile_sync import profile_pull_enabled, pull_profile_if_needed
+    from app.temu.profile_migration import maybe_migrate_legacy_temu_profile
+
+    if profile_pull_enabled():
+        try:
+            from agent.java_client import AgentApiClient
+
+            pull_profile_if_needed(
+                AgentApiClient(),
+                platform="temu",
+                tenant_id=tenant_id,
+                session_key=session_key,
+            )
+        except Exception:
+            pass
+    maybe_migrate_legacy_temu_profile(tenant_id, session_key)
+    profile_dir: Path = resolve_profile_dir(tenant_id, session_key)
     profile_dir.mkdir(parents=True, exist_ok=True)
     effective_headless = is_headless() if headless is None else headless
     launch_kwargs = _launch_kwargs(effective_headless)
@@ -180,8 +198,29 @@ def open_temu_context(
             context.close()
 
 
-def launch_managed_temu_context(tenant_id: int, *, headless: bool | None = None) -> ManagedBrowserContext:
-    profile_dir: Path = resolve_profile_dir(tenant_id)
+def launch_managed_temu_context(
+    tenant_id: int,
+    *,
+    headless: bool | None = None,
+    session_key: str | None = None,
+) -> ManagedBrowserContext:
+    from app.browser.profile_sync import profile_pull_enabled, pull_profile_if_needed
+    from app.temu.profile_migration import maybe_migrate_legacy_temu_profile
+
+    if profile_pull_enabled():
+        try:
+            from agent.java_client import AgentApiClient
+
+            pull_profile_if_needed(
+                AgentApiClient(),
+                platform="temu",
+                tenant_id=tenant_id,
+                session_key=session_key,
+            )
+        except Exception:
+            pass
+    maybe_migrate_legacy_temu_profile(tenant_id, session_key)
+    profile_dir: Path = resolve_profile_dir(tenant_id, session_key)
     profile_dir.mkdir(parents=True, exist_ok=True)
     effective_headless = is_headless() if headless is None else headless
     launch_kwargs = _launch_kwargs(effective_headless)
@@ -204,21 +243,28 @@ def is_runtime_context_usable(context: ManagedBrowserContext | BrowserContext) -
         return False
 
 
-def get_or_create_temu_runtime(tenant_id: int, *, headless: bool | None = None):
+def get_or_create_temu_runtime(
+    tenant_id: int,
+    *,
+    headless: bool | None = None,
+    session_key: str | None = None,
+):
     effective_headless = is_headless() if headless is None else headless
     return browser_runtime.get_or_create_browser_runtime(
         tenant_id=tenant_id,
         headless=effective_headless,
+        session_key=session_key,
         launcher=lambda runtime_tenant_id, runtime_headless: launch_managed_temu_context(
             runtime_tenant_id,
             headless=runtime_headless,
+            session_key=session_key,
         ),
         is_usable=is_runtime_context_usable,
     )
 
 
-def close_temu_runtime(tenant_id: int) -> None:
-    browser_runtime.close_browser_runtime(tenant_id=tenant_id)
+def close_temu_runtime(tenant_id: int, session_key: str | None = None) -> None:
+    browser_runtime.close_browser_runtime(tenant_id=tenant_id, session_key=session_key)
 
 
 def get_or_open_seller_page(context: BrowserContext) -> Page:

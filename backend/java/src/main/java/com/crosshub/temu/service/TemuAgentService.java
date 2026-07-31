@@ -2,6 +2,7 @@ package com.crosshub.temu.service;
 
 import com.crosshub.agent.entity.AgentTask;
 import com.crosshub.agent.service.AgentPresenceService;
+import com.crosshub.agent.service.AgentProfileService;
 import com.crosshub.common.AppErrorCode;
 import com.crosshub.common.TenantCrawlCooldownService;
 import com.crosshub.config.CrawlerProperties;
@@ -20,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +38,9 @@ public class TemuAgentService {
     private final TemuCrawlJobRepository jobRepository;
     private final TemuAgentIngestService ingestService;
     private final PlatformAccountService platformAccountService;
+    private final TemuSellerSessionService sellerSessionService;
     private final TenantCrawlCooldownService crawlCooldownService;
+    private final AgentProfileService agentProfileService;
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
@@ -46,7 +50,9 @@ public class TemuAgentService {
             TemuCrawlJobRepository jobRepository,
             TemuAgentIngestService ingestService,
             PlatformAccountService platformAccountService,
+            TemuSellerSessionService sellerSessionService,
             TenantCrawlCooldownService crawlCooldownService,
+            AgentProfileService agentProfileService,
             JdbcTemplate jdbc,
             ObjectMapper objectMapper
     ) {
@@ -55,7 +61,9 @@ public class TemuAgentService {
         this.jobRepository = jobRepository;
         this.ingestService = ingestService;
         this.platformAccountService = platformAccountService;
+        this.sellerSessionService = sellerSessionService;
         this.crawlCooldownService = crawlCooldownService;
+        this.agentProfileService = agentProfileService;
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
     }
@@ -94,17 +102,32 @@ public class TemuAgentService {
         payload.put("mode", job.getMode());
         payload.put("report_time", job.getReportTime() == null ? "" : job.getReportTime());
         payload.put("seed", "seed".equals(job.getMode()));
+        List<Map<String, Object>> sessions = sellerSessionService.listSellerSessions(job.getTenantId());
+        payload.put("seller_sessions", sessions);
+        if (sessions != null && sessions.size() == 1) {
+            Object sk = sessions.get(0).get("session_key");
+            if (sk != null && !String.valueOf(sk).isBlank()) {
+                payload.put("session_key", String.valueOf(sk).trim());
+            }
+        }
         insertAgentTask(job.getTenantId(), taskId, TemuAgentTasks.CRAWL, payload);
     }
 
     @Transactional
-    public Map<String, Object> enqueueLoginOpen(Long tenantId) {
+    public Map<String, Object> enqueueLoginOpen(Long tenantId, String platformAccountId) {
         assertAgentOnline(tenantId);
         String taskId = "agt_" + UUID.randomUUID();
-        Map<String, Object> payload = Map.of("tenant_id", tenantId);
+        String sessionKey = sellerSessionService.resolveSessionKey(tenantId, platformAccountId);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("tenant_id", tenantId);
+        payload.put("session_key", sessionKey);
+        if (platformAccountId != null && !platformAccountId.isBlank()) {
+            payload.put("platform_account_id", platformAccountId.trim());
+        }
         insertAgentTask(tenantId, taskId, TemuAgentTasks.LOGIN_OPEN, payload);
         return Map.of(
                 "tenant_id", tenantId,
+                "session_key", sessionKey,
                 "queued", true,
                 "mode", "agent",
                 "task_id", taskId,
@@ -133,6 +156,23 @@ public class TemuAgentService {
     }
 
     public Map<String, Object> readSessionSnapshot(Long tenantId) {
+        List<AgentProfileService.ProfileRow> profileRows = agentProfileService.listByTenant(tenantId, "temu").stream()
+                .filter(AgentProfileService::hasBundle)
+                .toList();
+        if (!profileRows.isEmpty()) {
+            List<Map<String, Object>> sessions = profileRows.stream()
+                    .map(this::sessionJsonToRow)
+                    .toList();
+            Map<String, Object> aggregated = aggregateSessions(tenantId, sessions);
+            String latestUpdated = profileRows.stream()
+                    .map(AgentProfileService.ProfileRow::updatedAt)
+                    .filter(value -> value != null && !value.isBlank())
+                    .max(String::compareTo)
+                    .orElse(now());
+            aggregated.put("snapshot_at", latestUpdated);
+            return aggregated;
+        }
+
         List<Map<String, Object>> rows = jdbc.query(
                 """
                 SELECT payload_json, updated_at
@@ -158,7 +198,15 @@ public class TemuAgentService {
                     new TypeReference<Map<String, Object>>() {}
             );
             payload.putIfAbsent("tenant_id", tenantId);
-            payload.put("snapshot_at", rows.get(0).get("updated_at"));
+            Object updatedAt = rows.get(0).get("updated_at");
+            payload.put("snapshot_at", updatedAt);
+            if (!payload.containsKey("sessions")) {
+                // 旧扁平 snapshot：本地升级为 sessions[]，禁止再调 mergeSessionRow
+                // （mergeSessionRow 会回读本方法，否则形成死递归 → StackOverflowError）
+                Map<String, Object> aggregated = aggregateSessions(tenantId, extractSessionRows(payload));
+                aggregated.put("snapshot_at", updatedAt);
+                return aggregated;
+            }
             return payload;
         } catch (Exception ex) {
             return defaultSessionPayload(tenantId);
@@ -252,7 +300,10 @@ public class TemuAgentService {
             return;
         }
         String taskId = "agt_" + UUID.randomUUID();
-        insertAgentTask(tenantId, taskId, TemuAgentTasks.SESSION_PROBE, Map.of("tenant_id", tenantId));
+        Map<String, Object> probePayload = new LinkedHashMap<>();
+        probePayload.put("tenant_id", tenantId);
+        probePayload.put("seller_sessions", sellerSessionService.listSellerSessions(tenantId));
+        insertAgentTask(tenantId, taskId, TemuAgentTasks.SESSION_PROBE, probePayload);
     }
 
     @Transactional
@@ -378,11 +429,159 @@ public class TemuAgentService {
                 for (Map.Entry<?, ?> entry : map.entrySet()) {
                     payload.put(String.valueOf(entry.getKey()), entry.getValue());
                 }
-                saveSessionSnapshot(tenantId, payload);
+                saveSessionSnapshot(tenantId, mergeSessionRow(tenantId, payload));
                 return;
             }
         }
-        saveSessionSnapshot(tenantId, session);
+        if (session.get("sessions") instanceof List<?> list && !list.isEmpty()) {
+            saveSessionSnapshot(tenantId, session);
+            return;
+        }
+        saveSessionSnapshot(tenantId, mergeSessionRow(tenantId, session));
+    }
+
+    private Map<String, Object> mergeSessionRow(Long tenantId, Map<String, Object> row) {
+        if (row == null || row.isEmpty()) {
+            return defaultSessionPayload(tenantId);
+        }
+        String sessionKey = stringValue(row.get("session_key"));
+        if (sessionKey.isBlank()) {
+            sessionKey = "default";
+        }
+        // 只读存储层基线，避免经 readSessionSnapshot 再进入升级/合并形成环
+        Map<String, Object> current = loadStoredSessionBaseline(tenantId);
+        List<Map<String, Object>> sessions = extractSessionRows(current);
+        List<Map<String, Object>> merged = new ArrayList<>();
+        boolean replaced = false;
+        for (Map<String, Object> item : sessions) {
+            if (sessionKey.equals(stringValue(item.get("session_key")))) {
+                merged.add(new LinkedHashMap<>(row));
+                replaced = true;
+            } else {
+                merged.add(item);
+            }
+        }
+        if (!replaced) {
+            merged.add(new LinkedHashMap<>(row));
+        }
+        return aggregateSessions(tenantId, merged);
+    }
+
+    /**
+     * 读取已持久化的 session 基线（profile bundle 或 DB 原始 payload），不做 merge 回写。
+     * 供 mergeSessionRow 使用，切断与 readSessionSnapshot 的递归。
+     */
+    private Map<String, Object> loadStoredSessionBaseline(Long tenantId) {
+        List<AgentProfileService.ProfileRow> profileRows = agentProfileService.listByTenant(tenantId, "temu").stream()
+                .filter(AgentProfileService::hasBundle)
+                .toList();
+        if (!profileRows.isEmpty()) {
+            List<Map<String, Object>> sessions = profileRows.stream()
+                    .map(this::sessionJsonToRow)
+                    .toList();
+            return aggregateSessions(tenantId, sessions);
+        }
+        List<Map<String, Object>> rows = jdbc.query(
+                """
+                SELECT payload_json, updated_at
+                FROM temu_session_snapshot
+                WHERE tenant_id = ?
+                LIMIT 1
+                """,
+                (rs, rowNum) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("payload_json", rs.getString("payload_json"));
+                    row.put("updated_at", rs.getString("updated_at"));
+                    return row;
+                },
+                tenantId
+        );
+        if (rows.isEmpty()) {
+            return defaultSessionPayload(tenantId);
+        }
+        try {
+            String payloadJson = String.valueOf(rows.get(0).get("payload_json"));
+            Map<String, Object> payload = objectMapper.readValue(
+                    payloadJson == null || payloadJson.isBlank() ? "{}" : payloadJson,
+                    new TypeReference<Map<String, Object>>() {}
+            );
+            payload.putIfAbsent("tenant_id", tenantId);
+            payload.put("snapshot_at", rows.get(0).get("updated_at"));
+            return payload;
+        } catch (Exception ex) {
+            return defaultSessionPayload(tenantId);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractSessionRows(Map<String, Object> snapshot) {
+        Object sessions = snapshot.get("sessions");
+        if (sessions instanceof List<?> list && !list.isEmpty()) {
+            List<Map<String, Object>> rows = new ArrayList<>();
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> map) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (Map.Entry<?, ?> entry : map.entrySet()) {
+                        row.put(String.valueOf(entry.getKey()), entry.getValue());
+                    }
+                    rows.add(row);
+                }
+            }
+            if (!rows.isEmpty()) {
+                return rows;
+            }
+        }
+        if (snapshot.isEmpty() || !snapshot.containsKey("tenant_id")) {
+            return new ArrayList<>();
+        }
+        Map<String, Object> legacy = new LinkedHashMap<>(snapshot);
+        legacy.remove("sessions");
+        legacy.remove("session_count");
+        legacy.remove("ready_count");
+        legacy.remove("snapshot_at");
+        if (!legacy.containsKey("session_key")) {
+            legacy.put("session_key", "default");
+        }
+        return List.of(legacy);
+    }
+
+    private Map<String, Object> aggregateSessions(Long tenantId, List<Map<String, Object>> sessions) {
+        int readyCount = 0;
+        for (Map<String, Object> session : sessions) {
+            if (Boolean.TRUE.equals(session.get("ready"))) {
+                readyCount++;
+            }
+        }
+        Map<String, Object> primary = sessions.stream()
+                .filter(session -> Boolean.TRUE.equals(session.get("ready")))
+                .findFirst()
+                .orElse(sessions.isEmpty() ? Map.of() : sessions.get(0));
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("tenant_id", tenantId);
+        out.put("sessions", sessions);
+        out.put("session_count", sessions.size());
+        out.put("ready_count", readyCount);
+        out.put("ready", sessions.size() > 0 && readyCount == sessions.size());
+
+        if (!primary.isEmpty()) {
+            for (String key : List.of(
+                    "logged_in", "profile_busy", "requires_auth", "mall_id", "mall_count", "malls", "message", "error_hint"
+            )) {
+                if (primary.containsKey(key)) {
+                    out.put(key, primary.get(key));
+                }
+            }
+        } else {
+            out.put("logged_in", false);
+            out.put("profile_busy", false);
+            out.put("requires_auth", true);
+            out.put("mall_id", "");
+            out.put("mall_count", 0);
+            out.put("malls", List.of());
+            out.put("message", "未检测到 Temu 卖家会话");
+        }
+        return out;
     }
 
     @Transactional
@@ -405,6 +604,51 @@ public class TemuAgentService {
                 json,
                 now()
         );
+        syncProfileSessionJson(tenantId, payload == null ? Map.of() : payload);
+    }
+
+    private void syncProfileSessionJson(Long tenantId, Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> rows = extractSessionRows(payload);
+        for (Map<String, Object> row : rows) {
+            String sessionKey = stringValue(row.get("session_key"));
+            if (sessionKey.isBlank()) {
+                sessionKey = "default";
+            }
+            try {
+                agentProfileService.updateSessionJsonOnly(
+                        tenantId,
+                        "temu",
+                        sessionKey,
+                        objectMapper.writeValueAsString(row)
+                );
+            } catch (Exception ex) {
+                log.debug("sync profile session_json skip tenant={} key={}: {}", tenantId, sessionKey, ex.getMessage());
+            }
+        }
+    }
+
+    private Map<String, Object> sessionJsonToRow(AgentProfileService.ProfileRow row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        try {
+            String json = row.sessionJson() == null || row.sessionJson().isBlank() ? "{}" : row.sessionJson();
+            Map<String, Object> parsed = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            out.putAll(parsed);
+        } catch (Exception ex) {
+            log.debug("parse profile session_json failed: {}", ex.getMessage());
+        }
+        out.put("session_key", row.sessionKey());
+        if (!row.account().isBlank()) {
+            out.put("account", row.account());
+        }
+        if (!row.platformAccountId().isBlank()) {
+            out.put("platform_account_id", row.platformAccountId());
+        }
+        boolean jsonReady = Boolean.TRUE.equals(out.get("ready"));
+        out.put("ready", jsonReady && AgentProfileService.hasBundle(row));
+        return out;
     }
 
     private TemuCrawlJob findJobByAgentTaskId(String taskId) {
@@ -441,15 +685,28 @@ public class TemuAgentService {
     }
 
     private Map<String, Object> defaultSessionPayload(Long tenantId) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("tenant_id", tenantId);
-        payload.put("ready", false);
-        payload.put("logged_in", false);
-        payload.put("profile_busy", false);
-        payload.put("requires_auth", true);
-        payload.put("mall_id", "");
-        payload.put("mall_count", 0);
-        payload.put("malls", List.of());
+        List<Map<String, Object>> sessions = sellerSessionService.listSellerSessions(tenantId);
+        if (sessions.isEmpty()) {
+            sessions = List.of(Map.of(
+                    "session_key", "default",
+                    "account", "",
+                    "platform_account_id", "",
+                    "store_names", List.of()
+            ));
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> meta : sessions) {
+            Map<String, Object> row = new LinkedHashMap<>(meta);
+            row.put("ready", false);
+            row.put("logged_in", false);
+            row.put("profile_busy", false);
+            row.put("requires_auth", true);
+            row.put("mall_id", "");
+            row.put("mall_count", 0);
+            row.put("malls", List.of());
+            rows.add(row);
+        }
+        Map<String, Object> payload = aggregateSessions(tenantId, rows);
         payload.put("message", useAgentMode()
                 ? "请联系运维启动 CrossHub-Sync-Helper.exe"
                 : "未检测到会话");

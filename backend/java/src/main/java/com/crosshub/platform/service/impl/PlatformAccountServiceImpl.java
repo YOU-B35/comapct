@@ -63,7 +63,14 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
 
     @Transactional
     public Map<String, Object> upsert(StorePayload payload) {
-        Long tenantId = requireTenant();
+        return upsertForTenant(requireTenant(), payload, false);
+    }
+
+    @Transactional
+    public Map<String, Object> upsertForTenant(Long tenantId, StorePayload payload, boolean allowEmptyPassword) {
+        if (tenantId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少租户 ID");
+        }
         String platform = normalizePlatform(payload.platform());
         validatePlatform(platform);
 
@@ -87,7 +94,7 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
                 id = existingAmazon.get().getId();
             }
         }
-        if (id.isBlank() && password.isBlank() && !ziniaoAmazonBind) {
+        if (id.isBlank() && password.isBlank() && !ziniaoAmazonBind && !allowEmptyPassword) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "登录密码不能为空");
         }
 
@@ -117,7 +124,7 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
             row.setPlatform(platform);
             row.setStoreName(storeName);
             row.setAccount(account);
-            row.setPassword(password);
+            row.setPassword(password.isBlank() ? "" : password);
         }
 
         row.setCompanyName(trim(payload.companyName()));
@@ -134,6 +141,8 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
             if (!oauth.isBlank()) {
                 row.setZiniaoBrowserOauth(oauth);
             }
+        } else if (allowEmptyPassword && (row.getIntegrationMode() == null || row.getIntegrationMode().isBlank())) {
+            row.setIntegrationMode("browser");
         }
         row.setBoundAt(BOUND_AT.format(LocalDateTime.now()));
         repository.save(row);
@@ -165,7 +174,14 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
 
     @Transactional
     public Map<String, Object> delete(String id) {
-        Long tenantId = requireTenant();
+        return deleteForTenant(requireTenant(), id);
+    }
+
+    @Transactional
+    public Map<String, Object> deleteForTenant(Long tenantId, String id) {
+        if (tenantId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少租户 ID");
+        }
         PlatformAccount row = repository.findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "店铺不存在"));
         repository.delete(row);

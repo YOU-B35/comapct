@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -47,9 +48,9 @@ from app.amazon.session_context import (
     AmazonLoginRequiredError,
     CAPTURE_DIR,
     SessionContext,
+    ensure_seller_logged_in_with_wait,
     extract_debug_port,
     looks_logged_in,
-    require_seller_logged_in,
     save_capture,
 )
 from app.ziniao.client import ZiniaoClient, ZiniaoConfig
@@ -217,7 +218,13 @@ def run_crawl(
     if not browser_id and not browser_oauth:
         raise ValueError("缺少 browser_id 或 browser_oauth")
 
+    started_at = time.time()
     normalized_scope = normalize_scope(scope)
+    print(
+        f"[AmazonPipeline] begin scope={normalized_scope} browser_id={browser_id or '-'} "
+        f"oauth={'yes' if bool(browser_oauth) else 'no'} store={store_name or '-'} merchant={merchant_id or '-'}",
+        file=sys.stderr,
+    )
     ziniao = ZiniaoClient(ZiniaoConfig.from_env())
     ziniao.ensure_webdriver_client(wait_seconds=20)
     start_result = ziniao.start_browser(
@@ -225,6 +232,7 @@ def run_crawl(
         browser_oauth=browser_oauth or None,
     )
     debug_port = extract_debug_port(start_result)
+    print(f"[AmazonPipeline] CDP ready port={debug_port}", file=sys.stderr)
 
     try:
         from playwright.sync_api import sync_playwright
@@ -244,6 +252,7 @@ def run_crawl(
             ctx = SessionContext(page, store_name=store_name, merchant_id=merchant_id)
 
             started = time.time()
+            print(f"[AmazonPipeline] goto home: {HOME_URL}", file=sys.stderr)
             page.goto(HOME_URL, wait_until="domcontentloaded")
             page.wait_for_timeout(3000 if normalized_scope == "reports" else 5000)
             try:
@@ -252,12 +261,22 @@ def run_crawl(
                 home_text = page.inner_text("body")
             result["page_url"] = page.url
             try:
-                require_seller_logged_in(page, home_text, store_name=store_name)
+                home_text = ensure_seller_logged_in_with_wait(
+                    page,
+                    body_text=home_text,
+                    store_name=store_name,
+                )
             except AmazonLoginRequiredError:
                 _login_required = True
                 raise
+            result["page_url"] = page.url
             ctx.ensure_merchant_id()
             _record(diagnostics, "home", HOME_URL, [{"ok": True}], started)
+            print(
+                f"[AmazonPipeline] home ok elapsed_ms={int((time.time() - started) * 1000)} "
+                f"url={page.url}",
+                file=sys.stderr,
+            )
 
             if normalized_scope in {"account_health", "daily", "reports"}:
                 result["metrics"] = parse_home_metrics(home_text)
@@ -278,9 +297,11 @@ def run_crawl(
 
             if normalized_scope in {"daily", "reports"}:
                 use_br_csv = normalized_scope == "reports"
+                print(f"[AmazonPipeline] product scopes start use_csv={use_br_csv}", file=sys.stderr)
                 started = time.time()
                 home_products = crawl_home_catalog(page)
                 _record(diagnostics, "home_catalog", HOME_URL, home_products, started)
+                print(f"[AmazonPipeline] home_catalog rows={len(home_products)}", file=sys.stderr)
 
                 br_started = time.time()
                 report_products, br_key, br_url, _br_ms, br_warning = _load_business_report_products(
@@ -296,6 +317,10 @@ def run_crawl(
                     report_products,
                     br_started,
                     br_warning,
+                )
+                print(
+                    f"[AmazonPipeline] br rows={br_count} key={br_key} warning={br_warning or '-'}",
+                    file=sys.stderr,
                 )
 
                 inv_started = time.time()
@@ -313,6 +338,10 @@ def run_crawl(
                     inventory_products,
                     inv_started,
                     inv_warning,
+                )
+                print(
+                    f"[AmazonPipeline] inventory rows={inv_count} key={inv_key} warning={inv_warning or '-'}",
+                    file=sys.stderr,
                 )
 
                 if use_br_csv and report_products:
@@ -392,6 +421,10 @@ def run_crawl(
                     ads_started,
                     ads_warning,
                 )
+                print(
+                    f"[AmazonPipeline] ads rows={ads_count} key={ads_key} warning={ads_warning or '-'}",
+                    file=sys.stderr,
+                )
                 ads_summary = coalesce_ads_summary(ads_summary, result.get("metrics"))
                 if ads_summary:
                     result["metrics"] = merge_ads_metrics(result.get("metrics") or [], ads_summary)
@@ -454,6 +487,10 @@ def run_crawl(
                 started = time.time()
                 result["metrics"] = crawl_account_health_metrics(page)
                 _record(diagnostics, "account_health", page.url, result["metrics"], started)
+                print(
+                    f"[AmazonPipeline] account_health metrics_rows={len(result['metrics'])}",
+                    file=sys.stderr,
+                )
 
             if not looks_logged_in(home_text, HOME_URL) and not result["metrics"] and not result["products"]:
                 capture = save_capture(page, store_name=store_name, suffix="empty")
@@ -499,6 +536,12 @@ def run_crawl(
                 if latest:
                     result["capture_path"] = str(latest[0])
 
+            elapsed_ms = int((time.time() - started_at) * 1000)
+            print(
+                f"[AmazonPipeline] success scope={normalized_scope} elapsed_ms={elapsed_ms} "
+                f"products={len(result.get('products') or [])} orders={len(result.get('outbound_orders') or [])}",
+                file=sys.stderr,
+            )
             return result
         finally:
             try:
@@ -512,8 +555,9 @@ def run_crawl(
                         browser_id=browser_id or None,
                         browser_oauth=browser_oauth or None,
                     )
+                    print("[AmazonPipeline] stop_browser done", file=sys.stderr)
                 except Exception:
-                    pass
+                    print("[AmazonPipeline] stop_browser failed", file=sys.stderr)
 
 
 def crawl_account_health(**kwargs: Any) -> dict[str, Any]:

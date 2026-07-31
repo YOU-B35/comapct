@@ -15,16 +15,18 @@ npm-debug.log*
 .env.*
 !.env.example
 .monitor-smoke.env
-# ── Documentation: local only (GitHub keeps root README.md) ──
+# ── Documentation: local only（仅 README + 交接文档可进 GitHub）──
 docs/
 *.md
 !README.md
+!全量项目交接提示词.md
 AGENTS.md
 CLAUDE.md
 agnets.md
 租户账密.md
 backend/python/crosshub.db
 backend/python/.aliexpress-browser-profile/
+backend/python/.temu-browser-profile/
 backend/data/
 
 # OS / editor
@@ -43,6 +45,9 @@ __screenshots__/
 # Deploy build artifacts & local SSH probes (may contain credentials)
 deploy/.build/
 scripts/_ssh-probe/
+scripts/_dxm_cookie_tmp.txt
+scripts/_probe_dxm_*
+backend/python/tests/fixtures/_tmp_profile/
 
 # Python monitor runtime artifacts
 backend/python/exports/

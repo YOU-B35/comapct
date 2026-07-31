@@ -34,7 +34,7 @@ watch(
 
 const hotProducts = computed(() =>
   [...props.products]
-    .filter((p) => Number(p.dailySales) > 0)
+    .filter((p) => p.isHot)
     .sort((a, b) => {
       const salesDiff = Number(b.dailySales) - Number(a.dailySales)
       if (salesDiff !== 0) return salesDiff

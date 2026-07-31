@@ -1,12 +1,12 @@
 import { service } from './request'
 import { mapMonitorReport } from '@/utils/temuMonitorReport'
 import {
-  assertPlatformCrawlAllowed,
   markPlatformCrawlOnSuccess,
   normalizeCrawlOptions,
   throwIfCrawlCooldownResponse,
 } from '@/utils/platformSyncCooldown'
 import { AppApiError, getAppErrorMessage } from '@/utils/appErrorCode'
+import { isTemuMallUrl, temuMallUrlErrorMessage } from '@/utils/temuMonitorUrl'
 
 function unwrap(res) {
   return res?.data ?? res
@@ -59,13 +59,14 @@ async function fetchMonitorJob(jobId) {
 
 async function triggerMonitorTarget(id, options = {}) {
   const normalized = typeof options === 'string' ? { reason: options } : options
+  // Monitor cooldown is server-side monitor:{id} only — do not gate on FE platform 3h localStorage.
   const crawlOpts = normalizeCrawlOptions(normalized)
-  assertPlatformCrawlAllowed(null, crawlOpts)
 
   const res = await service.post(`/api/monitor/targets/${id}/trigger`, {
     reason: normalized.reason || 'manual refresh',
-    force: !!normalized.force,
-    bypass_cooldown: Boolean(normalized.bypassCooldown && crawlOpts.force),
+    force: !!crawlOpts.force,
+    // 显式 force 或 bypassCooldown 均可绕过租户级冷却（「执行今日爬取分析」会传 force）
+    bypass_cooldown: Boolean(normalized.bypassCooldown || crawlOpts.force),
   }, { skipGlobalErrorToast: true, validateStatus: () => true })
 
   const payload = res?.data ?? res
@@ -217,11 +218,15 @@ export async function fetchBackendCompetitors() {
 }
 
 export async function saveBackendCompetitor(payload) {
+  const url = String(payload?.url || '').trim()
+  if (!isTemuMallUrl(url)) {
+    throw new AppApiError(temuMallUrlErrorMessage, 'MONITOR_TARGET_URL_INVALID')
+  }
   const body = {
     platform: 'temu',
     target_type: 'shop',
     label: payload.label,
-    target_url: payload.url,
+    target_url: url,
     freshness_minutes: 1440,
     crawl_strategy: 'store_listing',
     status: 'active',
@@ -280,15 +285,29 @@ export async function analyzeBackendCompetitors(competitors = [], options = {}) 
     ? allCompetitors.filter((item) => selectedIds.has(item.id))
     : allCompetitors
 
-  for (const target of targets) {
-    await enqueueManualCrawl(target, options)
+  const validTargets = targets.filter((item) => isTemuMallUrl(item.url))
+  if (!validTargets.length) {
+    throw new AppApiError(temuMallUrlErrorMessage, 'MONITOR_TARGET_URL_INVALID')
   }
 
-  const reports = await Promise.all(targets.map((item) => buildReportForTarget(item)))
+  // 默认不强制；冷却时由 UI 二次确认后再传 force / bypassCooldown
+  const crawlOptions = {
+    force: false,
+    bypassCooldown: false,
+    recordCooldown: false,
+    ...options,
+  }
+
+  for (const target of validTargets) {
+    await enqueueManualCrawl(target, crawlOptions)
+  }
+
+  const reports = await Promise.all(validTargets.map((item) => buildReportForTarget(item)))
   return {
     success: true,
     data: reports,
     competitors: allCompetitors,
+    skippedInvalidUrlCount: targets.length - validTargets.length,
   }
 }
 

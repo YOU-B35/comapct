@@ -115,9 +115,9 @@ async function onStatusChange(row, status) {
         <el-alert type="info" show-icon :closable="false">
           <template #title>备货逻辑说明</template>
           <template #default>
-            日均需求 = max(当日销量, 7 日均值) ·
-            目标库存 = 日均 × ({{ RESTOCK_CONFIG.targetCoverDays }} 天覆盖 + {{ RESTOCK_CONFIG.leadTimeDays }} 天提前期) ·
-            建议补货 = max(0, 目标 − 官方仓库存)；本地仓有货时再封顶到可用量
+            日均需求 = (近7日均×0.7 + 近30日均×0.3) × 趋势系数(0.8~1.5) ·
+            告警阈值 = 提前期 {{ RESTOCK_CONFIG.leadTimeDays }} 天 + 缓冲 {{ RESTOCK_CONFIG.safetyBufferDays }} 天 ·
+            覆盖天数低于阈值则需补货；目标库存 = 日均 × {{ RESTOCK_CONFIG.targetCoverDays }} 天
           </template>
         </el-alert>
       </el-col>
@@ -167,7 +167,7 @@ async function onStatusChange(row, status) {
         </el-table-column>
         <el-table-column label="可售天数" width="100" align="right">
           <template #default="{ row }">
-            <el-text :type="row.restock.coverDays <= RESTOCK_CONFIG.leadTimeDays ? 'danger' : row.restock.coverDays <= RESTOCK_CONFIG.safetyDays ? 'warning' : undefined">
+            <el-text :type="row.restock.coverDays <= (row.restock.warningDays || RESTOCK_CONFIG.safetyDays) ? 'danger' : undefined">
               {{ row.restock.coverDays >= 999 ? '∞' : row.restock.coverDays }} 天
             </el-text>
           </template>
@@ -222,7 +222,7 @@ async function onStatusChange(row, status) {
         <el-card shadow="never">
           <template #header>{{ useBackendData ? '参数配置' : '参数配置（Demo）' }}</template>
           <el-descriptions :column="2" border size="small">
-            <el-descriptions-item label="安全库存天数">{{ RESTOCK_CONFIG.safetyDays }} 天</el-descriptions-item>
+            <el-descriptions-item label="告警阈值">{{ RESTOCK_CONFIG.leadTimeDays + RESTOCK_CONFIG.safetyBufferDays }} 天（提前期+缓冲）</el-descriptions-item>
             <el-descriptions-item label="目标覆盖">{{ RESTOCK_CONFIG.targetCoverDays }} 天</el-descriptions-item>
             <el-descriptions-item label="备货提前期">{{ RESTOCK_CONFIG.leadTimeDays }} 天</el-descriptions-item>
             <el-descriptions-item label="补货来源">本地仓库</el-descriptions-item>

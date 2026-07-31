@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrossHub Sync Helper</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --border: #334155;
+    --accent: #10b981; --accent2: #3b82f6; --warn: #f59e0b; --danger: #ef4444;
+    --text: #f1f5f9; --sub: #94a3b8; --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* ── 顶栏 ── */
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 10; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .agent-badge { display: flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; border: 1px solid var(--border); }
+  .agent-badge.running { border-color: var(--accent); color: var(--accent); }
+  .agent-badge.error   { border-color: var(--danger); color: var(--danger); }
+  .agent-badge.starting{ border-color: var(--warn);  color: var(--warn); }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .message-btn { position: relative; }
+  .message-dot {
+    position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; border-radius: 9px;
+    padding: 0 5px; background: var(--danger); color: #fff; font-size: 10px; display: none; align-items: center; justify-content: center;
+  }
+  .message-dot.show { display: inline-flex; }
+
+  /* ── 租户选择器（前置屏） ── */
+  .tenant-screen { display: flex; flex-direction: column; align-items: center; padding: 60px 24px 40px; }
+  .tenant-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .tenant-sub { color: var(--sub); font-size: 13px; margin-bottom: 32px; }
+  .tenant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; width: 100%; max-width: 800px; }
+  .tenant-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; cursor: pointer; transition: border-color .2s, transform .1s; }
+  .tenant-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .tenant-card .tc-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  .tenant-card .tc-ent { color: var(--sub); font-size: 12px; }
+  .tenant-card .tc-id { color: #475569; font-size: 11px; margin-top: 6px; }
+
+  /* ── 主界面（选租户后） ── */
+  .main-screen { display: none; }
+  .main-screen.active { display: block; }
+
+  /* ── 工具栏 ── */
+  .toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; transition: opacity .15s, transform .1s; }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-blue { background: var(--accent2); color: #fff; }
+  .btn-small { padding: 5px 12px; font-size: 12px; }
+  .spacer { flex: 1; }
+  .tenant-indicator { color: var(--sub); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .tenant-indicator strong { color: var(--text); }
+
+  /* ── 平台 Tab ── */
+  .platform-tabs { display: flex; gap: 0; padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--surface); overflow-x: auto; }
+  .platform-tab { padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--sub); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: color .15s, border-color .15s; }
+  .platform-tab:hover { color: var(--text); }
+  .platform-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .platform-tab .tab-count { display: inline-block; background: rgba(148,163,184,.15); color: var(--sub); padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px; }
+  .platform-tab.active .tab-count { background: rgba(16,185,129,.15); color: var(--accent); }
+
+  /* ── 网格 ── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding: 20px 24px; }
+
+  /* ── 卡片 ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 12px; transition: border-color .2s; }
+  .card:hover { border-color: #475569; }
+  .card.ready   { border-left: 3px solid var(--accent); }
+  .card.expired { border-left: 3px solid var(--warn); }
+  .card.offline { border-left: 3px solid var(--border); }
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .account-name { font-weight: 600; font-size: 15px; word-break: break-all; }
+  .platform-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .platform-badge.temu       { background: rgba(255,87,34,.15); color: #ff5722; }
+  .platform-badge.aliexpress { background: rgba(233,30,99,.15); color: #e91e63; }
+  .platform-badge.amazon     { background: rgba(255,152,0,.15); color: #ff9800; }
+  .platform-badge.other      { background: rgba(148,163,184,.1); color: var(--sub); }
+  .status-pill { flex-shrink: 0; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .status-pill.ready   { background: rgba(16,185,129,.15); color: var(--accent); }
+  .status-pill.expired { background: rgba(245,158,11,.15); color: var(--warn); }
+  .status-pill.offline { background: rgba(148,163,184,.1);  color: var(--sub); }
+  .card-meta { color: var(--sub); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .meta-row { display: flex; gap: 6px; }
+  .meta-label { color: #64748b; min-width: 56px; }
+  .card-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .card-actions .btn { flex: 1; justify-content: center; font-size: 12px; padding: 6px 10px; }
+
+  /* ── 空 ── */
+  .empty { grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--sub); }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+  /* ── Toast ── */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { padding: 10px 18px; border-radius: 8px; font-size: 13px; background: var(--surface); border: 1px solid var(--border); animation: slideIn .2s ease; max-width: 320px; }
+  .toast.success { border-color: var(--accent); color: var(--accent); }
+  .toast.error   { border-color: var(--danger); color: var(--danger); }
+  @keyframes slideIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: none; } }
+
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── 日志 ── */
+  .log-section { margin: 0 24px 24px; }
+  .log-title { color: var(--sub); font-size: 12px; margin-bottom: 8px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+  .log-box { background: #020617; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-family: 'Consolas', monospace; font-size: 12px; color: #7dd3fc; max-height: 120px; overflow-y: auto; line-height: 1.6; }
+  .log-box .log-time { color: #475569; }
+
+  /* ── Modal ── */
+  .modal-mask { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; align-items:center; justify-content:center; }
+  .modal-mask.open { display:flex; }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:14px; width:min(440px,92vw); padding:22px 24px; }
+  .modal h3 { font-size:16px; margin-bottom:4px; }
+  .modal .hint { color:var(--sub); font-size:12px; margin-bottom:16px; }
+  .form-row { margin-bottom:12px; }
+  .form-row label { display:block; font-size:12px; color:var(--sub); margin-bottom:4px; }
+  .form-row input, .form-row select {
+    width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
+    background:#0f172a; color:var(--text); font-size:13px; outline:none;
+  }
+  .form-row input:focus, .form-row select:focus { border-color:var(--accent); }
+  .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+  .btn-danger { background:rgba(239,68,68,.15); color:var(--danger); border:1px solid rgba(239,68,68,.3); }
+  .ops-mask { display:none; position:fixed; inset:0; background:rgba(2,6,23,.62); z-index:120; justify-content:flex-end; }
+  .ops-mask.open { display:flex; }
+  .ops-panel { width:min(640px, 96vw); height:100%; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; }
+  .ops-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); }
+  .ops-title { font-size:15px; font-weight:700; }
+  .ops-list { padding:12px; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .ops-item { border:1px solid var(--border); border-radius:10px; padding:12px; background:#0f172a; }
+  .ops-item .line1 { display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; }
+  .ops-item .line2 { color:var(--sub); font-size:12px; display:flex; flex-wrap:wrap; gap:8px 14px; }
+  .ops-status { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); }
+  .ops-status.success { color:var(--accent); border-color:rgba(16,185,129,.5); }
+  .ops-status.running, .ops-status.pending { color:var(--warn); border-color:rgba(245,158,11,.5); }
+  .ops-status.failed { color:var(--danger); border-color:rgba(239,68,68,.5); }
+  .ops-empty { color:var(--sub); text-align:center; margin-top:50px; }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <div class="logo"><div class="logo-dot"></div> CrossHub Sync Helper</div>
+  <div class="topbar-right">
+    <button class="btn btn-secondary btn-small message-btn" onclick="openOpsMessages()">
+      运维日志
+      <span id="opsUnreadDot" class="message-dot">0</span>
+    </button>
+    <div id="agentBadge" class="agent-badge starting"><span class="spin"></span><span id="agentText">启动中...</span></div>
+  </div>
+</div>
+
+<!-- ═══ 租户选择屏 ═══ -->
+<div id="tenantScreen" class="tenant-screen">
+  <div class="tenant-title">选择租户</div>
+  <div class="tenant-sub">请选择要管理的租户，进入账号矩阵面板</div>
+  <div class="tenant-grid" id="tenantGrid">
+    <div class="empty"><div class="empty-icon">⟳</div>正在加载租户...</div>
+  </div>
+</div>
+
+<!-- ═══ 主界面（选租户后） ═══ -->
+<div id="mainScreen" class="main-screen">
+  <!-- 工具栏 -->
+  <div class="toolbar">
+    <button class="btn btn-secondary btn-small" onclick="backToTenants()">← 切换租户</button>
+    <div class="tenant-indicator">租户：<strong id="currentTenantName"></strong></div>
+    <div class="spacer"></div>
+    <button class="btn btn-blue" onclick="openAddModal()">+ 添加账户</button>
+    <button class="btn btn-primary" onclick="syncAll()" id="btnSyncAll"><span>↻</span> 全部同步</button>
+    <button class="btn btn-secondary" onclick="refreshAll()" id="btnRefresh">刷新状态</button>
+  </div>
+
+  <!-- 平台 Tab -->
+  <div class="platform-tabs" id="platformTabs"></div>
+
+  <!-- 账号矩阵网格 -->
+  <div class="grid" id="grid">
+    <div class="empty"><div class="empty-icon">⟳</div>正在加载...</div>
+  </div>
+
+  <!-- 日志 -->
+  <div class="log-section">
+    <div class="log-title">运行日志</div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- 添加账户弹窗 -->
+<div class="modal-mask" id="addModal">
+  <div class="modal">
+    <h3>添加账户 / 绑定店铺</h3>
+    <div class="hint">写入当前租户的 platform_account，与 Boss「账户绑定」同源；Boss 刷新即可看到。</div>
+    <div class="form-row">
+      <label>平台 *</label>
+      <select id="addPlatform">
+        <option value="temu">Temu</option>
+        <option value="aliexpress">AliExpress</option>
+        <option value="amazon">Amazon</option>
+        <option value="walmart">Walmart</option>
+        <option value="pdd">拼多多</option>
+        <option value="douyin">抖音</option>
+        <option value="channels">视频号</option>
+        <option value="1688">1688</option>
+        <option value="shopify">Shopify</option>
+        <option value="wordpress">WordPress</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>店铺名称 *</label>
+      <input id="addStoreName" placeholder="如 yituo / Gourami" />
+    </div>
+    <div class="form-row">
+      <label>登录账号 *</label>
+      <input id="addAccount" placeholder="手机号 / 邮箱" />
+    </div>
+    <div class="form-row">
+      <label>登录密码（可选，Temu 等可走浏览器登录）</label>
+      <input id="addPassword" type="password" placeholder="可留空" />
+    </div>
+    <div class="form-row">
+      <label>外部店铺 ID（可选）</label>
+      <input id="addExtId" placeholder="Temu mallId / Amazon sellerId" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeAddModal()">取消</button>
+      <button class="btn btn-primary" id="btnAddSubmit" onclick="submitAddAccount()">确认绑定</button>
+    </div>
+  </div>
+</div>
+
+<div class="ops-mask" id="opsMask">
+  <div class="ops-panel">
+    <div class="ops-header">
+      <div class="ops-title">任务同步状态（Amazon）</div>
+      <button class="btn btn-secondary btn-small" onclick="closeOpsMessages()">关闭</button>
+    </div>
+    <div class="ops-list" id="opsList"></div>
+  </div>
+</div>
+
+<script>
+const BASE = '';
+let _tenants = [];
+let _currentTenant = null;
+let _platforms = {};   // { temu: [{...}], aliexpress: [{...}], ... }
+let _activePlatform = 'all';
+let _state = {};
+let _logLines = [];
+let _opsMessages = [];
+let _opsUnread = 0;
+
+const PLATFORM_LABELS = {
+  temu: 'Temu', aliexpress: 'AliExpress', amazon: 'Amazon',
+  pdd: '拼多多', douyin: '抖音', channels: '视频号',
+  walmart: 'Walmart', shopify: 'Shopify', alibaba1688: '1688',
+};
+
+// ── 工具 ──
+function toast(msg, type='success') {
+  const c = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+function log(msg) {
+  const now = new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  _logLines.push(`<span class="log-time">[${now}]</span> ${msg}`);
+  if (_logLines.length > 80) _logLines.shift();
+  const box = document.getElementById('logBox');
+  if (box) { box.innerHTML = _logLines.join('<br>'); box.scrollTop = box.scrollHeight; }
+}
+function syncOpsUnreadBadge() {
+  const dot = document.getElementById('opsUnreadDot');
+  if (!dot) return;
+  dot.textContent = String(_opsUnread);
+  dot.className = _opsUnread > 0 ? 'message-dot show' : 'message-dot';
+}
+function opsStatusClass(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'success' || s === 'partial') return 'success';
+  if (s === 'running' || s === 'pending') return s;
+  if (s === 'failed') return 'failed';
+  return '';
+}
+function opsStatusText(item) {
+  const s = String(item.status || '').toLowerCase();
+  if (s === 'success') return '成功';
+  if (s === 'partial') return '部分成功';
+  if (s === 'running') return '执行中';
+  if (s === 'pending') return '排队中';
+  if (s === 'failed' && item.retry_exhausted) return '失败(重试耗尽)';
+  if (s === 'failed') return '失败';
+  return s || '未知';
+}
+function renderOpsMessages() {
+  const box = document.getElementById('opsList');
+  if (!box) return;
+  if (!_opsMessages.length) {
+    box.innerHTML = '<div class="ops-empty">暂无任务状态记录</div>';
+    return;
+  }
+  box.innerHTML = _opsMessages.map((item) => `
+    <div class="ops-item">
+      <div class="line1">
+        <strong>${escapeHtml(item.store_name || item.account || item.platform_account_id || '-')}</strong>
+        <span class="ops-status ${opsStatusClass(item.status)}">${opsStatusText(item)}</span>
+      </div>
+      <div class="line2">
+        <span>账号：${escapeHtml(item.account || '-')}</span>
+        <span>重试：${item.retry_count ?? 0}/${item.max_retry_count ?? 2}</span>
+        <span>失败时间：${escapeHtml(item.failed_at || '-')}</span>
+      </div>
+      <div class="line2">
+        <span>原因：${escapeHtml(item.failure_reason || item.failure_code || '-')}</span>
+      </div>
+    </div>
+  `).join('');
+}
+async function loadOpsMessages() {
+  if (!_currentTenant) return;
+  try {
+    const tid = _currentTenant.tenant_id;
+    const res = await api(`/api/ops/messages?tenant_id=${tid}`);
+    _opsMessages = res.items || [];
+    _opsUnread = Number(res.unread || 0);
+    syncOpsUnreadBadge();
+    renderOpsMessages();
+  } catch (e) {
+    log(`运维日志加载失败: ${e.message}`);
+  }
+}
+async function openOpsMessages() {
+  if (!_currentTenant) {
+    toast('请先选择租户', 'error');
+    return;
+  }
+  document.getElementById('opsMask').classList.add('open');
+  await loadOpsMessages();
+}
+function closeOpsMessages() {
+  document.getElementById('opsMask').classList.remove('open');
+}
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(BASE + path, opts);
+  return r.json();
+}
+
+// ── Agent 状态轮询 ──
+async function pollStatus() {
+  try {
+    const s = await api('/api/status');
+    _state = s;
+    const badge = document.getElementById('agentBadge');
+    const text  = document.getElementById('agentText');
+    badge.className = `agent-badge ${s.agent_status}`;
+    const labels = { running:'Agent 运行中', error:'Agent 异常', starting:'启动中...', stopped:'已停止' };
+    text.textContent = labels[s.agent_status] || s.agent_status;
+  } catch(e) {}
+}
+
+// ── 租户 ──
+async function loadTenants() {
+  try {
+    const res = await api('/api/tenants');
+    _tenants = res.tenants || [];
+    renderTenantGrid();
+  } catch(e) {
+    toast('加载租户失败', 'error');
+  }
+}
+function renderTenantGrid() {
+  const g = document.getElementById('tenantGrid');
+  if (!_tenants.length) {
+    g.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>无租户数据</div>';
+    return;
+  }
+  g.innerHTML = _tenants.map(t => `
+    <div class="tenant-card" onclick="selectTenant(${t.tenant_id})">
+      <div class="tc-name">${t.enterprise || t.nickname || t.username}</div>
+      <div class="tc-ent">${t.username}</div>
+      <div class="tc-id">Tenant #${t.tenant_id}</div>
+    </div>
+  `).join('');
+}
+function selectTenant(tid) {
+  _currentTenant = _tenants.find(t => t.tenant_id === tid);
+  if (!_currentTenant) return;
+  document.getElementById('tenantScreen').style.display = 'none';
+  document.getElementById('mainScreen').classList.add('active');
+  document.getElementById('currentTenantName').textContent =
+    _currentTenant.enterprise || _currentTenant.nickname || `Tenant #${tid}`;
+  log(`已选择租户: ${_currentTenant.enterprise || tid}`);
+  refreshAll();
+  loadOpsMessages();
+}
+function backToTenants() {
+  document.getElementById('mainScreen').classList.remove('active');
+  document.getElementById('tenantScreen').style.display = '';
+  _currentTenant = null;
+  _platforms = {};
+  _activePlatform = 'all';
+}
+
+// ── 平台账号 ──
+async function refreshAll() {
+  if (!_currentTenant) return;
+  const btn = document.getElementById('btnRefresh');
+  btn.disabled = true; btn.textContent = '刷新中...';
+  try {
+    const tid = _currentTenant.tenant_id;
+    const res = await api(`/api/platform-accounts?tenant_id=${tid}`);
+    _platforms = res.platforms || {};
+    renderPlatformTabs();
+    renderGrid();
+    const total = Object.values(_platforms).reduce((s, arr) => s + arr.length, 0);
+    log(`已加载 ${Object.keys(_platforms).length} 个平台, ${total} 个绑定账号`);
+    await loadOpsMessages();
+  } catch(e) {
+    toast('加载平台账号失败: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '刷新状态';
+  }
+}
+function renderPlatformTabs() {
+  const tabs = document.getElementById('platformTabs');
+  const platforms = Object.keys(_platforms);
+  const total = Object.values(_platforms).reduce((s, arr) => s + arr.length, 0);
+
+  let html = `<div class="platform-tab ${_activePlatform==='all'?'active':''}" onclick="switchPlatform('all')">全部<span class="tab-count">${total}</span></div>`;
+  for (const p of platforms) {
+    const label = PLATFORM_LABELS[p] || p;
+    const cnt = _platforms[p].length;
+    html += `<div class="platform-tab ${_activePlatform===p?'active':''}" onclick="switchPlatform('${p}')">${label}<span class="tab-count">${cnt}</span></div>`;
+  }
+  tabs.innerHTML = html;
+}
+function switchPlatform(p) {
+  _activePlatform = p;
+  renderPlatformTabs();
+  renderGrid();
+}
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  let accounts = [];
+  if (_activePlatform === 'all') {
+    for (const [platform, accs] of Object.entries(_platforms)) {
+      for (const a of accs) accounts.push({...a, platform});
+    }
+  } else {
+    accounts = (_platforms[_activePlatform] || []).map(a => ({...a, platform: _activePlatform}));
+  }
+  if (!accounts.length) {
+    grid.innerHTML = `<div class="empty"><div class="empty-icon">📭</div>该平台暂无绑定账号<br><small>请在 Boss 后台「账户绑定」添加</small></div>`;
+    return;
+  }
+  grid.innerHTML = accounts.map(a => cardHtml(a)).join('');
+}
+function cardHtml(acc) {
+  const platform = acc.platform || 'unknown';
+  const badgeClass = ['temu','aliexpress','amazon'].includes(platform) ? platform : 'other';
+  const label = PLATFORM_LABELS[platform] || platform;
+  const name = acc.store_name || acc.account || acc.id;
+  const account = acc.account || '';
+  const extId = acc.external_shop_id || '';
+  const hasBrowserLogin = platform === 'temu' || platform === 'aliexpress';
+  const isAmazon = platform === 'amazon';
+
+  return `
+<div class="card offline">
+  <div class="card-header">
+    <div>
+      <div class="account-name">${escapeHtml(name)}</div>
+    </div>
+    <span class="platform-badge ${badgeClass}">${label}</span>
+  </div>
+  <div class="card-meta">
+    ${account ? `<div class="meta-row"><span class="meta-label">账号</span>${escapeHtml(account)}</div>` : ''}
+    ${extId ? `<div class="meta-row"><span class="meta-label">店铺ID</span>${escapeHtml(extId)}</div>` : ''}
+    <div class="meta-row"><span class="meta-label">Profile</span>按账号隔离 · ${escapeHtml(account || 'default')}</div>
+  </div>
+  <div class="card-actions">
+    ${hasBrowserLogin ? `<button class="btn btn-secondary" onclick="loginAccount('${acc.id}','${escapeAttr(account)}','${platform}')">登录</button>
+    <button class="btn btn-primary" onclick="syncAccount('${acc.id}','${escapeAttr(account)}','${platform}')">↻ 同步</button>` :
+    isAmazon ? `<button class="btn btn-secondary" onclick="loginAccount('${acc.id}','${escapeAttr(account)}','${platform}')" title="Amazon 走紫鸟浏览器隔离">紫鸟登录说明</button>
+    <button class="btn btn-primary" onclick="syncAccount('${acc.id}','${escapeAttr(account)}','${platform}')" title="触发 Amazon 同步任务">↻ 同步</button>` :
+    `<button class="btn btn-secondary" disabled title="该平台暂不支持本地同步">暂不支持</button>`}
+    <button class="btn btn-danger" onclick="unbindAccount('${acc.id}','${escapeAttr(name)}')">解绑</button>
+  </div>
+</div>`;
+}
+
+function escapeHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escapeAttr(s) {
+  return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
+// ── 添加账户 ──
+function openAddModal() {
+  if (!_currentTenant) return;
+  document.getElementById('addStoreName').value = '';
+  document.getElementById('addAccount').value = '';
+  document.getElementById('addPassword').value = '';
+  document.getElementById('addExtId').value = '';
+  document.getElementById('addModal').classList.add('open');
+}
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('open');
+}
+async function submitAddAccount() {
+  if (!_currentTenant) return;
+  const platform = document.getElementById('addPlatform').value;
+  const storeName = document.getElementById('addStoreName').value.trim();
+  const account = document.getElementById('addAccount').value.trim();
+  const password = document.getElementById('addPassword').value;
+  const extId = document.getElementById('addExtId').value.trim();
+  if (!storeName || !account) {
+    toast('请填写店铺名称和登录账号', 'error');
+    return;
+  }
+  const btn = document.getElementById('btnAddSubmit');
+  btn.disabled = true; btn.textContent = '提交中...';
+  try {
+    const res = await api('/api/platform-accounts', 'POST', {
+      tenant_id: _currentTenant.tenant_id,
+      platform,
+      store_name: storeName,
+      account,
+      password: password || '',
+      external_shop_id: extId || '',
+    });
+    if (!res.ok) {
+      toast(res.msg || '绑定失败', 'error');
+      return;
+    }
+    toast(res.msg || '绑定成功');
+    log(`已绑定 [${platform}] ${storeName} (${account}) → Boss 账户绑定可刷新查看`);
+    closeAddModal();
+    await refreshAll();
+  } catch(e) {
+    toast('绑定失败: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '确认绑定';
+  }
+}
+async function unbindAccount(id, name) {
+  if (!_currentTenant) return;
+  if (!confirm(`确认解绑「${name}」？\nBoss 账户绑定页刷新后也会消失。`)) return;
+  try {
+    const tid = _currentTenant.tenant_id;
+    const r = await fetch(`${BASE}/api/platform-accounts/${id}?tenant_id=${tid}`, { method: 'DELETE' });
+    const res = await r.json();
+    if (!res.ok) { toast(res.msg || '解绑失败', 'error'); return; }
+    toast(res.msg || '已解绑');
+    log(`已解绑 ${name}`);
+    await refreshAll();
+  } catch(e) {
+    toast('解绑失败: ' + e.message, 'error');
+  }
+}
+
+// ── 操作 ──
+async function loginAccount(paId, account, platform) {
+  if (!_currentTenant) return;
+  log(`正在打开登录 [${platform}] ${account || paId}...`);
+  try {
+    const res = await api('/api/login', 'POST', {
+      platform_account_id: paId,
+      account: account,
+      platform,
+      tenant_id: _currentTenant.tenant_id,
+      session_key: account || '',
+    });
+    toast(res.msg || '已发送登录指令');
+  } catch(e) { toast('登录失败: '+e.message, 'error'); }
+}
+async function syncAccount(paId, account, platform) {
+  if (!_currentTenant) return;
+  log(`触发同步 [${platform}] ${account || paId}...`);
+  try {
+    const res = await api('/api/sync', 'POST', {
+      platform_account_id: paId,
+      account: account,
+      platform,
+      tenant_id: _currentTenant.tenant_id,
+      session_key: account || '',
+    });
+    toast(res.msg || '同步已启动');
+    setTimeout(loadOpsMessages, 1200);
+  } catch(e) { toast('同步失败: '+e.message, 'error'); }
+}
+async function syncAll() {
+  if (!_currentTenant) return;
+  log('触发全平台同步...');
+  document.getElementById('btnSyncAll').disabled = true;
+  try {
+    const res = await api('/api/sync', 'POST', {session_key: '', tenant_id: _currentTenant.tenant_id});
+    toast(res.msg || '全量同步已启动');
+  } catch(e) { toast('同步失败: '+e.message, 'error'); }
+  finally { setTimeout(() => document.getElementById('btnSyncAll').disabled = false, 3000); }
+}
+
+// ── 初始化 ──
+(async function init() {
+  log('CrossHub Sync Helper 面板已启动');
+  await loadTenants();
+  setInterval(pollStatus, 3000);
+  pollStatus();
+})();
+</script>
+</body>
+</html>

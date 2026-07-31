@@ -41,8 +41,12 @@ export async function fetchTemuIntegrationStatus() {
   return { success: true, data: res?.data ?? res ?? {} }
 }
 
-export async function openTemuSellerLogin() {
-  const res = await service.post('/api/temu/login/open', {}, { skipGlobalErrorToast: true })
+export async function openTemuSellerLogin(payload = {}) {
+  const body = {}
+  if (payload.platformAccountId) {
+    body.platform_account_id = payload.platformAccountId
+  }
+  const res = await service.post('/api/temu/login/open', body, { skipGlobalErrorToast: true })
   return res?.data ?? res ?? {}
 }
 
@@ -175,11 +179,12 @@ export async function fetchTemuStores(auth) {
       })
     }
 
-    // 已绑定但尚未爬到数据的店铺仍保留入口
+    // 已绑定但尚未爬到数据的店铺仍保留入口（必须有 externalShopId 才能查后端）
     for (const store of boundStores) {
       const extId = String(store.externalShopId || '').trim()
-      const id = extId || String(store.id || '').trim()
-      if (!id || seen.has(id) || isDemoShopId(id)) continue
+      if (!extId) continue
+      const id = extId
+      if (seen.has(id) || isDemoShopId(id)) continue
       seen.add(id)
       merged.push({
         id,

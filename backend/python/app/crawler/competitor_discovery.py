@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+import re
 import time
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -23,6 +24,7 @@ DEFAULT_DISCOVERY_REGION = "za"
 DEFAULT_DISCOVERY_LIMIT = 10
 PROFILE_SETTLE_SECONDS = 2.0
 PROFILE_RETRY_ATTEMPTS = 2
+PRODUCT_URL_RE = re.compile(r"(goods|product|item|sku|_oak|[/_\-]g-\d|pd-\d|goods_id=)", re.I)
 
 
 def build_search_url(keyword: str = DEFAULT_DISCOVERY_KEYWORD, region: str = DEFAULT_DISCOVERY_REGION) -> str:
@@ -59,8 +61,8 @@ def discover_competitor_candidates(
     candidates = build_discovery_candidates(items, search_url=search_url, keyword=keyword, limit=limit)
     if not candidates:
         raise RuntimeError(
-            "COMPETITOR_DISCOVERY_NO_RESULTS: No fishing tackle candidates were found on Temu ZA. "
-            "Try again later or use a manual competitor URL."
+            f"COMPETITOR_DISCOVERY_NO_RESULTS: No candidates were found for "
+            f"{keyword!r} on Temu {region.upper()}. Try again later or use a manual competitor URL."
         )
     return {
         "keyword": keyword,
@@ -207,7 +209,7 @@ def extract_search_items_from_page(page: Page, *, max_items: int = 40) -> list[d
           const seen = new Set();
           const rows = [];
           const productHints = /(goods|product|item|sku|_oak|\\bg-\\d|\\bpd-\\d)/i;
-          const pricePattern = /(?:US)?\\$\\s*\\d|(?:^|\\s)R\\s*\\d/i;
+          const pricePattern = /(?:US)?\\$\\s*\\d|(?:^|\\s)R\\s*\\d|[¥￥]\\s*\\d|\\d[\\d,]*\\s*円/i;
           const textOf = (node) => ((node && (node.innerText || node.textContent)) || '')
             .replace(/[ \\t]+/g, ' ')
             .trim();
@@ -311,6 +313,8 @@ def build_discovery_candidates(
         product = normalize_sample_product(item)
         if not product["name"] or product["price"] <= 0:
             continue
+        if not is_product_url(product["url"]):
+            continue
         mall_id = mall_id_from_item(item)
         if not mall_id:
             fallback_products.append(product)
@@ -366,6 +370,10 @@ def normalize_sample_product(item: dict) -> dict:
         "price": extract_price(text),
         "salesSignal": extract_sales_signal(text),
     }
+
+
+def is_product_url(url: str) -> bool:
+    return bool(PRODUCT_URL_RE.search(url or ""))
 
 
 def mall_id_from_item(item: dict) -> str:

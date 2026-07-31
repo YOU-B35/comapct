@@ -79,11 +79,12 @@ public class PlatformDailySyncService {
                 Map<String, Object> result = enqueueDailySyncForTenant(tenantId, force);
                 results.add(result);
                 log.info("Platform daily sync tenant {}: {}", tenantId, result.get("actions"));
-            } catch (Exception ex) {
-                log.warn("Platform daily sync failed for tenant {}: {}", tenantId, ex.getMessage());
+            } catch (Throwable ex) {
+                // 必须接住 Error（含 StackOverflowError）：catch Exception 拦不住会拖垮整次日批
+                log.warn("Platform daily sync failed for tenant {}: {}", tenantId, ex.toString());
                 Map<String, Object> failed = new LinkedHashMap<>();
                 failed.put("tenant_id", tenantId);
-                failed.put("error", ex.getMessage());
+                failed.put("error", ex.toString());
                 results.add(failed);
             }
         }
