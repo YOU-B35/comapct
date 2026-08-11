@@ -41,6 +41,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/agent/register",
                         "/api/agent/setup",
                         "/api/agent/nodes",
+                        "/api/agent/me/**",
                         "/api/amazon/**",
                         "/api/aliexpress/**",
                         "/api/monitor/**"
