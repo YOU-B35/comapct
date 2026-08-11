@@ -50,6 +50,18 @@ public class TemuCrawlJob {
     @Column(name = "agent_task_id", nullable = false)
     private String agentTaskId = "";
 
+    @Column(name = "retry_count", nullable = false)
+    private Integer retryCount = 0;
+
+    @Column(name = "max_retry_count", nullable = false)
+    private Integer maxRetryCount = 8;
+
+    @Column(name = "next_retry_at", nullable = false)
+    private String nextRetryAt = "";
+
+    @Column(name = "retry_exhausted", nullable = false)
+    private Integer retryExhausted = 0;
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public Long getTenantId() { return tenantId; }
@@ -78,4 +90,12 @@ public class TemuCrawlJob {
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
     public String getAgentTaskId() { return agentTaskId; }
     public void setAgentTaskId(String agentTaskId) { this.agentTaskId = agentTaskId == null ? "" : agentTaskId; }
+    public Integer getRetryCount() { return retryCount == null ? 0 : retryCount; }
+    public void setRetryCount(Integer retryCount) { this.retryCount = retryCount == null ? 0 : retryCount; }
+    public Integer getMaxRetryCount() { return maxRetryCount == null ? 8 : maxRetryCount; }
+    public void setMaxRetryCount(Integer maxRetryCount) { this.maxRetryCount = maxRetryCount == null ? 8 : maxRetryCount; }
+    public String getNextRetryAt() { return nextRetryAt == null ? "" : nextRetryAt; }
+    public void setNextRetryAt(String nextRetryAt) { this.nextRetryAt = nextRetryAt == null ? "" : nextRetryAt; }
+    public boolean isRetryExhausted() { return retryExhausted != null && retryExhausted != 0; }
+    public void setRetryExhausted(boolean retryExhausted) { this.retryExhausted = retryExhausted ? 1 : 0; }
 }

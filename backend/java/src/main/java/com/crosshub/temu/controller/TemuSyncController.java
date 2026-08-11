@@ -81,7 +81,7 @@ public class TemuSyncController {
             }
         }
         final String accountId = platformAccountId;
-        Map<String, Object> queued = syncLimitService.runWithEnqueueGate(tenantId, userId, () ->
+        Map<String, Object> queued = syncLimitService.runWithLoginEnqueueGate(tenantId, userId, () ->
                 temuAgentService.enqueueLoginOpenForUser(tenantId, userId, accountId)
         );
         return ApiResult.ok(queued);

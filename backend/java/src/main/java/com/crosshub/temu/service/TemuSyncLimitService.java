@@ -19,12 +19,18 @@ import java.util.function.Supplier;
  * per {@code tenantId:userId} on this JVM so concurrent double-submit cannot both
  * pass the in-flight count before insert. Not a DB unique constraint — multi-instance
  * deploys would still need a shared lock or conditional insert.
+ *
+ * <p>Login enqueue ({@link #runWithLoginEnqueueGate}) keeps the optional 3/min abuse
+ * limit but does <strong>not</strong> treat active crawl jobs as blocking recovery.
  */
 @Service
 public class TemuSyncLimitService {
     public static final String MSG_USER_IN_FLIGHT = "您已有进行中的 Temu 同步任务，请稍后再试";
     public static final String MSG_ENQUEUE_RATE = "操作过于频繁，每分钟最多提交 3 次，请稍后再试";
     public static final String MSG_GLOBAL_BUSY = "系统同步任务繁忙，请稍后再试";
+
+    /** Align with daily sync ACTIVE set: pending | running | retry_wait. */
+    private static final String ACTIVE_STATUSES = "'pending', 'running', 'retry_wait'";
 
     private static final long RATE_WINDOW_MS = 60_000L;
 
@@ -39,7 +45,7 @@ public class TemuSyncLimitService {
     }
 
     /**
-     * Throws HTTP 429 with Chinese {@code msg} when limits are exceeded.
+     * Throws HTTP 429 with Chinese {@code msg} when crawl sync limits are exceeded.
      * Does <strong>not</strong> consume the per-minute enqueue slot — call
      * {@link #recordEnqueue(Long)} only after a successful enqueue, or use
      * {@link #runWithEnqueueGate}.
@@ -50,6 +56,16 @@ public class TemuSyncLimitService {
         }
         assertUserInFlight(tenantId, userId);
         assertGlobalRunning();
+        assertEnqueueRate(userId);
+    }
+
+    /**
+     * Login recovery gate: optional 3/min only — never blocked by crawl in-flight / global caps.
+     */
+    public void checkCanEnqueueLogin(Long userId) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+        }
         assertEnqueueRate(userId);
     }
 
@@ -71,7 +87,7 @@ public class TemuSyncLimitService {
     }
 
     /**
-     * Per-user gate: check limits → run action → record rate only on success.
+     * Per-user gate for crawl sync: check limits → run action → record rate only on success.
      * Serializes concurrent enqueues for the same tenant+user on this JVM (TOCTOU soft fix).
      */
     public <T> T runWithEnqueueGate(Long tenantId, Long userId, Supplier<T> action) {
@@ -82,6 +98,23 @@ public class TemuSyncLimitService {
         Object gate = userGates.computeIfAbsent(key, k -> new Object());
         synchronized (gate) {
             checkCanEnqueue(tenantId, userId);
+            T result = action.get();
+            recordEnqueue(userId);
+            return result;
+        }
+    }
+
+    /**
+     * Login enqueue gate: rate limit only (no crawl in-flight / global crawl caps).
+     */
+    public <T> T runWithLoginEnqueueGate(Long tenantId, Long userId, Supplier<T> action) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        String key = gateKey(tenantId, userId);
+        Object gate = userGates.computeIfAbsent(key, k -> new Object());
+        synchronized (gate) {
+            checkCanEnqueueLogin(userId);
             T result = action.get();
             recordEnqueue(userId);
             return result;
@@ -99,8 +132,8 @@ public class TemuSyncLimitService {
                 SELECT COUNT(*) FROM temu_crawl_job
                 WHERE tenant_id = ?
                   AND triggered_by = ?
-                  AND status IN ('pending', 'running')
-                """,
+                  AND status IN (%s)
+                """.formatted(ACTIVE_STATUSES),
                 Long.class,
                 tenantId,
                 userId
@@ -115,8 +148,8 @@ public class TemuSyncLimitService {
         Long count = jdbc.queryForObject(
                 """
                 SELECT COUNT(*) FROM temu_crawl_job
-                WHERE status IN ('pending', 'running')
-                """,
+                WHERE status IN (%s)
+                """.formatted(ACTIVE_STATUSES),
                 Long.class
         );
         if (count != null && count >= max) {

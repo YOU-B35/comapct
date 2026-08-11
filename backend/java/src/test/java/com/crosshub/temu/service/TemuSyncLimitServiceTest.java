@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +56,50 @@ class TemuSyncLimitServiceTest {
         String sql = sqlCaptor.getValue().toLowerCase();
         assertTrue(sql.contains("tenant_id"), "in-flight SQL must filter by tenant_id");
         assertTrue(sql.contains("triggered_by"), "in-flight SQL must filter by triggered_by");
+        assertTrue(sql.contains("retry_wait"), "in-flight SQL must include retry_wait");
+    }
+
+    @Test
+    void retryWaitCountsAsUserInFlight() {
+        when(jdbc.queryForObject(anyString(), eq(Long.class), eq(5L), eq(42L))).thenReturn(1L);
+        when(jdbc.queryForObject(anyString(), eq(Long.class))).thenReturn(0L);
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.checkCanEnqueue(5L, 42L)
+        );
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, ex.getStatusCode());
+        assertEquals(TemuSyncLimitService.MSG_USER_IN_FLIGHT, ex.getReason());
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForObject(sqlCaptor.capture(), eq(Long.class), eq(5L), eq(42L));
+        String sql = sqlCaptor.getValue().toLowerCase();
+        assertTrue(sql.contains("'pending'") && sql.contains("'running'") && sql.contains("'retry_wait'"));
+    }
+
+    @Test
+    void globalRunningSqlIncludesRetryWait() {
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(), any())).thenReturn(0L);
+        when(jdbc.queryForObject(anyString(), eq(Long.class))).thenReturn(8L);
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.checkCanEnqueue(5L, 42L)
+        );
+        assertEquals(TemuSyncLimitService.MSG_GLOBAL_BUSY, ex.getReason());
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForObject(sqlCaptor.capture(), eq(Long.class));
+        assertTrue(sqlCaptor.getValue().toLowerCase().contains("retry_wait"));
+    }
+
+    @Test
+    void loginGateIgnoresCrawlInFlightAndGlobalCaps() {
+        // Would block sync enqueue, but login gate must not query crawl counts.
+        String ok = service.runWithLoginEnqueueGate(5L, 42L, () -> "login-queued");
+        assertEquals("login-queued", ok);
+        verify(jdbc, never()).queryForObject(anyString(), eq(Long.class), any(), any());
+        verify(jdbc, never()).queryForObject(anyString(), eq(Long.class));
     }
 
     @Test
