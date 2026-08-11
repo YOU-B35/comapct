@@ -325,6 +325,12 @@ def main() -> int:
 
     print(f"==> {APP_NAME}")
     print(f"==> 目录: {app_dir()}")
+    try:
+        from agent.install_marker import write_install_marker
+
+        write_install_marker()
+    except Exception as exc:
+        print(f"==> [WARN] install marker: {exc}", file=sys.stderr)
     ensure_pythonpath()
     cfg = load_config()
     if not cfg:
