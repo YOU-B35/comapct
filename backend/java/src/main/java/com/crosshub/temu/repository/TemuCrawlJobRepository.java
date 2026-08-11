@@ -4,7 +4,6 @@ import com.crosshub.temu.entity.TemuCrawlJob;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 
 public interface TemuCrawlJobRepository extends JpaRepository<TemuCrawlJob, String> {
@@ -25,12 +24,5 @@ public interface TemuCrawlJobRepository extends JpaRepository<TemuCrawlJob, Stri
             Long tenantId,
             Long triggeredBy,
             Collection<String> statuses
-    );
-
-    List<TemuCrawlJob> findTop60ByTenantIdOrderByCreatedAtDesc(Long tenantId);
-
-    List<TemuCrawlJob> findByStatusAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
-            String status,
-            String nextRetryAt
     );
 }

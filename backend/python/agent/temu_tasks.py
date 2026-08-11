@@ -250,17 +250,23 @@ def crawl_and_ingest(
     report_time: str | None,
     seller_sessions: list[dict] | None = None,
     session_key: str | None = None,
+    shop_ids: list | None = None,
 ) -> dict[str, Any]:
     from app.crawler.temu_crawler import crawl_temu_sales
+    from app.temu.shop_scope import filter_crawl_payload_by_shop_ids, normalize_shop_id_allowlist
 
     sessions = parse_seller_sessions_payload(seller_sessions)
+    allow = normalize_shop_id_allowlist(shop_ids)
+    scoped_ids = list(allow) if allow is not None else None
     payload = crawl_temu_sales(
         report_time,
         use_seed=False,
         tenant_id=tenant_id,
         session_key=session_key,
         seller_sessions=sessions or None,
+        shop_ids=scoped_ids,
     )
+    payload = filter_crawl_payload_by_shop_ids(payload, scoped_ids)
     ingest_payload = {
         "tenant_id": tenant_id,
         "report_time": payload["report_time"],

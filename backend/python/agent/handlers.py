@@ -252,7 +252,12 @@ def handle_temu_crawl(client: AgentApiClient, task: dict[str, Any]) -> None:
     job_id = str(payload.get("job_id") or "")
     seller_sessions = payload.get("seller_sessions")
     session_key = payload.get("session_key")
+    shop_ids = payload.get("shop_ids")
     try:
+        from app.temu.shop_scope import normalize_shop_id_allowlist
+
+        allow = normalize_shop_id_allowlist(shop_ids)
+        scoped_shop_ids = list(allow) if allow is not None else None
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(
                 crawl_and_ingest,
@@ -261,6 +266,7 @@ def handle_temu_crawl(client: AgentApiClient, task: dict[str, Any]) -> None:
                 report_day,
                 seller_sessions if isinstance(seller_sessions, list) else None,
                 str(session_key).strip() if session_key else None,
+                scoped_shop_ids,
             )
             result = future.result(timeout=CRAWL_TIMEOUT_SECONDS)
         if job_id:

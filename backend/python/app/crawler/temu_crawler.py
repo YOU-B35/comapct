@@ -31,6 +31,7 @@ from app.crawler.mapper import map_sales_batches
 from app.crawler.temu_api import TemuApiClient
 from app.temu.session_aggregate import parse_seller_sessions_payload
 from app.temu.session_scope import DEFAULT_SESSION_KEY, normalize_session_key
+from app.temu.shop_scope import filter_malls_by_shop_ids
 
 
 def ensure_profile_available(
@@ -76,6 +77,7 @@ def crawl_temu_sales_live(
     *,
     tenant_id: int = 1,
     session_key: str | None = None,
+    shop_ids: list | None = None,
 ) -> dict:
     key = normalize_session_key(session_key)
     report_time = report_day or date.today().isoformat()
@@ -106,7 +108,11 @@ def crawl_temu_sales_live(
 
         client = TemuApiClient(page)
         client.ensure_sales_context()
-        malls = _resolve_malls(page, mall_id)
+        malls = filter_malls_by_shop_ids(_resolve_malls(page, mall_id), shop_ids)
+        if not malls:
+            raise RuntimeError(
+                "当前账号下没有权限范围内的 Temu 店铺可同步，请确认店铺授权后重试。"
+            )
         all_rows: list[dict] = []
         shops: list[dict] = []
         seen_shop_ids: set[str] = set()
@@ -177,6 +183,7 @@ def crawl_temu_sales_all_sessions(
     tenant_id: int = 1,
     seller_sessions: list[dict] | None = None,
     max_parallel: int | None = None,
+    shop_ids: list | None = None,
 ) -> dict:
     """并行爬取租户下各 Temu 卖家账号 Profile（默认最多 3 路），每个会话内 switch_mall 拉全店。"""
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -203,7 +210,9 @@ def crawl_temu_sales_all_sessions(
     def _one(meta: dict) -> tuple[str, dict]:
         key = normalize_session_key(str(meta.get("session_key") or DEFAULT_SESSION_KEY))
         label = str(meta.get("account") or key).strip() or key
-        payload = crawl_temu_sales_live(report_day, tenant_id=tenant_id, session_key=key)
+        payload = crawl_temu_sales_live(
+            report_day, tenant_id=tenant_id, session_key=key, shop_ids=shop_ids
+        )
         return label, payload
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -245,6 +254,7 @@ def crawl_temu_sales(
     tenant_id: int = 1,
     session_key: str | None = None,
     seller_sessions: list[dict] | None = None,
+    shop_ids: list | None = None,
 ) -> dict:
     if use_seed:
         raise RuntimeError("种子数据模式已关闭，请完成 Temu 登录后使用真实爬取")
@@ -253,5 +263,8 @@ def crawl_temu_sales(
             report_day,
             tenant_id=tenant_id,
             seller_sessions=seller_sessions,
+            shop_ids=shop_ids,
         )
-    return crawl_temu_sales_live(report_day, tenant_id=tenant_id, session_key=session_key)
+    return crawl_temu_sales_live(
+        report_day, tenant_id=tenant_id, session_key=session_key, shop_ids=shop_ids
+    )
