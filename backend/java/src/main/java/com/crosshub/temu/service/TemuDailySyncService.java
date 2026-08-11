@@ -115,13 +115,22 @@ public class TemuDailySyncService {
         int enqueuedCount = 0;
         List<Map<String, Object>> jobs = new ArrayList<>();
 
+        boolean tenantHelperOnline = agentPresenceService.isAgentOnlineForTenant(tenantId);
+        if (!tenantHelperOnline) {
+            out.put("skipped_offline", candidates.size());
+            out.put("skipped_already_ran", 0);
+            out.put("skipped_active", 0);
+            out.put("skipped_no_scope", 0);
+            out.put("enqueued_count", 0);
+            out.put("jobs", jobs);
+            out.put("action", candidates.isEmpty() ? "skipped_no_users" : "skipped_all_offline");
+            log.info("Temu daily sync tenant {}: helper offline, skipped {} user(s)", tenantId, candidates.size());
+            return out;
+        }
+
         for (AppUser user : candidates) {
             Long userId = user.getId();
             if (userId == null) {
-                continue;
-            }
-            if (!agentPresenceService.isAgentOnlineForUser(userId)) {
-                skippedOffline++;
                 continue;
             }
 

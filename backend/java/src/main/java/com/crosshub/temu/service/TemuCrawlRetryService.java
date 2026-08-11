@@ -160,9 +160,7 @@ public class TemuCrawlRetryService {
         Long tenantId = job.getTenantId();
         Long triggeredBy = job.getTriggeredBy();
         boolean userScoped = triggeredBy != null && triggeredBy > 0;
-        boolean online = userScoped
-                ? agentPresenceService.isAgentOnlineForUser(triggeredBy)
-                : agentPresenceService.isAgentOnline(tenantId);
+        boolean online = agentPresenceService.isAgentOnlineForTenant(tenantId);
         AppErrorCode offlineCode = userScoped
                 ? AppErrorCode.TEMU_USER_HELPER_OFFLINE
                 : AppErrorCode.TEMU_AGENT_OFFLINE;
