@@ -54,13 +54,14 @@ public class TemuSyncController {
         CrawlRequest body = request == null ? new CrawlRequest(null, null, null, null) : request;
         Long tenantId = dataScopeService.requireTenantId();
         Long userId = requireUserId();
-        syncLimitService.checkCanEnqueue(tenantId, userId);
 
-        TemuCrawlJob job = crawlService.enqueueUserSync(
-                body.reportTime(),
-                Boolean.TRUE.equals(body.seed()),
-                body.resolvedForce(),
-                body.resolvedRecordCooldown()
+        TemuCrawlJob job = syncLimitService.runWithEnqueueGate(tenantId, userId, () ->
+                crawlService.enqueueUserSync(
+                        body.reportTime(),
+                        Boolean.TRUE.equals(body.seed()),
+                        body.resolvedForce(),
+                        body.resolvedRecordCooldown()
+                )
         );
         Map<String, Object> data = new LinkedHashMap<>(temuMapper.toCrawlJobDto(job));
         data.putIfAbsent("job_id", job.getId());
@@ -71,7 +72,6 @@ public class TemuSyncController {
     public Map<String, Object> enqueueLogin(@RequestBody(required = false) Map<String, Object> body) {
         Long tenantId = dataScopeService.requireTenantId();
         Long userId = requireUserId();
-        syncLimitService.checkCanEnqueue(tenantId, userId);
 
         String platformAccountId = null;
         if (body != null && body.get("platform_account_id") != null) {
@@ -80,7 +80,10 @@ public class TemuSyncController {
                 platformAccountId = null;
             }
         }
-        Map<String, Object> queued = temuAgentService.enqueueLoginOpenForUser(tenantId, userId, platformAccountId);
+        final String accountId = platformAccountId;
+        Map<String, Object> queued = syncLimitService.runWithEnqueueGate(tenantId, userId, () ->
+                temuAgentService.enqueueLoginOpenForUser(tenantId, userId, accountId)
+        );
         return ApiResult.ok(queued);
     }
 
