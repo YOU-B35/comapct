@@ -160,10 +160,23 @@ export async function enqueueAndPollTemuSync(options = {}) {
   }
 }
 
+/** 线上静态占位路径；真实 zip 由发版上传，见 install checklist。 */
+export const DEFAULT_HELPER_DOWNLOAD_URL = '/crosshub/downloads/CrossHub-Sync-Helper.zip'
+
+/**
+ * Sync Helper 安装包下载 URL。
+ * - 未设置环境变量 → 默认占位路径
+ * - 显式空 / `none` / `off` / `-` → 空字符串（UI 提示「请联系管理员获取安装包」）
+ * - 其他非空 → 原样使用
+ */
 export function resolveHelperDownloadUrl() {
   const raw = import.meta.env.VITE_HELPER_DOWNLOAD_URL
-  if (raw !== undefined && String(raw).trim() !== '') {
-    return String(raw).trim()
+  if (raw === undefined || raw === null) {
+    return DEFAULT_HELPER_DOWNLOAD_URL
   }
-  return '/crosshub/downloads/CrossHub-Sync-Helper.zip'
+  const trimmed = String(raw).trim()
+  if (!trimmed || /^(none|off|-)$/i.test(trimmed)) {
+    return ''
+  }
+  return trimmed
 }
