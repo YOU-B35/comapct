@@ -23,7 +23,36 @@ from pathlib import Path
 APP_NAME = "CrossHub Sync Helper"
 DEFAULT_HEALTH_PORT = 18765
 DEFAULT_ZINIAO_PORT = 16851
+DEFAULT_JAVA_API_URL = "https://www.yoto.work"
 ZINIAO_EXE = Path(r"C:\Program Files\ziniao\ziniao.exe")
+
+
+def _allow_local_java() -> bool:
+    return os.environ.get("CROSSHUB_ALLOW_LOCAL_JAVA", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _is_local_java_api(url: str) -> bool:
+    text = (url or "").strip().lower()
+    if not text:
+        return False
+    host_local = ("127.0.0.1" in text) or ("localhost" in text)
+    return host_local and (":18080" in text or text.rstrip("/").endswith("18080"))
+
+
+def normalize_java_api_url(api: str) -> str:
+    """Sync Helper 默认强制线上后端；本机 Java 需显式 CROSSHUB_ALLOW_LOCAL_JAVA=1。"""
+    cleaned = (api or "").strip().rstrip("/")
+    if not cleaned:
+        return DEFAULT_JAVA_API_URL
+    if _is_local_java_api(cleaned) and not _allow_local_java():
+        print(
+            f"==> [WARN] java_api_url={cleaned} 指向本机 Java；"
+            f"Sync Helper 改用 {DEFAULT_JAVA_API_URL}。"
+            f"若确需本机联调，请设 CROSSHUB_ALLOW_LOCAL_JAVA=1。",
+            file=sys.stderr,
+        )
+        return DEFAULT_JAVA_API_URL
+    return cleaned
 
 
 class _TeeStream:
@@ -89,30 +118,14 @@ def load_config() -> dict:
             except Exception as exc:
                 print(f"==> 读取配置失败 {path}: {exc}", file=sys.stderr)
 
-    token = (os.environ.get("AGENT_TOKEN") or cfg.get("agent_token") or cfg.get("token") or "").strip()
-    api = (os.environ.get("JAVA_API_URL") or cfg.get("java_api_url") or cfg.get("api_url") or "").strip()
+    # 进程环境里已有的值才算“显式”；项目 .env 不得劫持 Sync Helper 的 API/Token
+    explicit_token = os.environ.get("AGENT_TOKEN")
+    explicit_api = os.environ.get("JAVA_API_URL")
+
     health = int(os.environ.get("AGENT_HEALTH_PORT") or cfg.get("health_port") or DEFAULT_HEALTH_PORT)
     start_ziniao = bool(cfg.get("start_ziniao", True))
     if os.environ.get("CROSSHUB_START_ZINIAO", "").strip() != "":
         start_ziniao = os.environ.get("CROSSHUB_START_ZINIAO", "1").strip() not in {"0", "false", "False"}
-
-    if not token:
-        print(
-            f"[{APP_NAME}] 缺少 agent_token。\n"
-            f"请在 {app_dir() / 'config.json'} 写入：\n"
-            '  { "agent_token": "...", "java_api_url": "https://..." }\n'
-            "或由运维用 scripts/setup-sync-helper-config.ps1 生成。",
-            file=sys.stderr,
-        )
-        try:
-            input("按回车退出...")
-        except EOFError:
-            pass
-        return {}
-
-    if not api:
-        # 默认线上后端；禁止静默回落本地 Java（真实联调铁律）
-        api = "https://www.yoto.work"
 
     # Profile / Cookie：必须指向历史目录，禁止用 _internal 下空 Profile
     project_root = (
@@ -163,6 +176,72 @@ def load_config() -> dict:
             break
         except Exception as exc:
             print(f"==> 加载 .env 失败 {env_file}: {exc}", file=sys.stderr)
+
+    # 去掉 .env 注入的 JAVA_API_URL / AGENT_TOKEN，避免开发机 .env 污染开机 Helper
+    if explicit_api is None:
+        os.environ.pop("JAVA_API_URL", None)
+    else:
+        os.environ["JAVA_API_URL"] = explicit_api
+    if explicit_token is None:
+        os.environ.pop("AGENT_TOKEN", None)
+    else:
+        os.environ["AGENT_TOKEN"] = explicit_token
+
+    token = (os.environ.get("AGENT_TOKEN") or cfg.get("agent_token") or cfg.get("token") or "").strip()
+    api = normalize_java_api_url(
+        os.environ.get("JAVA_API_URL") or cfg.get("java_api_url") or cfg.get("api_url") or ""
+    )
+
+    # Propagate bound user/account for profile isolation (even when token comes from env).
+    try:
+        from agent.bind import apply_bound_env
+
+        merged = dict(cfg)
+        if token:
+            merged["agent_token"] = token
+        merged["java_api_url"] = api
+        apply_bound_env(merged)
+    except Exception as exc:
+        print(f"==> [WARN] apply_bound_env: {exc}", file=sys.stderr)
+
+    # Nest profile roots under user-{id} / account-* when bound.
+    if project_root:
+        try:
+            from app.config import _profile_isolation_segment
+
+            seg = _profile_isolation_segment()
+            py_root = Path(project_root) / "backend" / "python"
+            temu_base = Path(
+                os.environ.get("TEMU_PROFILE_ROOT")
+                or cfg.get("temu_profile_root")
+                or (py_root / ".temu-browser-profile")
+            )
+            ae_base = Path(
+                os.environ.get("AE_PROFILE_ROOT")
+                or cfg.get("ae_profile_root")
+                or (py_root / ".aliexpress-browser-profile")
+            )
+            # If already isolated (or env already nested), do not double-nest.
+            if seg and temu_base.name != seg and not str(temu_base).replace("\\", "/").endswith(f"/{seg}"):
+                if not temu_base.name.startswith(("user-", "account-")):
+                    temu_base = temu_base / seg
+            if seg and ae_base.name != seg and not str(ae_base).replace("\\", "/").endswith(f"/{seg}"):
+                if not ae_base.name.startswith(("user-", "account-")):
+                    ae_base = ae_base / seg
+            os.environ["TEMU_PROFILE_ROOT"] = str(temu_base)
+            os.environ["AE_PROFILE_ROOT"] = str(ae_base)
+            print(f"==> temu_profile: {os.environ['TEMU_PROFILE_ROOT']}")
+        except Exception as exc:
+            print(f"==> [WARN] profile isolation: {exc}", file=sys.stderr)
+
+    if not token:
+        print(
+            f"[{APP_NAME}] 尚未绑定 CrossHub 账号。\n"
+            f"请打开面板，粘贴网站生成的绑定码完成登记。\n"
+            f"配置文件：{app_dir() / 'config.json'}",
+            file=sys.stderr,
+        )
+
     ziniao_ok = bool(
         (os.environ.get("ZINIAO_COMPANY") or "").strip()
         and (os.environ.get("ZINIAO_USERNAME") or "").strip()
@@ -170,17 +249,19 @@ def load_config() -> dict:
     )
     print(f"==> 紫鸟账号配置: {'已就绪' if ziniao_ok else '缺失（Amazon 将失败）'}")
 
-    os.environ["AGENT_TOKEN"] = token
-    os.environ["JAVA_API_URL"] = api.rstrip("/")
+    if token:
+        os.environ["AGENT_TOKEN"] = token
+    os.environ["JAVA_API_URL"] = api
     os.environ["AGENT_HEALTH_PORT"] = str(health)
     return {
         "agent_token": token,
-        "java_api_url": api.rstrip("/"),
+        "java_api_url": api,
         "health_port": health,
         "start_ziniao": start_ziniao,
         "project_root": project_root,
         "temu_profile_root": os.environ.get("TEMU_PROFILE_ROOT", ""),
         "ziniao_configured": ziniao_ok,
+        "bound": bool(token),
     }
 
 
@@ -249,30 +330,39 @@ def main() -> int:
         return 2
     setup_runtime_log(str(cfg.get("project_root") or ""))
 
-    if cfg.get("start_ziniao", True):
+    if cfg.get("start_ziniao", True) and cfg.get("bound"):
         maybe_start_ziniao()
+    elif not cfg.get("bound"):
+        print("==> [1/2] 未绑定，跳过紫鸟启动；请先在面板填入绑定码")
     else:
         print("==> [1/2] 跳过紫鸟启动（config.start_ziniao=false）")
 
     print("==> [2/2] 启动同步 Agent（Temu / 速卖通任务 / Amazon）...")
     print(f"    API: {cfg['java_api_url']}")
     print(f"    Health: http://127.0.0.1:{cfg['health_port']}/health")
+    if not cfg.get("bound"):
+        print("    状态: 未绑定（仅面板可用）")
 
-    try:
-        from agent.java_client import AgentApiClient
-        from app.browser.profile_sync import pull_all_for_tenant
+    if cfg.get("bound"):
+        try:
+            from agent.java_client import AgentApiClient
+            from app.browser.profile_sync import pull_all_for_tenant
 
-        client = AgentApiClient()
-        tid = client.resolve_agent_tenant_id()
-        if tid:
-            pull_all_for_tenant(client, tid)
-    except Exception as exc:
-        print(f"    [WARN] Profile pull on startup skipped: {exc}")
+            client = AgentApiClient()
+            tid = client.resolve_agent_tenant_id()
+            if tid:
+                pull_all_for_tenant(client, tid)
+        except Exception as exc:
+            print(f"    [WARN] Profile pull on startup skipped: {exc}")
 
     # ── 尝试托盘模式（需要 pystray + flask + pillow）──────────────────────
     _tray_ok = _try_start_tray_mode(cfg)
 
     if not _tray_ok:
+        if not cfg.get("bound"):
+            print("    [ERROR] 未绑定且托盘/面板不可用，无法录入绑定码。请安装 flask/pystray 后重试。")
+            input("按回车退出...")
+            return 2
         print("    [INFO] 托盘模式不可用，使用纯控制台模式。")
         print("    请保持本窗口打开。全平台日批由服务端 09:30 下发，本程序负责在本机开浏览器执行。")
         print()
@@ -300,16 +390,19 @@ def _try_start_tray_mode(cfg: dict) -> bool:
 
     try:
         from agent.tray_app import (
-            _AppState, start_panel_server, start_tray, run_agent_loop,
-            PANEL_PORT,
+            start_panel_server, start_tray, run_agent_loop,
+            start_ops_notify_watcher, PANEL_PORT,
         )
-        from agent.java_client import AgentApiClient
         from agent.health_server import start_health_server
         from agent.config import AGENT_HEALTH_PORT
         import threading
         import webbrowser
 
-        client = AgentApiClient()
+        client = None
+        if cfg.get("bound") and (cfg.get("agent_token") or "").strip():
+            from agent.java_client import AgentApiClient
+
+            client = AgentApiClient(token=cfg.get("agent_token"), base_url=cfg.get("java_api_url"))
         stop_event = threading.Event()
 
         # 健康检查服务
@@ -318,17 +411,23 @@ def _try_start_tray_mode(cfg: dict) -> bool:
         except OSError:
             pass
 
-        # Web 面板
+        # Web 面板（未绑定也可打开，用于录入绑定码）
         start_panel_server(client, stop_event)
 
         # 托盘图标
         start_tray(stop_event)
 
-        # Agent 轮询线程
-        agent_thread = threading.Thread(
-            target=run_agent_loop, args=(client, stop_event), daemon=True, name="agent-loop"
-        )
-        agent_thread.start()
+        if client is not None:
+            # 运维日志 → 本机登录过期弹窗
+            start_ops_notify_watcher(stop_event)
+
+            # Agent 轮询线程
+            agent_thread = threading.Thread(
+                target=run_agent_loop, args=(client, stop_event), daemon=True, name="agent-loop"
+            )
+            agent_thread.start()
+        else:
+            print("    [INFO] 未绑定：Agent 轮询未启动，请在面板填入绑定码。")
 
         # 延迟 1.5s 自动打开面板
         def _open_later():

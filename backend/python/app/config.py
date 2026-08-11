@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -34,11 +35,33 @@ elif not getattr(sys, "frozen", False):
     load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 
 
+def _profile_isolation_segment() -> str:
+    """Isolate browser profiles per CrossHub bound user/account on one PC."""
+    for key in ("CROSSHUB_BOUND_USER_ID", "CROSSHUB_USER_ID", "AGENT_USER_ID"):
+        raw = (os.getenv(key) or "").strip()
+        if raw:
+            safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", raw).strip("_")
+            if safe:
+                return f"user-{safe}"
+    for key in ("CROSSHUB_BOUND_ACCOUNT", "BOUND_ACCOUNT"):
+        raw = (os.getenv(key) or "").strip()
+        if raw:
+            safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", raw).strip("_")
+            if safe:
+                return f"account-{safe[:48].rstrip('_')}"
+    return ""
+
+
 def resolve_profile_root() -> Path:
     env = (os.getenv("TEMU_PROFILE_ROOT") or "").strip()
-    if env:
-        return Path(env)
-    return ROOT / ".temu-browser-profile"
+    base = Path(env) if env else (ROOT / ".temu-browser-profile")
+    segment = _profile_isolation_segment()
+    if segment:
+        # If env already points at an isolated leaf, do not nest again.
+        if base.name == segment or base.name.startswith("user-") or base.name.startswith("account-"):
+            return base
+        return base / segment
+    return base
 
 
 def resolve_profile_dir(tenant_id: int, session_key: str | None = None) -> Path:
@@ -108,9 +131,13 @@ STATUS_TO_CODE = {10: "100", 11: "200", 12: "300", 13: "400"}
 
 def resolve_ae_profile_root() -> Path:
     env = (os.getenv("AE_PROFILE_ROOT") or "").strip()
-    if env:
-        return Path(env)
-    return ROOT / ".aliexpress-browser-profile"
+    base = Path(env) if env else (ROOT / ".aliexpress-browser-profile")
+    segment = _profile_isolation_segment()
+    if segment:
+        if base.name == segment or base.name.startswith("user-") or base.name.startswith("account-"):
+            return base
+        return base / segment
+    return base
 
 
 AE_PROFILE_ROOT = resolve_ae_profile_root()

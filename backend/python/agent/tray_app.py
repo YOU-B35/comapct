@@ -56,13 +56,17 @@ class _AppState:
         self.syncing: set[str] = set()   # session_key 集合
         self.logging_in: set[str] = set()
 
-    def update_agent(self, status: str, error: str = "", task: str = "") -> None:
+    def update_agent(self, status: str, error: str | None = None, task: str = "") -> None:
         with self.lock:
             self.agent_status = status
-            if error:
+            # error=None → 保留；error="" → 清空（恢复 running 时用）
+            if error is not None:
                 self.last_error = error
             if task:
                 self.last_task = task
+            if status == "running" and error is None:
+                # 轮询恢复正常时清掉开机期残留的连接错误，避免面板一直像「异常」
+                self.last_error = ""
 
     def set_accounts(self, accs: list[dict]) -> None:
         with self.lock:
@@ -102,7 +106,74 @@ def _build_flask_app(java_client: Any) -> "Flask":
 
     @app.route("/api/status")
     def api_status():
-        return jsonify(_state.snapshot())
+        snap = _state.snapshot()
+        try:
+            from agent.bind import binding_status
+
+            bind = binding_status()
+            snap["bound"] = bool(bind.get("bound"))
+            snap["bind"] = bind
+        except Exception:
+            snap["bound"] = bool((os.environ.get("AGENT_TOKEN") or "").strip())
+            snap["bind"] = {}
+        return jsonify(snap)
+
+    @app.route("/api/bind", methods=["GET"])
+    def api_bind_status():
+        from agent.bind import binding_status
+        from agent.machine_id import machine_fingerprint
+
+        st = binding_status()
+        st["fingerprint_preview"] = (machine_fingerprint() or "")[:12]
+        return jsonify({"ok": True, **st})
+
+    @app.route("/api/bind", methods=["POST"])
+    def api_bind_enroll():
+        """Consume website bind code → persist agent_token to config.json."""
+        body = request.get_json(silent=True) or {}
+        code = (body.get("code") or "").strip()
+        display_name = (body.get("display_name") or "").strip()
+        if not code:
+            return jsonify({"ok": False, "msg": "请输入绑定码"}), 400
+        try:
+            from agent.bind import consume_bind_code
+
+            config_path = None
+            try:
+                import sync_helper_app as sha
+
+                config_path = sha.app_dir() / "config.json"
+            except Exception:
+                config_path = None
+            result = consume_bind_code(
+                code,
+                display_name=display_name,
+                config_path=config_path,
+                base_url=_api_base() or None,
+            )
+            _state.update_agent("running", error="")
+            return jsonify({"ok": True, "msg": "绑定成功，请重启助手以开始同步", "data": result})
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": str(exc)}), 400
+
+    @app.route("/api/bind", methods=["DELETE"])
+    def api_bind_clear():
+        """Clear enrollment so another CrossHub account can re-bind on this PC."""
+        try:
+            from agent.bind import clear_binding
+
+            config_path = None
+            try:
+                import sync_helper_app as sha
+
+                config_path = sha.app_dir() / "config.json"
+            except Exception:
+                config_path = None
+            result = clear_binding(config_path=config_path)
+            _state.update_agent("starting", error="已清除绑定，请重新填入绑定码")
+            return jsonify({"ok": True, "msg": "已清除绑定，可重新填入绑定码", "data": result})
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": str(exc)}), 500
 
     @app.route("/api/tenants")
     def api_tenants():
@@ -128,8 +199,7 @@ def _build_flask_app(java_client: Any) -> "Flask":
             tenant_id = 0
         if tenant_id <= 0:
             return jsonify({"ok": False, "msg": "缺少 tenant_id"}), 400
-        items = _fetch_amazon_ops_messages(tenant_id)
-        unread = sum(1 for it in items if it.get("status") == "failed" and it.get("retry_exhausted"))
+        items, unread = _fetch_ops_messages(tenant_id)
         return jsonify({"ok": True, "items": items, "unread": unread})
 
     @app.route("/api/platform-accounts", methods=["POST"])
@@ -224,21 +294,22 @@ def _build_flask_app(java_client: Any) -> "Flask":
                         )
                     except Exception:
                         pass
-                    from agent.temu_tasks import open_login_window
+                    from agent.temu_tasks import open_login_window, wait_login_session_ready
+
                     open_login_window(tenant_id, session_key=session_key)
+                    # Persist Cookie vault for HTTP sync after user finishes login.
+                    try:
+                        wait_login_session_ready(
+                            tenant_id,
+                            session_key=session_key,
+                            timeout_seconds=600,
+                            poll_seconds=5.0,
+                        )
+                    except Exception as wait_exc:  # noqa: BLE001
+                        print(f"[Panel] temu login wait end: {wait_exc}", file=sys.stderr)
                 elif platform == "aliexpress":
-                    from app.browser.aliexpress_context import get_or_open_csp_page, open_aliexpress_context
-                    from app.browser.ae_session import persist_ae_session
-                    from app.config import AE_CSP_HOME
-                    with open_aliexpress_context(tenant_id, headless=False, session_key=session_key) as (_, ctx):
-                        page = get_or_open_csp_page(ctx)
-                        try:
-                            page.goto(AE_CSP_HOME, wait_until="domcontentloaded", timeout=60_000)
-                        except Exception:
-                            pass
-                        # 有头窗口留给用户登录；最长等 10 分钟
-                        page.wait_for_timeout(600_000)
-                        persist_ae_session(tenant_id, page, ctx, session_key=session_key)
+                    from agent.aliexpress_tasks import open_login_window
+                    open_login_window(tenant_id, session_key=session_key)
                 elif platform == "amazon":
                     print(
                         "[Panel] Amazon 账号隔离走紫鸟 browser_id/oauth，请在紫鸟客户端登录对应店铺浏览器。",
@@ -359,8 +430,24 @@ def _build_flask_app(java_client: Any) -> "Flask":
                 crawl_and_ingest(java_client, tenant_id, None, seller_sessions=sessions)
                 with _state.lock:
                     _state.last_sync_at = datetime.now().strftime("%H:%M:%S")
+                try:
+                    from agent.notify import build_success_notification, notify_desktop_deduped
+
+                    title, body = build_success_notification(platform="temu")
+                    notify_desktop_deduped(title, body)
+                except Exception:
+                    pass
             except Exception as exc:
                 print(f"[Panel] sync error: {exc}", file=sys.stderr)
+                try:
+                    from agent.notify import build_reauth_notification, is_reauth_failure, notify_desktop_deduped
+
+                    msg = str(exc)
+                    if is_reauth_failure("CRAWL_NOT_LOGGED_IN" if ("未登录" in msg or "登录" in msg) else "", msg):
+                        title, body = build_reauth_notification(platform="temu", detail=msg)
+                        notify_desktop_deduped(title, body)
+                except Exception:
+                    pass
             finally:
                 with _state.lock:
                     _state.syncing.discard(sync_id)
@@ -387,12 +474,13 @@ def _build_flask_app(java_client: Any) -> "Flask":
 
 def _api_headers() -> dict[str, str]:
     from agent.config import AGENT_TOKEN
-    return {"X-Agent-Token": AGENT_TOKEN}
+    token = (AGENT_TOKEN or os.environ.get("AGENT_TOKEN") or "").strip()
+    return {"X-Agent-Token": token}
 
 
 def _api_base() -> str:
     from agent.config import JAVA_API_URL
-    return (JAVA_API_URL or "").rstrip("/")
+    return (JAVA_API_URL or os.environ.get("JAVA_API_URL") or "https://www.yoto.work").rstrip("/")
 
 
 def _fetch_tenants() -> list[dict]:
@@ -421,7 +509,47 @@ def _fetch_platform_accounts(tenant_id: str) -> dict[str, list[dict]]:
         return {}
 
 
-def _fetch_amazon_ops_messages(tenant_id: int) -> list[dict[str, Any]]:
+def _fetch_ops_messages(tenant_id: int) -> tuple[list[dict[str, Any]], int]:
+    """Fetch unified ops (Amazon + Temu + AliExpress) from Java; fallback Amazon-only local."""
+    try:
+        import httpx
+
+        resp = httpx.get(
+            f"{_api_base()}/api/agent/ops/jobs",
+            params={"tenant_id": tenant_id},
+            headers=_api_headers(),
+            timeout=12,
+        )
+        data = resp.json() if resp.content else {}
+        if resp.status_code == 200:
+            payload = data.get("data") if isinstance(data, dict) else None
+            if isinstance(payload, dict):
+                items = payload.get("items")
+                if isinstance(items, list):
+                    if "unread" in payload:
+                        unread = _to_int(payload.get("unread"), 0)
+                    else:
+                        unread = sum(
+                            1
+                            for it in items
+                            if isinstance(it, dict)
+                            and str(it.get("status") or "").lower() == "failed"
+                            and it.get("retry_exhausted")
+                        )
+                    return items, unread
+    except Exception as exc:
+        print(f"[Panel] fetch ops messages via api error: {exc}", file=sys.stderr)
+
+    amazon_items = _fetch_amazon_ops_messages_fallback(tenant_id)
+    unread = sum(
+        1
+        for it in amazon_items
+        if str(it.get("status") or "").lower() == "failed" and it.get("retry_exhausted")
+    )
+    return amazon_items, unread
+
+
+def _fetch_amazon_ops_messages_fallback(tenant_id: int) -> list[dict[str, Any]]:
     try:
         import httpx
 
@@ -437,6 +565,11 @@ def _fetch_amazon_ops_messages(tenant_id: int) -> list[dict[str, Any]]:
             if isinstance(payload, dict):
                 items = payload.get("items")
                 if isinstance(items, list):
+                    for it in items:
+                        if isinstance(it, dict):
+                            it.setdefault("platform", "amazon")
+                            it.setdefault("task_type", "amazon_sync")
+                            it.setdefault("title", "Amazon 同步")
                     return items
     except Exception as exc:
         print(f"[Panel] fetch amazon ops messages via api error: {exc}", file=sys.stderr)
@@ -496,6 +629,9 @@ def _fetch_amazon_ops_messages(tenant_id: int) -> list[dict[str, Any]]:
 
         items.append(
             {
+                "platform": "amazon",
+                "task_type": "amazon_sync",
+                "title": "Amazon 同步",
                 "job_id": row["id"],
                 "platform_account_id": row["platform_account_id"],
                 "agent_task_id": row["agent_task_id"],
@@ -512,6 +648,7 @@ def _fetch_amazon_ops_messages(tenant_id: int) -> list[dict[str, Any]]:
                 "failure_code": failure_code,
                 "failure_reason": failure_reason,
                 "failed_at": failed_at,
+                "progress": "已失败，见原因" if str(row["status"] or "").lower() == "failed" else "",
             }
         )
     return items
@@ -618,6 +755,65 @@ def start_tray(stop_event: threading.Event) -> None:
     print(f"[Tray] 系统托盘已启动，面板: http://127.0.0.1:{PANEL_PORT}")
 
 
+def start_ops_notify_watcher(stop_event: threading.Event) -> None:
+    """Poll Java ops jobs and toast when login-expired Temu/AE failures appear."""
+
+    def _loop() -> None:
+        seen: set[str] = set()
+        # Skip historical failures on cold start; only notify new ones after first pass.
+        primed = False
+        while not stop_event.is_set():
+            try:
+                tenants = _fetch_tenants()
+                for t in tenants:
+                    if not isinstance(t, dict):
+                        continue
+                    tid = _to_int(t.get("tenant_id"), 0)
+                    if tid <= 0:
+                        continue
+                    items, _unread = _fetch_ops_messages(tid)
+                    if not primed:
+                        for it in items:
+                            if isinstance(it, dict):
+                                jid = str(it.get("id") or it.get("job_id") or "").strip()
+                                if jid:
+                                    seen.add(f"fail:{jid}")
+                                    seen.add(f"ok:{jid}")
+                        continue
+                    from agent.notify import (
+                        build_reauth_notification,
+                        build_success_notification,
+                        notify_desktop_deduped,
+                        ops_error_message,
+                        should_notify_ops_item,
+                        should_notify_success_ops_item,
+                    )
+
+                    for it in items:
+                        if should_notify_ops_item(it, seen):
+                            plat = str(it.get("platform") or "temu")
+                            detail = ops_error_message(it)
+                            title, body = build_reauth_notification(platform=plat, detail=detail)
+                            notify_desktop_deduped(title, body)
+                            print(f"[OpsNotify] tenant={tid} {title}", flush=True)
+                        elif should_notify_success_ops_item(it, seen):
+                            plat = str(it.get("platform") or "temu")
+                            title, body = build_success_notification(
+                                platform=plat,
+                                shops=it.get("shops_count"),
+                                rows=it.get("rows_count"),
+                            )
+                            notify_desktop_deduped(title, body)
+                            print(f"[OpsNotify] tenant={tid} {title}", flush=True)
+                primed = True
+            except Exception as exc:  # noqa: BLE001
+                print(f"[OpsNotify] poll error: {exc}", file=sys.stderr)
+            stop_event.wait(45.0)
+
+    threading.Thread(target=_loop, daemon=True, name="ops-notify").start()
+    print("[OpsNotify] 运维登录过期通知已启动", flush=True)
+
+
 # ─── 面板 HTTP 服务 ────────────────────────────────────────────────────────────
 def start_panel_server(java_client: Any, stop_event: threading.Event) -> None:
     if not _HAS_FLASK:
@@ -652,6 +848,12 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
     consecutive_errors = 0
     inflight: set[Future] = set()
     ziniao_holder: list[Any] = [create_ziniao_client()]
+    print(
+        "[Agent] supported tasks: temu_crawl,temu_login_open,temu_session_probe,"
+        "aliexpress_crawl,aliexpress_login_open,aliexpress_session_probe,"
+        "amazon_sync,amazon_write",
+        flush=True,
+    )
 
     def _heartbeat_loop() -> None:
         while not stop_event.is_set():
@@ -675,8 +877,8 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
                         print(f"[Agent] 任务失败: {exc}", file=sys.stderr)
                 tasks = java_client.poll_tasks()
                 consecutive_errors = 0
-                if _state.agent_status != "running":
-                    _state.update_agent("running")
+                # 恢复 running 时显式清空 last_error，避免开机连不上的残留一直显示
+                _state.update_agent("running", error="")
                 for task in tasks:
                     t_type = str(task.get("task_type") or "")
                     _state.update_agent("running", task=t_type)

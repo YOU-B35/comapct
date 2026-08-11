@@ -141,6 +141,25 @@
   .ops-status.running, .ops-status.pending { color:var(--warn); border-color:rgba(245,158,11,.5); }
   .ops-status.failed { color:var(--danger); border-color:rgba(239,68,68,.5); }
   .ops-empty { color:var(--sub); text-align:center; margin-top:50px; }
+  .ops-filters { display:flex; gap:8px; flex-wrap:wrap; padding:10px 12px 0; }
+  .ops-filter { font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--sub); cursor:pointer; }
+  .ops-filter.active { color:var(--text); border-color:rgba(56,189,248,.55); background:rgba(56,189,248,.12); }
+  .ops-plat { font-size:11px; padding:1px 7px; border-radius:6px; border:1px solid var(--border); color:var(--sub); margin-right:6px; }
+  .ops-plat.temu { color:#38bdf8; border-color:rgba(56,189,248,.45); }
+  .ops-plat.aliexpress { color:#f472b6; border-color:rgba(244,114,182,.45); }
+  .ops-plat.amazon { color:#fbbf24; border-color:rgba(251,191,36,.45); }
+  .ops-progress { color:var(--text); font-size:12px; margin-top:4px; }
+  .ops-fail { color:var(--danger); }
+  .ops-fail { color: var(--danger); }
+
+  /* ── 绑定屏 ── */
+  .bind-screen { display: none; flex-direction: column; align-items: center; padding: 56px 24px 40px; }
+  .bind-screen.active { display: flex; }
+  .bind-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 28px 22px; width: min(420px, 94vw); }
+  .bind-card h2 { font-size: 18px; margin-bottom: 6px; }
+  .bind-card .hint { color: var(--sub); font-size: 13px; margin-bottom: 18px; line-height: 1.5; }
+  .bind-status { margin-top: 14px; font-size: 12px; color: var(--sub); }
+  .bind-status.bound { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -149,6 +168,7 @@
 <div class="topbar">
   <div class="logo"><div class="logo-dot"></div> CrossHub Sync Helper</div>
   <div class="topbar-right">
+    <button class="btn btn-secondary btn-small" id="btnClearBind" onclick="clearHelperBind()" style="display:none">清除绑定</button>
     <button class="btn btn-secondary btn-small message-btn" onclick="openOpsMessages()">
       运维日志
       <span id="opsUnreadDot" class="message-dot">0</span>
@@ -157,8 +177,28 @@
   </div>
 </div>
 
+<!-- ═══ 绑定码录入屏 ═══ -->
+<div id="bindScreen" class="bind-screen active">
+  <div class="bind-card">
+    <h2>绑定 CrossHub 账号</h2>
+    <div class="hint">请在网站生成一次性绑定码，粘贴到下方。同一台电脑切换账号时，先点「清除绑定」再重新填写。</div>
+    <div class="form-row">
+      <label>绑定码 *</label>
+      <input id="bindCodeInput" placeholder="粘贴 8 位绑定码" autocomplete="off" />
+    </div>
+    <div class="form-row">
+      <label>本机显示名（可选）</label>
+      <input id="bindDisplayName" placeholder="本机助手" />
+    </div>
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="btn btn-primary" id="btnBindSubmit" onclick="submitBindCode()">确认绑定</button>
+    </div>
+    <div class="bind-status" id="bindStatusHint">正在检查绑定状态...</div>
+  </div>
+</div>
+
 <!-- ═══ 租户选择屏 ═══ -->
-<div id="tenantScreen" class="tenant-screen">
+<div id="tenantScreen" class="tenant-screen" style="display:none">
   <div class="tenant-title">选择租户</div>
   <div class="tenant-sub">请选择要管理的租户，进入账号矩阵面板</div>
   <div class="tenant-grid" id="tenantGrid">
@@ -242,8 +282,14 @@
 <div class="ops-mask" id="opsMask">
   <div class="ops-panel">
     <div class="ops-header">
-      <div class="ops-title">任务同步状态（Amazon）</div>
+      <div class="ops-title">任务进度 / 运维日志</div>
       <button class="btn btn-secondary btn-small" onclick="closeOpsMessages()">关闭</button>
+    </div>
+    <div class="ops-filters" id="opsFilters">
+      <button class="ops-filter active" data-plat="all" onclick="setOpsFilter('all')">全部</button>
+      <button class="ops-filter" data-plat="temu" onclick="setOpsFilter('temu')">Temu</button>
+      <button class="ops-filter" data-plat="aliexpress" onclick="setOpsFilter('aliexpress')">速卖通</button>
+      <button class="ops-filter" data-plat="amazon" onclick="setOpsFilter('amazon')">Amazon</button>
     </div>
     <div class="ops-list" id="opsList"></div>
   </div>
@@ -259,6 +305,9 @@ let _state = {};
 let _logLines = [];
 let _opsMessages = [];
 let _opsUnread = 0;
+let _opsFilter = 'all';
+let _opsNotifiedIds = new Set();
+let _opsPrimed = false;
 
 const PLATFORM_LABELS = {
   temu: 'Temu', aliexpress: 'AliExpress', amazon: 'Amazon',
@@ -301,33 +350,73 @@ function opsStatusText(item) {
   if (s === 'partial') return '部分成功';
   if (s === 'running') return '执行中';
   if (s === 'pending') return '排队中';
-  if (s === 'failed' && item.retry_exhausted) return '失败(重试耗尽)';
+  if (s === 'failed' && item.retry_exhausted && String(item.platform || '') === 'amazon') return '失败(重试耗尽)';
   if (s === 'failed') return '失败';
   return s || '未知';
+}
+function setOpsFilter(plat) {
+  _opsFilter = plat || 'all';
+  document.querySelectorAll('.ops-filter').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.plat === _opsFilter);
+  });
+  renderOpsMessages();
+}
+function platformLabel(p) {
+  const key = String(p || '').toLowerCase();
+  if (key === 'temu') return 'Temu';
+  if (key === 'aliexpress') return '速卖通';
+  if (key === 'amazon') return 'Amazon';
+  return key || '-';
 }
 function renderOpsMessages() {
   const box = document.getElementById('opsList');
   if (!box) return;
-  if (!_opsMessages.length) {
+  const filtered = _opsMessages.filter((item) => {
+    if (_opsFilter === 'all') return true;
+    return String(item.platform || '').toLowerCase() === _opsFilter;
+  });
+  if (!filtered.length) {
     box.innerHTML = '<div class="ops-empty">暂无任务状态记录</div>';
     return;
   }
-  box.innerHTML = _opsMessages.map((item) => `
+  box.innerHTML = filtered.map((item) => {
+    const plat = String(item.platform || '').toLowerCase();
+    const title = item.title || item.store_name || item.task_type || '-';
+    const progress = item.progress || '';
+    const shops = item.shops_count;
+    const rows = item.rows_count;
+    const counts = (shops != null || rows != null)
+      ? `店铺 ${shops ?? 0} · 行数 ${rows ?? 0}`
+      : '';
+    const aeExtra = plat === 'aliexpress'
+      ? `订单 ${item.orders_count ?? 0} · 违规 ${item.violations_count ?? 0} · 商品 ${item.products_count ?? 0}`
+      : '';
+    const fail = item.failure_reason || item.failure_code || '';
+    const showRetry = plat === 'amazon';
+    return `
     <div class="ops-item">
       <div class="line1">
-        <strong>${escapeHtml(item.store_name || item.account || item.platform_account_id || '-')}</strong>
+        <strong>
+          <span class="ops-plat ${escapeHtml(plat)}">${escapeHtml(platformLabel(plat))}</span>
+          ${escapeHtml(title)}
+        </strong>
         <span class="ops-status ${opsStatusClass(item.status)}">${opsStatusText(item)}</span>
       </div>
       <div class="line2">
+        <span>类型：${escapeHtml(item.task_type || '-')}</span>
         <span>账号：${escapeHtml(item.account || '-')}</span>
-        <span>重试：${item.retry_count ?? 0}/${item.max_retry_count ?? 2}</span>
-        <span>失败时间：${escapeHtml(item.failed_at || '-')}</span>
+        <span>创建：${escapeHtml(item.created_at || '-')}</span>
+        ${item.finished_at ? `<span>结束：${escapeHtml(item.finished_at)}</span>` : ''}
+        ${showRetry ? `<span>重试：${item.retry_count ?? 0}/${item.max_retry_count ?? 2}</span>` : ''}
       </div>
-      <div class="line2">
-        <span>原因：${escapeHtml(item.failure_reason || item.failure_code || '-')}</span>
-      </div>
-    </div>
-  `).join('');
+      ${progress ? `<div class="ops-progress">进度：${escapeHtml(progress)}</div>` : ''}
+      ${counts && !progress ? `<div class="ops-progress">${escapeHtml(counts)}</div>` : ''}
+      ${aeExtra ? `<div class="line2">${escapeHtml(aeExtra)}</div>` : ''}
+      ${fail ? `<div class="line2 ops-fail">挂点/原因：${escapeHtml(fail)}</div>` : ''}
+      ${item.failed_at && String(item.status || '').toLowerCase() === 'failed'
+        ? `<div class="line2">失败时间：${escapeHtml(item.failed_at)}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 async function loadOpsMessages() {
   if (!_currentTenant) return;
@@ -338,9 +427,52 @@ async function loadOpsMessages() {
     _opsUnread = Number(res.unread || 0);
     syncOpsUnreadBadge();
     renderOpsMessages();
+    notifyOpsReauthFromItems(_opsMessages);
   } catch (e) {
     log(`运维日志加载失败: ${e.message}`);
   }
+}
+function isReauthOpsItem(item) {
+  const code = String(item.error_code || item.failure_code || '').toUpperCase();
+  if (code === 'CRAWL_NOT_LOGGED_IN' || code === 'AMAZON_LOGIN_REQUIRED' || code === 'COMPETITOR_LOGIN_REQUIRED') {
+    return true;
+  }
+  const msg = String(item.error_message || item.failure_reason || '');
+  return /未登录|登录已过期|重新登录|会话失效/.test(msg);
+}
+function notifyOpsReauthFromItems(items) {
+  const list = Array.isArray(items) ? items : [];
+  if (!_opsPrimed) {
+    list.forEach((it) => {
+      const id = String(it.id || it.job_id || '');
+      if (id) {
+        _opsNotifiedIds.add('fail:' + id);
+        _opsNotifiedIds.add('ok:' + id);
+      }
+    });
+    _opsPrimed = true;
+    return;
+  }
+  list.forEach((it) => {
+    const st = String(it.status || '').toLowerCase();
+    const id = String(it.id || it.job_id || '');
+    if (!id) return;
+    const plat = String(it.platform || 'temu');
+    const label = plat === 'aliexpress' ? '速卖通' : (plat === 'amazon' ? 'Amazon' : 'Temu');
+    if (st === 'success' || st === 'partial') {
+      const key = 'ok:' + id;
+      if (_opsNotifiedIds.has(key)) return;
+      _opsNotifiedIds.add(key);
+      toast(`${label} 同步成功：店铺 ${it.shops_count ?? 0} · 行数 ${it.rows_count ?? 0}`, 'success');
+      return;
+    }
+    if (st !== 'failed' && st !== 'retry_wait') return;
+    if (!isReauthOpsItem(it)) return;
+    const key = 'fail:' + id;
+    if (_opsNotifiedIds.has(key)) return;
+    _opsNotifiedIds.add(key);
+    toast(`${label} 登录已过期，请重新打开登录窗口`, 'error');
+  });
 }
 async function openOpsMessages() {
   if (!_currentTenant) {
@@ -616,12 +748,114 @@ async function syncAll() {
   finally { setTimeout(() => document.getElementById('btnSyncAll').disabled = false, 3000); }
 }
 
+// ── CrossHub 账号绑定 ──
+let _helperBound = false;
+
+function showBindScreen() {
+  const bind = document.getElementById('bindScreen');
+  const tenant = document.getElementById('tenantScreen');
+  const main = document.getElementById('mainScreen');
+  if (bind) bind.classList.add('active');
+  if (tenant) tenant.style.display = 'none';
+  if (main) main.classList.remove('active');
+  const btn = document.getElementById('btnClearBind');
+  if (btn) btn.style.display = 'none';
+}
+
+function showTenantScreen() {
+  const bind = document.getElementById('bindScreen');
+  const tenant = document.getElementById('tenantScreen');
+  if (bind) bind.classList.remove('active');
+  if (tenant) tenant.style.display = 'flex';
+  const btn = document.getElementById('btnClearBind');
+  if (btn) btn.style.display = '';
+}
+
+async function refreshBindStatus() {
+  const hint = document.getElementById('bindStatusHint');
+  try {
+    const res = await api('/api/bind');
+    _helperBound = !!res.bound;
+    if (hint) {
+      if (_helperBound) {
+        hint.className = 'bind-status bound';
+        hint.textContent = `已绑定用户 #${res.user_id || '-'} · 租户 #${res.tenant_id || '-'}`;
+      } else {
+        hint.className = 'bind-status';
+        hint.textContent = '尚未绑定，请粘贴网站生成的绑定码';
+      }
+    }
+    if (_helperBound) {
+      showTenantScreen();
+      await loadTenants();
+    } else {
+      showBindScreen();
+    }
+  } catch (e) {
+    if (hint) {
+      hint.className = 'bind-status';
+      hint.textContent = '无法读取绑定状态，请稍后重试';
+    }
+    showBindScreen();
+  }
+}
+
+async function submitBindCode() {
+  const code = (document.getElementById('bindCodeInput')?.value || '').trim();
+  const displayName = (document.getElementById('bindDisplayName')?.value || '').trim();
+  if (!code) {
+    toast('请输入绑定码', 'error');
+    return;
+  }
+  const btn = document.getElementById('btnBindSubmit');
+  if (btn) { btn.disabled = true; btn.textContent = '绑定中...'; }
+  try {
+    const r = await fetch(BASE + '/api/bind', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, display_name: displayName || undefined }),
+    });
+    const res = await r.json();
+    if (!res.ok) {
+      toast(res.msg || '绑定失败', 'error');
+      return;
+    }
+    toast(res.msg || '绑定成功');
+    log('绑定成功，请重启助手以开始任务轮询');
+    await refreshBindStatus();
+  } catch (e) {
+    toast('绑定失败: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '确认绑定'; }
+  }
+}
+
+async function clearHelperBind() {
+  if (!confirm('清除后需重新填入绑定码。同一台电脑切换 CrossHub 账号时使用此操作。确定清除？')) return;
+  try {
+    const r = await fetch(BASE + '/api/bind', { method: 'DELETE' });
+    const res = await r.json();
+    if (!res.ok) {
+      toast(res.msg || '清除失败', 'error');
+      return;
+    }
+    toast(res.msg || '已清除绑定');
+    log('已清除 CrossHub 绑定');
+    _helperBound = false;
+    document.getElementById('mainScreen')?.classList.remove('active');
+    await refreshBindStatus();
+  } catch (e) {
+    toast('清除失败: ' + e.message, 'error');
+  }
+}
+
 // ── 初始化 ──
 (async function init() {
   log('CrossHub Sync Helper 面板已启动');
-  await loadTenants();
+  await refreshBindStatus();
   setInterval(pollStatus, 3000);
   pollStatus();
+  setInterval(() => { if (_currentTenant) loadOpsMessages(); }, 15000);
 })();
 </script>
 </body>
