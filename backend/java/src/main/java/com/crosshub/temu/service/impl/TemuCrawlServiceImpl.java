@@ -130,6 +130,36 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
             }
         }
 
+        return createAndEnqueueJob(tenantId, userId, reportTime, seed, recordCooldown);
+    }
+
+    @Transactional
+    public TemuCrawlJob enqueueUserSync(String reportTime, boolean seed, boolean force, boolean recordCooldown) {
+        crawlAuthService.assertCanTriggerCrawl();
+        Long tenantId = dataScopeService.requireTenantId();
+        crawlCooldownService.assertAllowed(tenantId, force);
+        Long userId = authContext.userId();
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, AppErrorCode.AUTH_MISSING_USER.getUserMessage());
+        }
+        if (seed && !crawlerProperties.isAllowSeed()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, AppErrorCode.CRAWL_SEED_DISABLED.getUserMessage());
+        }
+
+        assertProfileAvailable(tenantId);
+        temuAgentService.assertAgentOnlineForUser(userId);
+        assertSessionReady();
+
+        return createAndEnqueueJob(tenantId, userId, reportTime, seed, recordCooldown);
+    }
+
+    private TemuCrawlJob createAndEnqueueJob(
+            Long tenantId,
+            Long userId,
+            String reportTime,
+            boolean seed,
+            boolean recordCooldown
+    ) {
         TemuCrawlJob job = new TemuCrawlJob();
         job.setId(UUID.randomUUID().toString());
         job.setTenantId(tenantId);
@@ -167,7 +197,17 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         Long tenantId = dataScopeService.requireTenantId();
         TemuCrawlJob job = jobRepository.findByIdAndTenantId(jobId, tenantId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, AppErrorCode.CRAWL_JOB_NOT_FOUND.getUserMessage()));
-        return reconcileStaleJob(job);
+        job = reconcileStaleJob(job);
+        Long userId = authContext.userId();
+        if (userId != null
+                && job.getTriggeredBy() != null
+                && job.getTriggeredBy() > 0
+                && !job.getTriggeredBy().equals(userId)
+                && !authContext.isBossPortal()
+                && !authContext.isAdmin()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, AppErrorCode.CRAWL_JOB_NOT_FOUND.getUserMessage());
+        }
+        return job;
     }
 
     void executeJob(String jobId) {
