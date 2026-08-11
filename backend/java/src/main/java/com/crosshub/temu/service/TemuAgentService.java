@@ -105,6 +105,16 @@ public class TemuAgentService {
 
     @Transactional
     public void enqueueCrawlJob(TemuCrawlJob job) {
+        enqueueCrawlJob(job, null);
+    }
+
+    /**
+     * Enqueue crawl; optional {@code shopIds} scopes the task payload (daily per-user sync).
+     * Scheduler / daily paths should call this directly — do not route through
+     * {@code TemuSyncLimitService} per-user 3/min (system job, not interactive UI).
+     */
+    @Transactional
+    public void enqueueCrawlJob(TemuCrawlJob job, List<String> shopIds) {
         String taskId = "agt_" + UUID.randomUUID();
         job.setAgentTaskId(taskId);
         jobRepository.save(job);
@@ -122,6 +132,9 @@ public class TemuAgentService {
             if (sk != null && !String.valueOf(sk).isBlank()) {
                 payload.put("session_key", String.valueOf(sk).trim());
             }
+        }
+        if (shopIds != null && !shopIds.isEmpty()) {
+            payload.put("shop_ids", List.copyOf(shopIds));
         }
         String agentId = resolveOnlineAgentIdForUser(job.getTriggeredBy());
         insertAgentTask(job.getTenantId(), taskId, TemuAgentTasks.CRAWL, payload, agentId);

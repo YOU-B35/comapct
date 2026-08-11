@@ -1,11 +1,13 @@
 package com.crosshub.temu.service;
 
 import com.crosshub.agent.service.AgentPresenceService;
-import com.crosshub.common.AppErrorCode;
+import com.crosshub.auth.entity.AppUser;
+import com.crosshub.auth.repository.AppUserRepository;
 import com.crosshub.config.CrawlerProperties;
 import com.crosshub.temu.entity.TemuCrawlJob;
 import com.crosshub.temu.repository.TemuCrawlJobRepository;
 import com.crosshub.temu.repository.TemuSaleRepository;
+import com.crosshub.tenant.service.DataScopeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,32 +27,40 @@ import java.util.UUID;
 
 /**
  * Temu 日批切片：由 {@link com.crosshub.platform.service.PlatformDailySyncService} 在每天 09:30 全平台编排时调用。
+ * 每个有在线绑定助手的用户各入队一次（店铺 scope）；无在线助手的用户跳过，不写失败任务刷屏。
+ * 调度入队不走 {@link TemuSyncLimitService} 的每用户 3 次/分钟限流。
  */
 @Service
 public class TemuDailySyncService {
     private static final Logger log = LoggerFactory.getLogger(TemuDailySyncService.class);
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final long SYSTEM_TRIGGERED_BY = 0L;
-    private static final List<String> ACTIVE = List.of("pending", "running");
+    private static final List<String> ACTIVE = List.of("pending", "running", "retry_wait");
 
     private final CrawlerProperties crawlerProperties;
     private final AgentPresenceService agentPresenceService;
     private final TemuAgentService temuAgentService;
     private final TemuCrawlJobRepository jobRepository;
     private final TemuSaleRepository saleRepository;
+    private final AppUserRepository userRepository;
+    private final DataScopeService dataScopeService;
 
     public TemuDailySyncService(
             CrawlerProperties crawlerProperties,
             AgentPresenceService agentPresenceService,
             TemuAgentService temuAgentService,
             TemuCrawlJobRepository jobRepository,
-            TemuSaleRepository saleRepository
+            TemuSaleRepository saleRepository,
+            AppUserRepository userRepository,
+            DataScopeService dataScopeService
     ) {
         this.crawlerProperties = crawlerProperties;
         this.agentPresenceService = agentPresenceService;
         this.temuAgentService = temuAgentService;
         this.jobRepository = jobRepository;
         this.saleRepository = saleRepository;
+        this.userRepository = userRepository;
+        this.dataScopeService = dataScopeService;
     }
 
     public void runDailySyncForAllRegisteredTenants() {
@@ -70,7 +81,13 @@ public class TemuDailySyncService {
         for (Long tenantId : tenants) {
             try {
                 Map<String, Object> result = enqueueDailyCrawl(tenantId);
-                log.info("Temu daily sync tenant {}: {}", tenantId, result.get("action"));
+                log.info(
+                        "Temu daily sync tenant {}: {} enqueued={} skipped_offline={}",
+                        tenantId,
+                        result.get("action"),
+                        result.get("enqueued_count"),
+                        result.get("skipped_offline")
+                );
             } catch (Exception ex) {
                 log.warn("Temu daily sync failed for tenant {}: {}", tenantId, ex.getMessage());
             }
@@ -90,69 +107,122 @@ public class TemuDailySyncService {
         String today = LocalDate.now(zoneId()).toString();
         out.put("report_time", today);
 
-        if (!force) {
-            Optional<TemuCrawlJob> existingToday = findTodayJob(tenantId, today);
-            if (existingToday.isPresent()) {
-                TemuCrawlJob job = existingToday.get();
-                out.put("action", "skipped_already_ran");
-                out.put("job", toJobMap(job));
-                return out;
+        List<AppUser> candidates = listDailySyncUsers(tenantId);
+        int skippedOffline = 0;
+        int skippedAlready = 0;
+        int skippedActive = 0;
+        int skippedNoScope = 0;
+        int enqueuedCount = 0;
+        List<Map<String, Object>> jobs = new ArrayList<>();
+
+        for (AppUser user : candidates) {
+            Long userId = user.getId();
+            if (userId == null) {
+                continue;
             }
+            if (!agentPresenceService.isAgentOnlineForUser(userId)) {
+                skippedOffline++;
+                continue;
+            }
+
+            if (!force) {
+                Optional<TemuCrawlJob> existingToday = findTodayJobForUser(tenantId, userId, today);
+                if (existingToday.isPresent()) {
+                    TemuCrawlJob job = existingToday.get();
+                    String st = nullToEmpty(job.getStatus()).toLowerCase();
+                    if ("pending".equals(st) || "running".equals(st) || "retry_wait".equals(st)) {
+                        skippedActive++;
+                        jobs.add(toJobMap(job));
+                        continue;
+                    }
+                    skippedAlready++;
+                    jobs.add(toJobMap(job));
+                    continue;
+                }
+            }
+
+            Optional<TemuCrawlJob> active = jobRepository
+                    .findFirstByTenantIdAndTriggeredByAndStatusInOrderByCreatedAtDesc(tenantId, userId, ACTIVE);
+            if (active.isPresent()) {
+                skippedActive++;
+                jobs.add(toJobMap(active.get()));
+                continue;
+            }
+
+            boolean bossPortal = user.isAdmin();
+            List<String> shopIds = dataScopeService.resolveScopeForLogin(tenantId, userId, bossPortal);
+            if (!bossPortal && (shopIds == null || shopIds.isEmpty())) {
+                skippedNoScope++;
+                log.info("Temu daily sync skip user {} tenant {}: empty shop scope", userId, tenantId);
+                continue;
+            }
+
+            TemuCrawlJob job = new TemuCrawlJob();
+            job.setId(UUID.randomUUID().toString());
+            job.setTenantId(tenantId);
+            job.setTriggeredBy(userId);
+            job.setStatus("pending");
+            job.setMode("live");
+            job.setReportTime(today);
+            job.setCreatedAt(now());
+            job.setAgentTaskId("");
+            jobRepository.save(job);
+            // Daily scheduler path: bypass TemuSyncLimitService 3/min per-user UI quota.
+            temuAgentService.enqueueCrawlJob(job, shopIds == null ? List.of() : shopIds);
+            jobs.add(toJobMap(job));
+            enqueuedCount++;
         }
 
-        Optional<TemuCrawlJob> active = jobRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(tenantId, ACTIVE);
-        if (active.isPresent()) {
-            out.put("action", "skipped_active");
-            out.put("job", toJobMap(active.get()));
+        out.put("skipped_offline", skippedOffline);
+        out.put("skipped_already_ran", skippedAlready);
+        out.put("skipped_active", skippedActive);
+        out.put("skipped_no_scope", skippedNoScope);
+        out.put("enqueued_count", enqueuedCount);
+        out.put("jobs", jobs);
+
+        if (candidates.isEmpty()) {
+            out.put("action", "skipped_no_users");
             return out;
         }
-
-        if (!agentPresenceService.isAgentOnline(tenantId)) {
-            TemuCrawlJob failed = createTerminalJob(
-                    tenantId,
-                    today,
-                    "failed",
-                    AppErrorCode.TEMU_AGENT_OFFLINE.getCode(),
-                    AppErrorCode.TEMU_AGENT_OFFLINE.getUserMessage()
-            );
-            out.put("action", "failed_agent_offline");
-            out.put("job", toJobMap(failed));
+        if (enqueuedCount == 0 && skippedOffline == candidates.size()) {
+            out.put("action", "skipped_all_offline");
+            log.info("Temu daily sync tenant {}: skipped {} offline user(s), no jobs created", tenantId, skippedOffline);
             return out;
         }
-
-        Map<String, Object> session = temuAgentService.readSessionSnapshot(tenantId);
-        boolean ready = Boolean.TRUE.equals(session.get("ready"));
-        if (!ready) {
-            String hint = stringValue(session.get("error_hint"));
-            AppErrorCode code = AppErrorCode.fromCode(hint);
-            if (code == null || code == AppErrorCode.UNKNOWN) {
-                code = AppErrorCode.CRAWL_NOT_LOGGED_IN;
-            }
-            String message = stringValue(session.get("message"));
-            if (message.isBlank()) {
-                message = code.getUserMessage();
-            }
-            TemuCrawlJob failed = createTerminalJob(tenantId, today, "failed", code.getCode(), message);
-            out.put("action", "failed_session_not_ready");
-            out.put("job", toJobMap(failed));
-            return out;
+        out.put("action", enqueuedCount > 0 ? "enqueued_users" : "skipped_users");
+        if (skippedOffline > 0) {
+            log.info("Temu daily sync tenant {}: skipped_offline={}", tenantId, skippedOffline);
         }
-
-        TemuCrawlJob job = new TemuCrawlJob();
-        job.setId(UUID.randomUUID().toString());
-        job.setTenantId(tenantId);
-        job.setTriggeredBy(SYSTEM_TRIGGERED_BY);
-        job.setStatus("pending");
-        job.setMode("live");
-        job.setReportTime(today);
-        job.setCreatedAt(now());
-        job.setAgentTaskId("");
-        jobRepository.save(job);
-        temuAgentService.enqueueCrawlJob(job);
-
-        out.put("action", "enqueued");
-        out.put("job", toJobMap(job));
         return out;
+    }
+
+    private List<AppUser> listDailySyncUsers(Long tenantId) {
+        List<AppUser> all = userRepository.findByTenantIdOrderByIdAsc(tenantId);
+        List<AppUser> out = new ArrayList<>();
+        for (AppUser user : all) {
+            if (user == null || !user.isActive()) {
+                continue;
+            }
+            if (user.isWarehouse()) {
+                continue;
+            }
+            out.add(user);
+        }
+        return out;
+    }
+
+    private Optional<TemuCrawlJob> findTodayJobForUser(Long tenantId, Long userId, String today) {
+        Optional<TemuCrawlJob> latest = jobRepository.findFirstByTenantIdAndTriggeredByOrderByCreatedAtDesc(tenantId, userId);
+        if (latest.isEmpty()) {
+            return Optional.empty();
+        }
+        TemuCrawlJob job = latest.get();
+        String created = nullToEmpty(job.getCreatedAt());
+        String report = nullToEmpty(job.getReportTime());
+        if (created.startsWith(today) || today.equals(report)) {
+            return Optional.of(job);
+        }
+        return Optional.empty();
     }
 
     public Map<String, Object> buildSyncStatus(Long tenantId) {
@@ -174,9 +244,10 @@ public class TemuDailySyncService {
         if (latest.isPresent()) {
             TemuCrawlJob job = latest.get();
             Map<String, Object> jobMap = toJobMap(job);
-            jobMap.put("trigger", job.getTriggeredBy() != null && job.getTriggeredBy() == SYSTEM_TRIGGERED_BY
-                    ? "daily_schedule"
-                    : "manual");
+            Long triggeredBy = job.getTriggeredBy();
+            jobMap.put("trigger", triggeredBy != null && triggeredBy > 0
+                    ? "daily_or_user"
+                    : (triggeredBy != null && triggeredBy == SYSTEM_TRIGGERED_BY ? "daily_schedule" : "manual"));
             out.put("last_job", jobMap);
             boolean failed = "failed".equalsIgnoreCase(job.getStatus());
             out.put("has_error", failed);
@@ -200,44 +271,6 @@ public class TemuDailySyncService {
         return out;
     }
 
-    private Optional<TemuCrawlJob> findTodayJob(Long tenantId, String today) {
-        Optional<TemuCrawlJob> latest = jobRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId);
-        if (latest.isEmpty()) {
-            return Optional.empty();
-        }
-        TemuCrawlJob job = latest.get();
-        String created = nullToEmpty(job.getCreatedAt());
-        String report = nullToEmpty(job.getReportTime());
-        if (created.startsWith(today) || today.equals(report)) {
-            return Optional.of(job);
-        }
-        return Optional.empty();
-    }
-
-    private TemuCrawlJob createTerminalJob(
-            Long tenantId,
-            String reportTime,
-            String status,
-            String errorCode,
-            String errorMessage
-    ) {
-        String now = now();
-        TemuCrawlJob job = new TemuCrawlJob();
-        job.setId(UUID.randomUUID().toString());
-        job.setTenantId(tenantId);
-        job.setTriggeredBy(SYSTEM_TRIGGERED_BY);
-        job.setStatus(status);
-        job.setMode("live");
-        job.setReportTime(reportTime);
-        job.setErrorCode(errorCode == null ? "" : errorCode);
-        job.setErrorMessage(errorMessage == null ? "" : errorMessage);
-        job.setCreatedAt(now);
-        job.setStartedAt(now);
-        job.setFinishedAt(now);
-        job.setAgentTaskId("");
-        return jobRepository.save(job);
-    }
-
     private Map<String, Object> toJobMap(TemuCrawlJob job) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", job.getId());
@@ -251,6 +284,7 @@ public class TemuDailySyncService {
         map.put("finished_at", job.getFinishedAt());
         map.put("rows_count", job.getRowsCount());
         map.put("shops_count", job.getShopsCount());
+        map.put("triggered_by", job.getTriggeredBy());
         return map;
     }
 
@@ -274,10 +308,6 @@ public class TemuDailySyncService {
 
     private String now() {
         return LocalDateTime.now().format(TS);
-    }
-
-    private static String stringValue(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private static String nullToEmpty(String value) {

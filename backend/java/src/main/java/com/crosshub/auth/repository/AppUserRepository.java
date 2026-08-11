@@ -13,6 +13,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     Optional<AppUser> findByTenantIdAndUsernameIgnoreCase(Long tenantId, String username);
 
+    List<AppUser> findByTenantIdOrderByIdAsc(Long tenantId);
+
     List<AppUser> findByTenantIdAndRoleOrderByIdAsc(Long tenantId, String role);
 
     Optional<AppUser> findByIdAndTenantId(Long id, Long tenantId);
