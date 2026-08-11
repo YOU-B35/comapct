@@ -104,13 +104,19 @@ def _build_flask_app(java_client: Any) -> "Flask":
     def static_files(filename):
         return send_from_directory(str(_PANEL_DIR), filename)
 
+    def _helper_config_path():
+        """Canonical config.json for tray bind GET/POST/DELETE + status (same as sync_helper_app)."""
+        from agent.bind import default_config_path
+
+        return default_config_path()
+
     @app.route("/api/status")
     def api_status():
         snap = _state.snapshot()
         try:
             from agent.bind import binding_status
 
-            bind = binding_status()
+            bind = binding_status(config_path=_helper_config_path())
             snap["bound"] = bool(bind.get("bound"))
             snap["bind"] = bind
         except Exception:
@@ -123,7 +129,7 @@ def _build_flask_app(java_client: Any) -> "Flask":
         from agent.bind import binding_status
         from agent.machine_id import machine_fingerprint
 
-        st = binding_status()
+        st = binding_status(config_path=_helper_config_path())
         st["fingerprint_preview"] = (machine_fingerprint() or "")[:12]
         return jsonify({"ok": True, **st})
 
@@ -138,17 +144,10 @@ def _build_flask_app(java_client: Any) -> "Flask":
         try:
             from agent.bind import consume_bind_code
 
-            config_path = None
-            try:
-                import sync_helper_app as sha
-
-                config_path = sha.app_dir() / "config.json"
-            except Exception:
-                config_path = None
             result = consume_bind_code(
                 code,
                 display_name=display_name,
-                config_path=config_path,
+                config_path=_helper_config_path(),
                 base_url=_api_base() or None,
             )
             _state.update_agent("running", error="")
@@ -162,14 +161,7 @@ def _build_flask_app(java_client: Any) -> "Flask":
         try:
             from agent.bind import clear_binding
 
-            config_path = None
-            try:
-                import sync_helper_app as sha
-
-                config_path = sha.app_dir() / "config.json"
-            except Exception:
-                config_path = None
-            result = clear_binding(config_path=config_path)
+            result = clear_binding(config_path=_helper_config_path())
             _state.update_agent("starting", error="已清除绑定，请重新填入绑定码")
             return jsonify({"ok": True, "msg": "已清除绑定，可重新填入绑定码", "data": result})
         except Exception as exc:

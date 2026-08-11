@@ -57,10 +57,16 @@ def resolve_profile_root() -> Path:
     base = Path(env) if env else (ROOT / ".temu-browser-profile")
     segment = _profile_isolation_segment()
     if segment:
-        # If env already points at an isolated leaf, do not nest again.
-        if base.name == segment or base.name.startswith("user-") or base.name.startswith("account-"):
+        # Same segment already applied — do not nest again.
+        if base.name == segment:
             return base
+        # Stale leaf from a previous bind: strip then re-nest under current id.
+        if base.name.startswith("user-") or base.name.startswith("account-"):
+            base = base.parent
         return base / segment
+    # Unbound: do not keep a previous user-*/account-* leaf.
+    if base.name.startswith("user-") or base.name.startswith("account-"):
+        return base.parent
     return base
 
 
@@ -134,9 +140,13 @@ def resolve_ae_profile_root() -> Path:
     base = Path(env) if env else (ROOT / ".aliexpress-browser-profile")
     segment = _profile_isolation_segment()
     if segment:
-        if base.name == segment or base.name.startswith("user-") or base.name.startswith("account-"):
+        if base.name == segment:
             return base
+        if base.name.startswith("user-") or base.name.startswith("account-"):
+            base = base.parent
         return base / segment
+    if base.name.startswith("user-") or base.name.startswith("account-"):
+        return base.parent
     return base
 
 

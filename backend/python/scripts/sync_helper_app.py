@@ -221,13 +221,15 @@ def load_config() -> dict:
                 or cfg.get("ae_profile_root")
                 or (py_root / ".aliexpress-browser-profile")
             )
-            # If already isolated (or env already nested), do not double-nest.
+            # Strip stale user-*/account-* leaf from a previous bind, then nest current seg.
+            if temu_base.name.startswith(("user-", "account-")) and temu_base.name != seg:
+                temu_base = temu_base.parent
+            if ae_base.name.startswith(("user-", "account-")) and ae_base.name != seg:
+                ae_base = ae_base.parent
             if seg and temu_base.name != seg and not str(temu_base).replace("\\", "/").endswith(f"/{seg}"):
-                if not temu_base.name.startswith(("user-", "account-")):
-                    temu_base = temu_base / seg
+                temu_base = temu_base / seg
             if seg and ae_base.name != seg and not str(ae_base).replace("\\", "/").endswith(f"/{seg}"):
-                if not ae_base.name.startswith(("user-", "account-")):
-                    ae_base = ae_base / seg
+                ae_base = ae_base / seg
             os.environ["TEMU_PROFILE_ROOT"] = str(temu_base)
             os.environ["AE_PROFILE_ROOT"] = str(ae_base)
             print(f"==> temu_profile: {os.environ['TEMU_PROFILE_ROOT']}")

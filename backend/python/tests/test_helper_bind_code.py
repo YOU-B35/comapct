@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -97,3 +98,74 @@ def test_profile_root_includes_user_isolation(tmp_path: Path, monkeypatch: pytes
 
     root = app_config.resolve_profile_root()
     assert "user-42" in root.parts or root.name == "user-42" or "user-42" in str(root)
+
+
+def test_default_config_path_matches_sync_helper_app_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Tray GET/status and POST/DELETE must share the same config.json location."""
+    import types
+
+    from agent import bind as bind_mod
+
+    fake_sha = types.SimpleNamespace(app_dir=lambda: tmp_path)
+    monkeypatch.setitem(sys.modules, "sync_helper_app", fake_sha)
+    monkeypatch.delenv("CROSSHUB_HELPER_CONFIG", raising=False)
+
+    path = bind_mod.default_config_path()
+    assert path == tmp_path / "config.json"
+    assert bind_mod.resolve_config_path() == path
+    assert bind_mod.binding_status(config_path=None)["config_path"] == str(path)
+
+
+def test_clear_binding_resets_sticky_profile_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from agent import bind as bind_mod
+    from app import config as app_config
+
+    base = tmp_path / ".temu-browser-profile"
+    stale = base / "user-1"
+    ae_base = tmp_path / ".aliexpress-browser-profile"
+    ae_stale = ae_base / "user-1"
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"agent_token": "tok", "user_id": 1, "tenant_id": 9}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("TEMU_PROFILE_ROOT", str(stale))
+    monkeypatch.setenv("AE_PROFILE_ROOT", str(ae_stale))
+    monkeypatch.setenv("CROSSHUB_BOUND_USER_ID", "1")
+    monkeypatch.setenv("AGENT_TOKEN", "tok")
+    monkeypatch.setattr(app_config, "ROOT", tmp_path)
+    app_config.PROFILE_ROOT = stale
+    app_config.AE_PROFILE_ROOT = ae_stale
+
+    result = bind_mod.clear_binding(config_path=config_path)
+    assert result["ok"] is True
+
+    assert Path(os.environ["TEMU_PROFILE_ROOT"]) == base
+    assert Path(os.environ["AE_PROFILE_ROOT"]) == ae_base
+    assert "CROSSHUB_BOUND_USER_ID" not in os.environ
+    assert app_config.PROFILE_ROOT == base
+    assert app_config.AE_PROFILE_ROOT == ae_base
+
+
+def test_rebind_replaces_stale_user_profile_leaf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """After clear/rebind to another user, profile root must not stick on user-1."""
+    from agent import bind as bind_mod
+    from app import config as app_config
+
+    base = tmp_path / ".temu-browser-profile"
+    monkeypatch.setenv("TEMU_PROFILE_ROOT", str(base / "user-1"))
+    monkeypatch.delenv("AE_PROFILE_ROOT", raising=False)
+    monkeypatch.delenv("CROSSHUB_BOUND_USER_ID", raising=False)
+    monkeypatch.delenv("AGENT_USER_ID", raising=False)
+    monkeypatch.setattr(app_config, "ROOT", tmp_path)
+
+    # Simulate clear then bind as user-99 without process restart.
+    bind_mod.reset_profile_roots()
+    monkeypatch.setenv("CROSSHUB_BOUND_USER_ID", "99")
+    bind_mod.apply_profile_isolation_env()
+
+    root = Path(os.environ["TEMU_PROFILE_ROOT"])
+    assert root.name == "user-99"
+    assert root.parent == base
+    assert "user-1" not in root.parts

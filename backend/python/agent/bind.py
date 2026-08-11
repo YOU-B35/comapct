@@ -28,14 +28,28 @@ _BIND_CLEAR_KEYS = (
 
 
 def default_config_path() -> Path:
-    """Prefer exe/app-dir config.json, then %LOCALAPPDATA%\\CrossHub\\SyncHelper\\config.json."""
+    """Same location as sync_helper_app.app_dir()/config.json (load + bind write).
+
+    Prefer Helper app_dir config.json (repo root in dev, exe dir when frozen).
+    Fall back to %LOCALAPPDATA%\\CrossHub\\SyncHelper\\config.json only if needed.
+    """
     try:
         if getattr(sys, "frozen", False):
-            exe_cfg = Path(sys.executable).resolve().parent / "config.json"
-            return exe_cfg
+            return Path(sys.executable).resolve().parent / "config.json"
     except Exception:
         pass
-    # Dev: scripts/ sibling via sync_helper app_dir, else LOCALAPPDATA
+    # Prefer live sync_helper_app.app_dir() when the Helper process has it on path.
+    try:
+        import sync_helper_app as sha
+
+        return sha.app_dir() / "config.json"
+    except Exception:
+        pass
+    # Dev fallback: agent/bind.py → repo root (same as scripts/sync_helper_app.app_dir()).
+    try:
+        return Path(__file__).resolve().parents[3] / "config.json"
+    except Exception:
+        pass
     local = (os.environ.get("LOCALAPPDATA") or "").strip()
     if local:
         return Path(local) / "CrossHub" / "SyncHelper" / "config.json"
@@ -49,6 +63,63 @@ def resolve_config_path(explicit: Path | str | None = None) -> Path:
     if env:
         return Path(env)
     return default_config_path()
+
+
+def _is_isolation_leaf(name: str) -> bool:
+    return bool(name) and (name.startswith("user-") or name.startswith("account-"))
+
+
+def _strip_isolation_leaf(path: Path) -> Path:
+    """Drop a trailing user-* / account-* segment so a new bind can re-nest."""
+    if _is_isolation_leaf(path.name):
+        return path.parent
+    return path
+
+
+def reset_profile_roots() -> None:
+    """Clear sticky isolation leaves from TEMU/AE profile root envs + in-memory snapshots.
+
+    After clear/rebind, the next bound user must not inherit a previous user-* leaf
+    that resolve_profile_root would otherwise short-circuit on.
+    """
+    for env_key in ("TEMU_PROFILE_ROOT", "AE_PROFILE_ROOT"):
+        raw = (os.environ.get(env_key) or "").strip()
+        if not raw:
+            continue
+        base = _strip_isolation_leaf(Path(raw))
+        os.environ[env_key] = str(base)
+
+    try:
+        import app.config as app_config
+
+        app_config.PROFILE_ROOT = app_config.resolve_profile_root()
+        app_config.AE_PROFILE_ROOT = app_config.resolve_ae_profile_root()
+    except Exception:
+        pass
+
+
+def apply_profile_isolation_env() -> None:
+    """Nest TEMU/AE roots under the current bound segment (after reset_profile_roots)."""
+    try:
+        from app.config import _profile_isolation_segment, resolve_ae_profile_root, resolve_profile_root
+    except Exception:
+        return
+
+    seg = _profile_isolation_segment()
+    if not seg:
+        return
+
+    temu = resolve_profile_root()
+    ae = resolve_ae_profile_root()
+    os.environ["TEMU_PROFILE_ROOT"] = str(temu)
+    os.environ["AE_PROFILE_ROOT"] = str(ae)
+    try:
+        import app.config as app_config
+
+        app_config.PROFILE_ROOT = temu
+        app_config.AE_PROFILE_ROOT = ae
+    except Exception:
+        pass
 
 
 def _read_config(path: Path) -> dict[str, Any]:
@@ -147,7 +218,10 @@ def consume_bind_code(
     cfg["machine_fingerprint"] = fingerprint
     cfg["display_name"] = name
     _write_config(path, cfg)
+    # Drop any previous user-* leaf before applying the new bound segment.
+    reset_profile_roots()
     apply_bound_env(cfg)
+    apply_profile_isolation_env()
 
     # Hot-reload agent.config module snapshots when already imported.
     try:
@@ -185,6 +259,8 @@ def clear_binding(config_path: Path | str | None = None) -> dict[str, Any]:
         "CROSSHUB_BOUND_ACCOUNT",
     ):
         os.environ.pop(env_key, None)
+
+    reset_profile_roots()
 
     try:
         import agent.config as agent_config

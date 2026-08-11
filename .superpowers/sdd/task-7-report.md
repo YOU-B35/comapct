@@ -2,7 +2,7 @@
 
 **Status:** DONE  
 **Base HEAD:** `32170bc`  
-**Commit:** (see git log) — `feat(helper): bind-code enrollment and machine fingerprint`
+**Commit:** `c3dc529` — `feat(helper): bind-code enrollment and machine fingerprint`
 
 ## Summary
 
@@ -49,3 +49,24 @@ tests/test_sync_helper_config_priority.py (3) PASSED
 1. After bind, Agent poll loop still requires **Helper restart** (panel message); hot-reload of token into a running unbound process is not fully wired.
 2. Pre-existing local profile dirs without `user-{id}` are not migrated; new isolation path starts fresh under nested root.
 3. Did **not** commit Java `AppErrorCode` / `AgentServiceImpl` WIP.
+
+---
+
+## Review follow-up (Important fixes) — 2026-08-11
+
+**Commit:** `fix(helper): unify bind config path and reset profile roots on rebind`
+
+### Fixes
+
+1. **Unified config path** — `agent.bind.default_config_path()` now prefers `sync_helper_app.app_dir()/config.json` (same as Helper load/bind write; repo root in dev). Tray `GET/POST/DELETE /api/bind` and `/api/status` all use `_helper_config_path()` → that same path. Avoids LOCALAPPDATA vs app_dir split in one session.
+2. **Clear sticky profile roots on rebind/clear** — `reset_profile_roots()` strips `user-*` / `account-*` leaves from `TEMU_PROFILE_ROOT` / `AE_PROFILE_ROOT` and refreshes `app.config` snapshots; `consume_bind_code` resets then re-nests via `apply_profile_isolation_env()`. `resolve_profile_root` / `resolve_ae_profile_root` (and `sync_helper_app` nest) no longer short-circuit on a stale isolation leaf for a different id.
+
+### Tests
+
+```text
+python -m pytest backend/python/tests/test_helper_bind_code.py -q
+......                                                                   [100%]
+6 passed in 0.07s
+```
+
+Added: `test_default_config_path_matches_sync_helper_app_dir`, `test_clear_binding_resets_sticky_profile_roots`, `test_rebind_replaces_stale_user_profile_leaf`.
