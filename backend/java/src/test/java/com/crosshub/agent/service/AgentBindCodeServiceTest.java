@@ -9,7 +9,11 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -20,10 +24,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AgentBindCodeServiceTest {
+
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private MutableClock clock;
     private IntegrationAgentRepository agentRepo;
@@ -34,7 +41,7 @@ class AgentBindCodeServiceTest {
         clock = new MutableClock(Instant.parse("2026-08-11T03:00:00Z"));
         agentRepo = mock(IntegrationAgentRepository.class);
         when(agentRepo.save(any(IntegrationAgent.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(agentRepo.findByBoundUserIdAndMachineFingerprint(any(), any())).thenReturn(Optional.empty());
+        when(agentRepo.findByTenantIdAndMachineFingerprint(any(), any())).thenReturn(Optional.empty());
         svc = new AgentBindCodeService(clock, agentRepo);
     }
 
@@ -80,14 +87,14 @@ class AgentBindCodeServiceTest {
     }
 
     @Test
-    void consumeUpsertsSameUserAndFingerprint() {
+    void consumeUpsertsSameTenantAndFingerprint() {
         AtomicReference<IntegrationAgent> stored = new AtomicReference<>();
         when(agentRepo.save(any(IntegrationAgent.class))).thenAnswer(inv -> {
             IntegrationAgent agent = inv.getArgument(0);
             stored.set(agent);
             return agent;
         });
-        when(agentRepo.findByBoundUserIdAndMachineFingerprint(1L, "fp"))
+        when(agentRepo.findByTenantIdAndMachineFingerprint(eq(5L), eq("fp")))
                 .thenAnswer(inv -> Optional.ofNullable(stored.get()));
 
         String code1 = svc.createCode(1L, 5L).code();
@@ -95,15 +102,61 @@ class AgentBindCodeServiceTest {
         String token1 = first.agentToken();
         String agentId = stored.get().getId();
 
-        String code2 = svc.createCode(1L, 9L).code();
+        String code2 = svc.createCode(1L, 5L).code();
         AgentBindCodeService.ConsumeResult second = svc.consume(code2, "fp", "PC-B");
 
         assertEquals(agentId, stored.get().getId());
         assertNotEquals(token1, second.agentToken());
-        assertEquals(9L, second.tenantId());
+        assertEquals(5L, second.tenantId());
         assertEquals("PC-B", stored.get().getName());
         assertEquals(1L, stored.get().getBoundUserId());
         assertEquals("fp", stored.get().getMachineFingerprint());
+    }
+
+    @Test
+    void consume_sameTenantSameFingerprint_reusesAgent_evenIfDifferentUser() {
+        AtomicReference<IntegrationAgent> stored = new AtomicReference<>();
+        when(agentRepo.save(any(IntegrationAgent.class))).thenAnswer(inv -> {
+            IntegrationAgent agent = inv.getArgument(0);
+            stored.set(agent);
+            return agent;
+        });
+        when(agentRepo.findByTenantIdAndMachineFingerprint(eq(5L), eq("fp")))
+                .thenAnswer(inv -> Optional.ofNullable(stored.get()));
+
+        String code1 = svc.createCode(1L, 5L).code();
+        svc.consume(code1, "fp", "PC");
+        String agentId = stored.get().getId();
+
+        String code2 = svc.createCode(2L, 5L).code();
+        AgentBindCodeService.ConsumeResult second = svc.consume(code2, "fp", "PC");
+
+        assertEquals(agentId, stored.get().getId());
+        assertEquals(2L, stored.get().getBoundUserId());
+        assertEquals(2L, second.userId());
+        assertEquals(5L, second.tenantId());
+    }
+
+    @Test
+    void statusForTenant_includesAgentsBoundByOtherUsers() {
+        IntegrationAgent agent = new IntegrationAgent();
+        agent.setId("a1");
+        agent.setName("本机助手");
+        agent.setMachineFingerprint("fp");
+        agent.setBoundUserId(1L);
+        agent.setTenantId(5L);
+        agent.setStatus("active");
+        agent.setLastHeartbeatAt(LocalDateTime.now(clock).format(TS));
+
+        when(agentRepo.findByTenantIdOrderByLastHeartbeatAtDesc(5L)).thenReturn(List.of(agent));
+
+        Map<String, Object> status = svc.statusForTenant(5L);
+        assertEquals(true, status.get("online"));
+        assertEquals("a1", status.get("recommended_agent_id"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> agents = (List<Map<String, Object>>) status.get("agents");
+        assertEquals(1, agents.size());
+        assertEquals(true, agents.get(0).get("online"));
     }
 
     @Test
