@@ -93,6 +93,13 @@ def _build_flask_app(java_client: Any) -> "Flask":
     app = Flask(__name__, static_folder=None)
     app.logger.removeHandler(default_handler)
 
+    @app.after_request
+    def _cors(resp):  # type: ignore[misc]
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return resp
+
     @app.route("/")
     def index():
         html = _PANEL_DIR / "index.html"
@@ -155,9 +162,11 @@ def _build_flask_app(java_client: Any) -> "Flask":
         except Exception as exc:
             return jsonify({"ok": False, "msg": str(exc)}), 400
 
-    @app.route("/api/bind", methods=["DELETE"])
+    @app.route("/api/bind", methods=["DELETE", "OPTIONS"])
     def api_bind_clear():
         """Clear enrollment so another CrossHub account can re-bind on this PC."""
+        if request.method == "OPTIONS":
+            return ("", 204)
         try:
             from agent.bind import clear_binding
 
@@ -166,6 +175,21 @@ def _build_flask_app(java_client: Any) -> "Flask":
             return jsonify({"ok": True, "msg": "已清除绑定，可重新填入绑定码", "data": result})
         except Exception as exc:
             return jsonify({"ok": False, "msg": str(exc)}), 500
+
+    @app.route("/api/install-info", methods=["GET", "OPTIONS"])
+    def api_install_info():
+        if request.method == "OPTIONS":
+            return ("", 204)
+        from agent.install_marker import marker_path, read_install_marker
+
+        data = read_install_marker() or {}
+        return jsonify({
+            "ok": True,
+            "installed": bool(data.get("installed")),
+            "path": str(marker_path()),
+            "version": data.get("version") or "",
+            "installed_at": data.get("installed_at") or "",
+        })
 
     @app.route("/api/tenants")
     def api_tenants():
@@ -811,6 +835,13 @@ def start_panel_server(java_client: Any, stop_event: threading.Event) -> None:
     if not _HAS_FLASK:
         print("[Panel] Flask 未安装，跳过 Web 面板。")
         return
+
+    try:
+        from agent.install_marker import write_install_marker
+
+        write_install_marker()
+    except Exception as exc:
+        print(f"[Panel] install marker: {exc}", file=sys.stderr)
 
     app = _build_flask_app(java_client)
     import logging
