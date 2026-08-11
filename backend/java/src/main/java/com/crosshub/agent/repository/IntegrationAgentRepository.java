@@ -12,4 +12,8 @@ public interface IntegrationAgentRepository extends JpaRepository<IntegrationAge
     Optional<IntegrationAgent> findByAgentToken(String agentToken);
 
     Optional<IntegrationAgent> findByIdAndTenantId(String id, Long tenantId);
+
+    List<IntegrationAgent> findByBoundUserIdOrderByLastHeartbeatAtDesc(Long userId);
+
+    Optional<IntegrationAgent> findByBoundUserIdAndMachineFingerprint(Long userId, String fingerprint);
 }

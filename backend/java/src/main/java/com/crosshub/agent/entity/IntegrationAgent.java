@@ -32,6 +32,12 @@ public class IntegrationAgent {
     @Column(name = "created_at", nullable = false)
     private String createdAt;
 
+    @Column(name = "bound_user_id")
+    private Long boundUserId;
+
+    @Column(name = "machine_fingerprint", nullable = false)
+    private String machineFingerprint = "";
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public Long getTenantId() { return tenantId; }
@@ -48,4 +54,8 @@ public class IntegrationAgent {
     public void setZiniaoOnline(Integer ziniaoOnline) { this.ziniaoOnline = ziniaoOnline; }
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    public Long getBoundUserId() { return boundUserId; }
+    public void setBoundUserId(Long boundUserId) { this.boundUserId = boundUserId; }
+    public String getMachineFingerprint() { return machineFingerprint; }
+    public void setMachineFingerprint(String machineFingerprint) { this.machineFingerprint = machineFingerprint; }
 }
