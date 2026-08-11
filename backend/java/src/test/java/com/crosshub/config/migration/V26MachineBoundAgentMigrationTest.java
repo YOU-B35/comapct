@@ -50,5 +50,6 @@ class V26MachineBoundAgentMigrationTest {
                     "SELECT agent_token FROM integration_agent WHERE id = ?", String.class, "old"));
             assertEquals("active", jdbc.queryForObject(
                     "SELECT status FROM integration_agent WHERE id = ?", String.class, "other"));
-        }    }
+        }
+    }
 }
