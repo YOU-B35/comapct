@@ -36,19 +36,10 @@ elif not getattr(sys, "frozen", False):
 
 
 def _profile_isolation_segment() -> str:
-    """Isolate browser profiles per CrossHub bound user/account on one PC."""
-    for key in ("CROSSHUB_BOUND_USER_ID", "CROSSHUB_USER_ID", "AGENT_USER_ID"):
-        raw = (os.getenv(key) or "").strip()
-        if raw:
-            safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", raw).strip("_")
-            if safe:
-                return f"user-{safe}"
-    for key in ("CROSSHUB_BOUND_ACCOUNT", "BOUND_ACCOUNT"):
-        raw = (os.getenv(key) or "").strip()
-        if raw:
-            safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", raw).strip("_")
-            if safe:
-                return f"account-{safe[:48].rstrip('_')}"
+    """Shop isolation lives under tenant-{id}/account-* via session_scope.
+
+    CrossHub user id must NOT nest profile roots (machine-bound tenant helper).
+    """
     return ""
 
 

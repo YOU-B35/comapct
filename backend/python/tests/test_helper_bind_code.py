@@ -88,16 +88,16 @@ def test_consume_bind_code_posts_snake_case_body_and_persists(tmp_path: Path):
     assert saved["machine_fingerprint"] == machine_fingerprint()
 
 
-def test_profile_root_includes_user_isolation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_profile_root_ignores_user_isolation_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     from app import config as app_config
 
     monkeypatch.delenv("TEMU_PROFILE_ROOT", raising=False)
     monkeypatch.setenv("CROSSHUB_BOUND_USER_ID", "42")
-    # Force base under tmp by patching ROOT
     monkeypatch.setattr(app_config, "ROOT", tmp_path)
 
     root = app_config.resolve_profile_root()
-    assert "user-42" in root.parts or root.name == "user-42" or "user-42" in str(root)
+    assert root == tmp_path / ".temu-browser-profile"
+    assert "user-42" not in root.parts
 
 
 def test_default_config_path_matches_sync_helper_app_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -148,8 +148,8 @@ def test_clear_binding_resets_sticky_profile_roots(tmp_path: Path, monkeypatch: 
     assert app_config.AE_PROFILE_ROOT == ae_base
 
 
-def test_rebind_replaces_stale_user_profile_leaf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """After clear/rebind to another user, profile root must not stick on user-1."""
+def test_rebind_strips_stale_user_profile_leaf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """After clear/rebind, profile root must not stick on a stale user-* leaf."""
     from agent import bind as bind_mod
     from app import config as app_config
 
@@ -160,12 +160,11 @@ def test_rebind_replaces_stale_user_profile_leaf(tmp_path: Path, monkeypatch: py
     monkeypatch.delenv("AGENT_USER_ID", raising=False)
     monkeypatch.setattr(app_config, "ROOT", tmp_path)
 
-    # Simulate clear then bind as user-99 without process restart.
     bind_mod.reset_profile_roots()
     monkeypatch.setenv("CROSSHUB_BOUND_USER_ID", "99")
     bind_mod.apply_profile_isolation_env()
 
     root = Path(os.environ["TEMU_PROFILE_ROOT"])
-    assert root.name == "user-99"
-    assert root.parent == base
+    assert root == base
     assert "user-1" not in root.parts
+    assert "user-99" not in root.parts
