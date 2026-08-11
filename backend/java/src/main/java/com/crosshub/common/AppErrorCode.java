@@ -15,10 +15,7 @@ public enum AppErrorCode {
 
     CRAWL_IN_PROGRESS("CRAWL_IN_PROGRESS", "已有爬取任务进行中，请稍后再试"),
     CRAWL_NOT_LOGGED_IN("CRAWL_NOT_LOGGED_IN", "Temu 卖家后台未登录，请先在本机完成登录"),
-    CRAWL_HUMAN_CHALLENGE("CRAWL_HUMAN_CHALLENGE", "Temu 登录需要人工验证（滑块/短信），请在本机浏览器完成验证后重试"),
-    CRAWL_AUTO_LOGIN_PENDING("CRAWL_AUTO_LOGIN_PENDING", "Temu 会话已过期，将尝试使用绑定密码自动登录"),
-    CRAWL_AE_NOT_LOGGED_IN("CRAWL_AE_NOT_LOGGED_IN", "AliExpress 卖家后台未登录，请先在本机助手打开登录并完成登录"),
-    AE_AGENT_OFFLINE("AE_AGENT_OFFLINE", "本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe"),
+    CRAWL_AE_NOT_LOGGED_IN("CRAWL_AE_NOT_LOGGED_IN", "AliExpress 卖家后台未登录，请先运行 login_aliexpress.py"),
     CRAWL_MALL_NOT_SELECTED("CRAWL_MALL_NOT_SELECTED", "Temu 卖家后台未选择店铺，请登录后选择店铺"),
     TEMU_PRODUCT_MAPPING_ERROR("TEMU_PRODUCT_MAPPING_ERROR", "Temu 货品映射异常：请在卖家后台「商品管理」补全 SKU 货号，并在「销售管理」页确认当前店铺后重试"),
     CRAWL_SCRIPT_MISSING("CRAWL_SCRIPT_MISSING", "爬虫环境未配置，请联系管理员"),
@@ -47,13 +44,6 @@ public enum AppErrorCode {
     TASK_NOT_FOUND("TASK_NOT_FOUND", "任务不存在"),
     TASK_FORBIDDEN("TASK_FORBIDDEN", "无权查看该任务"),
     TASK_BOSS_ONLY("TASK_BOSS_ONLY", "仅企业管理员可管理任务"),
-    TASK_MANAGER_REQUIRED("TASK_MANAGER_REQUIRED", "仅企业管理员或小组主管可管理任务"),
-
-    TEAM_SCOPE_DENIED("TEAM_SCOPE_DENIED", "目标员工不在您的小组管辖范围"),
-    TEAM_MEMBER_BUSY("TEAM_MEMBER_BUSY", "该员工已在其他小组中"),
-    TEAM_LEADER_ONLY("TEAM_LEADER_ONLY", "仅小组主管可操作"),
-    TEAM_BOSS_ONLY("TEAM_BOSS_ONLY", "仅企业管理员可管理运营小组"),
-    TEAM_LEADER_ACTIVE("TEAM_LEADER_ACTIVE", "请先更换主管或归档小组后再停用该账号"),
 
     FEEDBACK_TASK_ID_REQUIRED("FEEDBACK_TASK_ID_REQUIRED", "缺少任务 ID"),
 
@@ -82,7 +72,6 @@ public enum AppErrorCode {
     AMAZON_AGENT_OFFLINE("AMAZON_AGENT_OFFLINE", "本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe"),
     TEMU_AGENT_OFFLINE("TEMU_AGENT_OFFLINE", "本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe"),
     TEMU_USER_HELPER_OFFLINE("TEMU_USER_HELPER_OFFLINE", "本机同步助手未在线，请先安装并绑定"),
-
     AMAZON_ZINIAO_OFFLINE("AMAZON_ZINIAO_OFFLINE", "紫鸟 WebDriver 未就绪，请确认开发者模式已启动"),
     AMAZON_SYNC_IN_PROGRESS("AMAZON_SYNC_IN_PROGRESS", "已有 Amazon 同步任务进行中，请稍后再试"),
     AMAZON_SYNC_JOB_NOT_FOUND("AMAZON_SYNC_JOB_NOT_FOUND", "Amazon 同步任务不存在"),
@@ -168,20 +157,6 @@ public enum AppErrorCode {
         BY_REASON.put("该订单已推送至仓库", WAREHOUSE_ORDER_ALREADY_PUSHED);
         BY_REASON.put("无权查看该任务", TASK_FORBIDDEN);
         BY_REASON.put("仅企业管理员可管理任务", TASK_BOSS_ONLY);
-        BY_REASON.put("仅企业管理员或小组主管可管理任务", TASK_MANAGER_REQUIRED);
-        BY_REASON.put("小组主管仅可分配员工任务", TEAM_SCOPE_DENIED);
-        BY_REASON.put("目标员工不在您的小组管辖范围", TEAM_SCOPE_DENIED);
-        BY_REASON.put("该员工已在其他小组中", TEAM_MEMBER_BUSY);
-        BY_REASON.put("该员工已在其他小组中，请先移出", TEAM_MEMBER_BUSY);
-        BY_REASON.put("仅小组主管可操作", TEAM_LEADER_ONLY);
-        BY_REASON.put("仅小组主管可查看本组", TEAM_LEADER_ONLY);
-        BY_REASON.put("仅小组主管可操作本组员工", TEAM_LEADER_ONLY);
-        BY_REASON.put("仅企业管理员可管理运营小组", TEAM_BOSS_ONLY);
-        BY_REASON.put("仅企业管理员或小组主管可操作", FORBIDDEN);
-        BY_REASON.put("仅企业管理员或本组主管可查看成员", FORBIDDEN);
-        BY_REASON.put("仅企业管理员或本组主管可添加成员", FORBIDDEN);
-        BY_REASON.put("仅企业管理员或本组主管可移除成员", FORBIDDEN);
-        BY_REASON.put("请先更换主管或归档小组后再停用该账号", TEAM_LEADER_ACTIVE);
         BY_REASON.put("缺少任务 ID", FEEDBACK_TASK_ID_REQUIRED);
         BY_REASON.put("未登录", AUTH_NOT_LOGGED_IN);
     }
@@ -288,9 +263,6 @@ public enum AppErrorCode {
         }
         if (AE_LOGIN_PATTERN.matcher(text).find()) {
             return CRAWL_AE_NOT_LOGGED_IN;
-        }
-        if (text.contains("人工验证") || text.contains("滑块") || text.toLowerCase(Locale.ROOT).contains("human_challenge")) {
-            return CRAWL_HUMAN_CHALLENGE;
         }
         if (LOGIN_PATTERN.matcher(text).find()) {
             return CRAWL_NOT_LOGGED_IN;
