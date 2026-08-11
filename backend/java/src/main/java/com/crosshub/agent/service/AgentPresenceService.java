@@ -39,6 +39,23 @@ public class AgentPresenceService {
         return null;
     }
 
+    public boolean isAgentOnlineForUser(Long userId) {
+        return findLatestOnlineAgentForUser(userId) != null;
+    }
+
+    public IntegrationAgent findLatestOnlineAgentForUser(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        List<IntegrationAgent> agents = agentRepository.findByBoundUserIdOrderByLastHeartbeatAtDesc(userId);
+        for (IntegrationAgent agent : agents) {
+            if (isHeartbeatFresh(agent)) {
+                return agent;
+            }
+        }
+        return null;
+    }
+
     /** 返回当前心跳在线的租户 ID（去重）。前期单机多租户可行性用。 */
     public List<Long> listOnlineTenantIds() {
         List<Long> out = new ArrayList<>();

@@ -6,6 +6,8 @@ import com.crosshub.common.AppErrorCode;
 
 import com.crosshub.config.CrawlerProperties;
 
+import com.crosshub.security.AuthContext;
+
 import com.crosshub.temu.service.TemuAgentService;
 
 import com.crosshub.temu.service.TemuSellerSessionService;
@@ -72,6 +74,8 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
     private final TemuSellerSessionService sellerSessionService;
 
+    private final AuthContext authContext;
+
 
 
     public TemuSessionServiceImpl(
@@ -86,7 +90,9 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
             TemuAgentService temuAgentService,
 
-            TemuSellerSessionService sellerSessionService
+            TemuSellerSessionService sellerSessionService,
+
+            AuthContext authContext
 
     ) {
 
@@ -102,6 +108,8 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
         this.sellerSessionService = sellerSessionService;
 
+        this.authContext = authContext;
+
     }
 
 
@@ -114,7 +122,7 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
         if (temuAgentService.useAgentMode()) {
 
-            temuAgentService.maybeEnqueueSessionProbe(tenantId);
+            temuAgentService.maybeEnqueueSessionProbe(tenantId, authContext.userId());
 
             Map<String, Object> snapshot = temuAgentService.readSessionSnapshot(tenantId);
 
@@ -196,7 +204,15 @@ public class TemuSessionServiceImpl implements TemuSessionService {
 
         if (temuAgentService.useAgentMode()) {
 
-            return temuAgentService.enqueueLoginOpen(tenantId, platformAccountId);
+            Long userId = authContext.userId();
+
+            if (userId == null) {
+
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, AppErrorCode.AUTH_MISSING_USER.getUserMessage());
+
+            }
+
+            return temuAgentService.enqueueLoginOpenForUser(tenantId, userId, platformAccountId);
 
         }
 
@@ -236,7 +252,11 @@ public class TemuSessionServiceImpl implements TemuSessionService {
     public Map<String, Object> openFrontendLoginWindow(String url) {
         Long tenantId = dataScopeService.requireTenantId();
         if (temuAgentService.useAgentMode()) {
-            return temuAgentService.enqueueFrontendLoginOpen(tenantId, url);
+            Long userId = authContext.userId();
+            if (userId == null) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, AppErrorCode.AUTH_MISSING_USER.getUserMessage());
+            }
+            return temuAgentService.enqueueFrontendLoginOpenForUser(tenantId, userId, url);
         }
         List<String> args = new ArrayList<>();
         args.add("--open-only");

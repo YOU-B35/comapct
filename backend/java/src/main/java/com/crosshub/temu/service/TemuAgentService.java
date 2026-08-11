@@ -1,6 +1,7 @@
 package com.crosshub.temu.service;
 
 import com.crosshub.agent.entity.AgentTask;
+import com.crosshub.agent.entity.IntegrationAgent;
 import com.crosshub.agent.service.AgentPresenceService;
 import com.crosshub.agent.service.AgentProfileService;
 import com.crosshub.common.AppErrorCode;
@@ -84,6 +85,18 @@ public class TemuAgentService {
         }
     }
 
+    public void assertAgentOnlineForUser(Long userId) {
+        if (!useAgentMode()) {
+            return;
+        }
+        if (!agentPresenceService.isAgentOnlineForUser(userId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    AppErrorCode.TEMU_USER_HELPER_OFFLINE.getUserMessage()
+            );
+        }
+    }
+
     public Map<String, Object> integrationStatus(Long tenantId) {
         Map<String, Object> out = new LinkedHashMap<>(agentPresenceService.integrationStatus(tenantId));
         out.put("mode", useAgentMode() ? "agent" : "local");
@@ -110,12 +123,29 @@ public class TemuAgentService {
                 payload.put("session_key", String.valueOf(sk).trim());
             }
         }
-        insertAgentTask(job.getTenantId(), taskId, TemuAgentTasks.CRAWL, payload);
+        String agentId = resolveOnlineAgentIdForUser(job.getTriggeredBy());
+        insertAgentTask(job.getTenantId(), taskId, TemuAgentTasks.CRAWL, payload, agentId);
     }
 
     @Transactional
     public Map<String, Object> enqueueLoginOpen(Long tenantId, String platformAccountId) {
         assertAgentOnline(tenantId);
+        return enqueueLoginOpenInternal(tenantId, platformAccountId, "");
+    }
+
+    @Transactional
+    public Map<String, Object> enqueueLoginOpenForUser(Long tenantId, Long userId, String platformAccountId) {
+        assertAgentOnlineForUser(userId);
+        IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForUser(userId);
+        String agentId = agent == null ? "" : defaultText(agent.getId(), "");
+        return enqueueLoginOpenInternal(tenantId, platformAccountId, agentId);
+    }
+
+    private Map<String, Object> enqueueLoginOpenInternal(
+            Long tenantId,
+            String platformAccountId,
+            String agentId
+    ) {
         String taskId = "agt_" + UUID.randomUUID();
         String sessionKey = sellerSessionService.resolveSessionKey(tenantId, platformAccountId);
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -124,7 +154,7 @@ public class TemuAgentService {
         if (platformAccountId != null && !platformAccountId.isBlank()) {
             payload.put("platform_account_id", platformAccountId.trim());
         }
-        insertAgentTask(tenantId, taskId, TemuAgentTasks.LOGIN_OPEN, payload);
+        insertAgentTask(tenantId, taskId, TemuAgentTasks.LOGIN_OPEN, payload, agentId);
         return Map.of(
                 "tenant_id", tenantId,
                 "session_key", sessionKey,
@@ -138,13 +168,25 @@ public class TemuAgentService {
     @Transactional
     public Map<String, Object> enqueueFrontendLoginOpen(Long tenantId, String url) {
         assertAgentOnline(tenantId);
+        return enqueueFrontendLoginOpenInternal(tenantId, url, "");
+    }
+
+    @Transactional
+    public Map<String, Object> enqueueFrontendLoginOpenForUser(Long tenantId, Long userId, String url) {
+        assertAgentOnlineForUser(userId);
+        IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForUser(userId);
+        String agentId = agent == null ? "" : defaultText(agent.getId(), "");
+        return enqueueFrontendLoginOpenInternal(tenantId, url, agentId);
+    }
+
+    private Map<String, Object> enqueueFrontendLoginOpenInternal(Long tenantId, String url, String agentId) {
         String taskId = "agt_" + UUID.randomUUID();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("tenant_id", tenantId);
         if (url != null && !url.isBlank()) {
             payload.put("url", url.trim());
         }
-        insertAgentTask(tenantId, taskId, TemuAgentTasks.FRONTEND_LOGIN_OPEN, payload);
+        insertAgentTask(tenantId, taskId, TemuAgentTasks.FRONTEND_LOGIN_OPEN, payload, agentId);
         return Map.of(
                 "tenant_id", tenantId,
                 "queued", true,
@@ -278,7 +320,22 @@ public class TemuAgentService {
 
     @Transactional
     public void maybeEnqueueSessionProbe(Long tenantId) {
-        if (!useAgentMode() || !agentPresenceService.isAgentOnline(tenantId)) {
+        maybeEnqueueSessionProbe(tenantId, null);
+    }
+
+    @Transactional
+    public void maybeEnqueueSessionProbe(Long tenantId, Long userId) {
+        if (!useAgentMode()) {
+            return;
+        }
+        String agentId = "";
+        if (userId != null && userId > 0) {
+            IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForUser(userId);
+            if (agent == null) {
+                return;
+            }
+            agentId = defaultText(agent.getId(), "");
+        } else if (!agentPresenceService.isAgentOnline(tenantId)) {
             return;
         }
         Map<String, Object> snapshot = readSessionSnapshot(tenantId);
@@ -303,7 +360,7 @@ public class TemuAgentService {
         Map<String, Object> probePayload = new LinkedHashMap<>();
         probePayload.put("tenant_id", tenantId);
         probePayload.put("seller_sessions", sellerSessionService.listSellerSessions(tenantId));
-        insertAgentTask(tenantId, taskId, TemuAgentTasks.SESSION_PROBE, probePayload);
+        insertAgentTask(tenantId, taskId, TemuAgentTasks.SESSION_PROBE, probePayload, agentId);
     }
 
     @Transactional
@@ -655,7 +712,25 @@ public class TemuAgentService {
         return jobRepository.findFirstByAgentTaskId(taskId).orElse(null);
     }
 
+    private String resolveOnlineAgentIdForUser(Long userId) {
+        if (userId == null || userId <= 0) {
+            return "";
+        }
+        IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForUser(userId);
+        return agent == null ? "" : defaultText(agent.getId(), "");
+    }
+
     private void insertAgentTask(Long tenantId, String taskId, String taskType, Map<String, Object> payload) {
+        insertAgentTask(tenantId, taskId, taskType, payload, "");
+    }
+
+    private void insertAgentTask(
+            Long tenantId,
+            String taskId,
+            String taskType,
+            Map<String, Object> payload,
+            String agentId
+    ) {
         String payloadJson;
         try {
             payloadJson = objectMapper.writeValueAsString(payload);
@@ -671,7 +746,7 @@ public class TemuAgentService {
                 """,
                 taskId,
                 tenantId,
-                "",
+                agentId == null ? "" : agentId,
                 taskType,
                 "pending",
                 payloadJson,

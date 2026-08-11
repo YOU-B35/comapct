@@ -117,7 +117,7 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         }
 
         assertProfileAvailable(tenantId);
-        temuAgentService.assertAgentOnline(tenantId);
+        temuAgentService.assertAgentOnlineForUser(userId);
         assertSessionReady();
 
         Optional<TemuCrawlJob> active = jobRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(
@@ -325,6 +325,8 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
             if (Boolean.TRUE.equals(session.get("ready"))) {
                 return;
             }
+            // AliExpress-style: refuse crawl until seller session cookies are ready.
+            // Password auto-login is interactive-only (login_open), not part of crawl.
             String hint = stringValue(session.get("error_hint"));
             AppErrorCode code = AppErrorCode.fromCode(hint);
             if (code == AppErrorCode.UNKNOWN) {

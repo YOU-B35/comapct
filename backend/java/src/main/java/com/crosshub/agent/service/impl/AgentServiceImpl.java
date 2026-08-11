@@ -52,6 +52,7 @@ public class AgentServiceImpl implements AgentService {
     private final AmazonSyncBridge amazonSyncBridge;
     private final AmazonWriteBridge amazonWriteBridge;
     private final TemuBridge temuBridge;
+    private final AliExpressBridge aliExpressBridge;
     private final TransactionTemplate transactionTemplate;
     private final AgentProperties agentProperties;
 
@@ -66,7 +67,8 @@ public class AgentServiceImpl implements AgentService {
             AgentProperties agentProperties,
             @Autowired(required = false) @Lazy AmazonSyncBridge amazonSyncBridge,
             @Autowired(required = false) @Lazy AmazonWriteBridge amazonWriteBridge,
-            @Autowired(required = false) @Lazy TemuBridge temuBridge
+            @Autowired(required = false) @Lazy TemuBridge temuBridge,
+            @Autowired(required = false) @Lazy AliExpressBridge aliExpressBridge
     ) {
         this.agentRepository = agentRepository;
         this.taskRepository = taskRepository;
@@ -79,6 +81,7 @@ public class AgentServiceImpl implements AgentService {
         this.amazonSyncBridge = amazonSyncBridge;
         this.amazonWriteBridge = amazonWriteBridge;
         this.temuBridge = temuBridge;
+        this.aliExpressBridge = aliExpressBridge;
     }
 
     private AgentTaskConcurrency.Limits concurrencyLimits() {
@@ -99,6 +102,11 @@ public class AgentServiceImpl implements AgentService {
     }
 
     public interface TemuBridge {
+        void onAgentTaskStarted(AgentTask task);
+        void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
+    }
+
+    public interface AliExpressBridge {
         void onAgentTaskStarted(AgentTask task);
         void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
     }
@@ -218,6 +226,9 @@ public class AgentServiceImpl implements AgentService {
             if (result.size() >= limits.maxClaimBatch()) {
                 break;
             }
+            if (!isClaimableByAgent(task, agent)) {
+                continue;
+            }
             AgentTaskConcurrency.Requirement need = analyzeTask(task, limits);
             if (!state.canAdmit(need)) {
                 continue;
@@ -231,6 +242,18 @@ public class AgentServiceImpl implements AgentService {
             state.admit(need);
         }
         return result;
+    }
+
+    /** Blank agent_id = legacy tenant-wide; otherwise only the targeted agent may claim. */
+    private static boolean isClaimableByAgent(AgentTask task, IntegrationAgent agent) {
+        if (task == null || agent == null) {
+            return false;
+        }
+        String target = task.getAgentId();
+        if (target == null || target.isBlank()) {
+            return true;
+        }
+        return target.equals(agent.getId());
     }
 
     private AgentTaskConcurrency.Requirement analyzeTask(AgentTask task, AgentTaskConcurrency.Limits limits) {
@@ -277,6 +300,9 @@ public class AgentServiceImpl implements AgentService {
         if (temuBridge != null) {
             temuBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
         }
+        if (aliExpressBridge != null) {
+            aliExpressBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
+        }
         return Map.of("task_id", task.getId(), "status", task.getStatus());
     }
 
@@ -290,6 +316,9 @@ public class AgentServiceImpl implements AgentService {
         }
         if (temuBridge != null) {
             temuBridge.onAgentTaskStarted(task);
+        }
+        if (aliExpressBridge != null) {
+            aliExpressBridge.onAgentTaskStarted(task);
         }
     }
 
@@ -350,6 +379,15 @@ public class AgentServiceImpl implements AgentService {
                         task.getErrorMessage()
                 );
             }
+            if (aliExpressBridge != null) {
+                aliExpressBridge.onAgentTaskCompleted(
+                        task,
+                        "failed",
+                        Map.of(),
+                        task.getErrorCode(),
+                        task.getErrorMessage()
+                );
+            }
         }
     }
 
@@ -364,7 +402,9 @@ public class AgentServiceImpl implements AgentService {
         long ttl;
         if (TASK_TYPE.equals(task.getTaskType())) {
             ttl = AMAZON_TASK_RUNNING_TTL_SECONDS;
-        } else if (TemuAgentTasks.CRAWL.equals(task.getTaskType())) {
+        } else if (TemuAgentTasks.CRAWL.equals(task.getTaskType())
+                || "aliexpress_crawl".equals(task.getTaskType())
+                || "aliexpress_violations_sync".equals(task.getTaskType())) {
             ttl = AGENT_TASK_RUNNING_TTL_SECONDS;
         } else {
             ttl = AGENT_TASK_DEFAULT_TTL_SECONDS;
