@@ -1,27 +1,32 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { enqueueTemuLogin, fetchMyAgentStatus } from '@/api/agentHelper'
 import {
   fetchTemuSessionStatus,
-  openTemuSellerLogin,
   pollTemuSessionUntilReady,
 } from '@/api/temuApi'
 import { getAppErrorMessage, resolveAppError } from '@/utils/appErrorCode'
 
 const props = defineProps({
   compact: { type: Boolean, default: false },
+  /** 父组件传入的用户绑定助手在线状态；未传则自行拉取 /api/agent/me/status */
+  helperOnline: { type: Boolean, default: undefined },
 })
 
 const loading = ref(false)
 const openingKey = ref('')
 const status = ref({})
+const myHelperOnline = ref(false)
 
 let pollAbort = null
 
 const sessionReady = computed(() => Boolean(status.value.ready))
-const agentOnline = computed(() => Boolean(status.value.agent_online))
-const agentMode = computed(() => status.value.mode === 'agent')
-const openLoginDisabled = computed(() => agentMode.value && !agentOnline.value)
+const agentOnline = computed(() => {
+  if (props.helperOnline !== undefined) return Boolean(props.helperOnline)
+  return myHelperOnline.value
+})
+const openLoginDisabled = computed(() => !agentOnline.value)
 
 const sellerRows = computed(() => {
   const bindings = status.value.seller_sessions || []
@@ -107,9 +112,23 @@ function mallLabel(row) {
   return ''
 }
 
+async function loadHelperStatus() {
+  if (props.helperOnline !== undefined) {
+    myHelperOnline.value = Boolean(props.helperOnline)
+    return
+  }
+  try {
+    const me = await fetchMyAgentStatus()
+    myHelperOnline.value = Boolean(me.online)
+  } catch {
+    myHelperOnline.value = false
+  }
+}
+
 async function loadStatus({ notifyIfPending = false } = {}) {
   loading.value = true
   try {
+    await loadHelperStatus()
     status.value = await fetchTemuSessionStatus()
     if (notifyIfPending && !status.value.ready) {
       const hint = status.value.error_hint
@@ -134,7 +153,7 @@ function stopGuidePoll() {
 
 async function startGuidePoll() {
   stopGuidePoll()
-  if (sessionReady.value || (agentMode.value && !agentOnline.value)) return
+  if (sessionReady.value || !agentOnline.value) return
   pollAbort = new AbortController()
   const signal = pollAbort.signal
   try {
@@ -155,7 +174,9 @@ async function startGuidePoll() {
 
 async function handleOpenLogin(row) {
   if (openLoginDisabled.value) {
-    ElMessage.warning(getAppErrorMessage('TEMU_AGENT_OFFLINE'))
+    ElMessage.warning(
+      getAppErrorMessage('TEMU_AGENT_OFFLINE', '本机同步助手未在线，请先安装并绑定'),
+    )
     return
   }
   if (row.profileBusy) {
@@ -164,16 +185,10 @@ async function handleOpenLogin(row) {
   }
   openingKey.value = row.sessionKey
   try {
-    const res = await openTemuSellerLogin({
+    await enqueueTemuLogin({
       platformAccountId: row.platformAccountId || undefined,
     })
-    if (res.already_open) {
-      ElMessage.warning(res.message || '登录窗口已在运行')
-    } else if (res.queued) {
-      ElMessage.success(res.message || '已通知本机助手打开登录窗口')
-    } else {
-      ElMessage.success(res.message || '已打开 Temu 登录窗口')
-    }
+    ElMessage.success('请在本机弹出的浏览器中完成登录')
     await loadStatus()
     void startGuidePoll()
   } catch (err) {
@@ -182,6 +197,13 @@ async function handleOpenLogin(row) {
     openingKey.value = ''
   }
 }
+
+watch(
+  () => props.helperOnline,
+  (val) => {
+    if (val !== undefined) myHelperOnline.value = Boolean(val)
+  },
+)
 
 async function handleConfirmLogin() {
   if (openLoginDisabled.value) {
@@ -223,8 +245,7 @@ defineExpose({ reload: loadStatus, sessionReady })
         {{ sessionHint.summary }}
       </p>
       <p v-if="openLoginDisabled" class="guide-lead">
-        本机同步程序未在线，无法打开登录窗口。请联系运维确认已启动
-        <strong>CrossHub-Sync-Helper.exe</strong> 并保持运行。
+        本机同步助手未在线，无法打开登录窗口。请下载并安装 CrossHub Sync Helper，安装后在助手中填入绑定码。
       </p>
       <template v-else>
         <p class="guide-lead">
@@ -255,9 +276,9 @@ defineExpose({ reload: loadStatus, sessionReady })
           </div>
         </div>
         <ol v-else class="guide-steps">
-          <li>确认运维机已运行 <strong>CrossHub-Sync-Helper.exe</strong></li>
+          <li>确认本机已运行 <strong>CrossHub Sync Helper</strong> 且已绑定</li>
           <li>点击 <strong>打开登录窗口</strong></li>
-          <li>在本机 CrossHub 浏览器中登录 Temu 卖家后台</li>
+          <li>在本机弹出的浏览器中登录 Temu 卖家后台</li>
           <li>回到本页点击 <strong>我已完成登录</strong>，再点 <strong>刷新数据</strong></li>
         </ol>
       </template>

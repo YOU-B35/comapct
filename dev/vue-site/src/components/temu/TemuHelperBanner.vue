@@ -1,12 +1,14 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download, Link, Refresh } from '@element-plus/icons-vue'
+import { Download, Link } from '@element-plus/icons-vue'
 import {
   createBindCode,
   fetchMyAgentStatus,
   resolveHelperDownloadUrl,
 } from '@/api/agentHelper'
+
+const emit = defineEmits(['update:online', 'status'])
 
 const loading = ref(false)
 const status = ref({ online: false, agents: [], recommended_agent_id: '' })
@@ -14,12 +16,14 @@ const bindDialogVisible = ref(false)
 const bindLoading = ref(false)
 const bindInfo = ref(null)
 
-const agentOnline = computed(() => Boolean(status.value.online))
+let pollTimer = null
+
+const online = computed(() => Boolean(status.value.online))
 const downloadUrl = computed(() => resolveHelperDownloadUrl())
-const agents = computed(() => (Array.isArray(status.value.agents) ? status.value.agents : []))
 const recommendedAgent = computed(() => {
   const id = String(status.value.recommended_agent_id || '')
-  return agents.value.find((a) => String(a.id) === id) || agents.value.find((a) => a.online) || null
+  const agents = Array.isArray(status.value.agents) ? status.value.agents : []
+  return agents.find((a) => String(a.id) === id) || agents.find((a) => a.online) || null
 })
 
 const ttlLabel = computed(() => {
@@ -29,15 +33,36 @@ const ttlLabel = computed(() => {
   return `${sec} 秒`
 })
 
+function publishStatus() {
+  emit('update:online', online.value)
+  emit('status', status.value)
+}
+
 async function loadStatus() {
   loading.value = true
   try {
     status.value = await fetchMyAgentStatus()
-  } catch (err) {
-    ElMessage.error(err.message || '加载助手状态失败')
+    publishStatus()
+  } catch {
     status.value = { online: false, agents: [], recommended_agent_id: '' }
+    publishStatus()
   } finally {
     loading.value = false
+  }
+}
+
+function startStatusPoll() {
+  stopStatusPoll()
+  pollTimer = window.setInterval(() => {
+    if (document.visibilityState === 'hidden') return
+    void loadStatus()
+  }, 15000)
+}
+
+function stopStatusPoll() {
+  if (pollTimer != null) {
+    clearInterval(pollTimer)
+    pollTimer = null
   }
 }
 
@@ -87,49 +112,59 @@ async function copyBindCode() {
   }
 }
 
-onMounted(loadStatus)
+onMounted(async () => {
+  await loadStatus()
+  startStatusPoll()
+})
 
-defineExpose({ reload: loadStatus, agentOnline })
+onUnmounted(() => {
+  stopStatusPoll()
+})
+
+defineExpose({ reload: loadStatus, online })
 </script>
 
 <template>
-  <el-card shadow="never" class="temu-agent-panel" v-loading="loading">
-    <template #header>
-      <div class="panel-header">
-        <span>本机同步助手</span>
-        <el-button text :icon="Refresh" @click="loadStatus">刷新状态</el-button>
+  <el-alert
+    v-if="!loading && !online"
+    type="warning"
+    show-icon
+    :closable="false"
+    class="temu-helper-banner"
+    title="本机同步助手未在线"
+  >
+    <template #default>
+      <p class="banner-copy">
+        请下载并安装 CrossHub Sync Helper，安装后在助手中填入绑定码
+      </p>
+      <div class="banner-actions">
+        <el-button type="primary" size="small" :icon="Download" @click="onDownloadHelper">
+          下载 Sync Helper
+        </el-button>
+        <el-button type="primary" size="small" plain :icon="Link" @click="openBindDialog">
+          生成绑定码
+        </el-button>
+        <el-button size="small" :loading="loading" @click="loadStatus">刷新状态</el-button>
       </div>
     </template>
+  </el-alert>
 
-    <div class="presence-row">
-      <el-tag :type="agentOnline ? 'success' : 'warning'" size="small">
-        {{ agentOnline ? '在线' : '离线' }}
-      </el-tag>
-      <span v-if="recommendedAgent?.name" class="node-meta">
-        当前：{{ recommendedAgent.name }}
-      </span>
-      <span v-else-if="agents.length" class="node-meta">已绑定 {{ agents.length }} 台设备</span>
-      <span v-else class="node-meta">尚未绑定本机助手</span>
-    </div>
-
-    <p class="panel-lead">
-      请下载并安装 CrossHub Sync Helper，安装后在助手中填入绑定码。
-      登录与数据爬取在您本机执行，服务器只下发任务。
-    </p>
-
-    <ol class="panel-steps">
-      <li>点击「下载 Sync Helper」安装本机助手</li>
-      <li>点击「生成绑定码」，在助手中填入完成绑定</li>
-      <li>本页显示「在线」后即可登录 / 刷新数据</li>
-    </ol>
-
-    <div class="panel-actions">
-      <el-button type="primary" :icon="Download" @click="onDownloadHelper">
-        下载 Sync Helper
-      </el-button>
-      <el-button :icon="Link" @click="openBindDialog">生成绑定码</el-button>
-    </div>
-  </el-card>
+  <el-alert
+    v-else-if="!loading && online"
+    type="success"
+    show-icon
+    :closable="false"
+    class="temu-helper-banner is-online"
+    :title="recommendedAgent?.name ? `助手在线 · ${recommendedAgent.name}` : '助手在线'"
+  >
+    <template #default>
+      <p class="banner-online-meta">
+        可在本机完成 Temu 登录与数据同步。
+        <el-button text type="primary" size="small" @click="openBindDialog">生成绑定码</el-button>
+        <el-button text size="small" :loading="loading" @click="loadStatus">刷新</el-button>
+      </p>
+    </template>
+  </el-alert>
 
   <el-dialog
     v-model="bindDialogVisible"
@@ -158,46 +193,28 @@ defineExpose({ reload: loadStatus, agentOnline })
 </template>
 
 <style scoped>
-.temu-agent-panel {
-  margin-bottom: 16px;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.presence-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+.temu-helper-banner {
   margin-bottom: 12px;
 }
 
-.node-meta {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-}
-
-.panel-lead {
+.banner-copy {
   margin: 0 0 10px;
   line-height: 1.6;
 }
 
-.panel-steps {
-  margin: 0 0 14px 18px;
-  padding: 0;
-  line-height: 1.7;
+.banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.panel-actions {
+.banner-online-meta {
+  margin: 0;
+  line-height: 1.6;
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+  gap: 4px;
 }
 
 .bind-dialog-body {
@@ -207,6 +224,7 @@ defineExpose({ reload: loadStatus, agentOnline })
 .bind-hint {
   margin: 0 0 12px;
   line-height: 1.6;
+  color: var(--el-text-color-regular);
 }
 
 .bind-code {

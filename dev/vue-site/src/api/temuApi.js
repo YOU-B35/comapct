@@ -41,13 +41,10 @@ export async function fetchTemuIntegrationStatus() {
   return { success: true, data: res?.data ?? res ?? {} }
 }
 
+/** @deprecated Prefer enqueueTemuLogin from agentHelper (user-bound helper). */
 export async function openTemuSellerLogin(payload = {}) {
-  const body = {}
-  if (payload.platformAccountId) {
-    body.platform_account_id = payload.platformAccountId
-  }
-  const res = await service.post('/api/temu/login/open', body, { skipGlobalErrorToast: true })
-  return res?.data ?? res ?? {}
+  const { enqueueTemuLogin } = await import('./agentHelper')
+  return enqueueTemuLogin(payload)
 }
 
 /** Open real Chrome for Temu buyer-side / competitor frontend login. */
@@ -312,47 +309,23 @@ export async function fetchTemuSyncStatus() {
   return fetchPlatformSyncStatus()
 }
 
+/** 用户本机 Helper：enqueue + 2.5s 轮询（兼容旧调用名） */
 export async function refreshTemuDataWithCrawl(options = {}) {
   const crawlOpts = normalizeCrawlOptions(options)
-
-  const started = await triggerTemuCrawl(options)
-  const jobId = started.job?.job_id || started.job?.jobId || started.job?.id
-  if (!jobId) {
-    if (started.conflict) {
-      throw new AppApiError(
-        started.message || '已有爬取任务进行中，请稍后再试',
-        'CRAWL_IN_PROGRESS',
-      )
-    }
-    throw new AppApiError('未获取到爬取任务 ID', 'CRAWL_PROCESS_FAILED')
+  const { enqueueAndPollTemuSync } = await import('./agentHelper')
+  const result = await enqueueAndPollTemuSync({
+    force: Boolean(options.force),
+    seed: Boolean(options.seed),
+    recordCooldown: crawlOpts.recordCooldown,
+    onStatus: options.onStatus,
+    signal: options.signal,
+  })
+  markPlatformCrawlOnSuccess(null, result, { enabled: crawlOpts.recordCooldown })
+  return {
+    ...result,
+    conflict: false,
+    message: result.partial
+      ? (result.job?.error_message || '爬取已完成，但任务收尾异常，页面数据可能已更新')
+      : '',
   }
-
-  const deadline = Date.now() + CRAWL_MAX_WAIT_MS
-  while (Date.now() < deadline) {
-    const job = await fetchTemuCrawlJob(jobId)
-    if (job.status === 'success' || job.status === 'partial') {
-      const result = {
-        success: true,
-        partial: job.status === 'partial',
-        job,
-        conflict: started.conflict,
-        message: job.status === 'partial'
-          ? (job.error_message || '爬取已完成，但任务收尾异常，页面数据可能已更新')
-          : (started.conflict ? '已等待进行中的爬取任务完成' : ''),
-      }
-      markPlatformCrawlOnSuccess(null, result, { enabled: crawlOpts.recordCooldown })
-      return result
-    }
-    if (job.status === 'failed') {
-      throw new AppApiError(
-        formatCrawlError(job.error_code, job.error_message),
-        job.error_code || 'CRAWL_PROCESS_FAILED',
-      )
-    }
-    await sleep(CRAWL_POLL_MS)
-  }
-  throw new AppApiError(
-    started.conflict ? '已有爬取任务进行中，等待超时，请稍后再试' : '数据同步超时，请稍后重试',
-    started.conflict ? 'CRAWL_IN_PROGRESS' : 'CRAWL_TIMEOUT',
-  )
 }

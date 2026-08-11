@@ -5,16 +5,12 @@ import { Refresh } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePlatformSyncStore } from '@/stores/platformSync'
 import { resolveAppError } from '@/utils/appErrorCode'
+import { enqueueAndPollTemuSync } from '@/api/agentHelper'
 import {
   canUseTemuBackend,
   fetchTemuSalesTrend,
-  fetchTemuSessionStatus,
   fetchTemuStores,
   loadTemuModuleData,
-  refreshTemuDataWithCrawl,
-  openTemuSellerLogin,
-  pollTemuSessionUntilReady,
-  pollTemuProfileIdle,
 } from '@/api/temuApi'
 import { scopeStoreIds } from '@/utils/scope'
 import { useStoreAssignees } from '@/composables/useStoreAssignees'
@@ -28,8 +24,8 @@ import SlowMovingPanel from '@/components/temu/SlowMovingPanel.vue'
 import HotProductBroadcast from '@/components/temu/HotProductBroadcast.vue'
 import RestockPlanner from '@/components/temu/RestockPlanner.vue'
 import CompetitorAnalysis from '@/components/temu/CompetitorAnalysis.vue'
+import TemuHelperBanner from '@/components/temu/TemuHelperBanner.vue'
 import TemuLoginGuide from '@/components/temu/TemuLoginGuide.vue'
-import { canUseOpsManualSync, OPS_SYNC_READONLY_HINT } from '@/utils/opsSyncPolicy'
 
 const auth = useAuthStore()
 const syncStore = usePlatformSyncStore()
@@ -42,15 +38,21 @@ const loading = ref(false)
 const crawling = ref(false)
 const crawlHint = ref('')
 const loginGuideRef = ref(null)
+const helperBannerRef = ref(null)
+const helperOnline = ref(false)
 const syncError = ref(null)
 const dataLoadError = ref('')
 const hotBroadcasts = ref([])
 const salesTrend = ref({ labels: [], values: [] })
 
 const useBackendData = computed(() => canUseTemuBackend(auth))
-/** 运营成员不展示手动同步 / 登录助手入口；由肉机日批同步 */
-const showManualSyncControls = computed(() => useBackendData.value && canUseOpsManualSync())
+/** 用户本机 Helper：后端会话即可手动同步 / 登录（离线时按钮禁用） */
+const showManualSyncControls = computed(() => useBackendData.value)
 const scopedStoreIds = computed(() => scopeStoreIds(temuStores.value, auth))
+
+function onHelperOnline(online) {
+  helperOnline.value = Boolean(online)
+}
 
 const storeNameMap = computed(() =>
   Object.fromEntries(temuStores.value.map((s) => [s.id, s.storeName])),
@@ -209,51 +211,28 @@ function markSidebarTemuSync({ status, message, rowCount = 0, syncedAt = '' }) {
 
 async function handleRefreshData() {
   if (!showManualSyncControls.value || crawling.value) return
+  if (!helperOnline.value) {
+    ElMessage.warning('本机同步助手未在线，请先安装并绑定')
+    await helperBannerRef.value?.reload?.()
+    return
+  }
 
   crawling.value = true
   syncError.value = null
-  crawlHint.value = '正在检查 Temu 登录状态...'
+  crawlHint.value = '正在提交同步任务...'
   try {
-    let session = await fetchTemuSessionStatus()
-    await loginGuideRef.value?.reload?.()
-
-    if (!session.ready) {
-      if (!session.profile_busy) {
-        crawlHint.value = '正在打开 CrossHub 登录窗口...'
-        const loginRes = await openTemuSellerLogin()
-        if (loginRes.already_open) {
-          crawlHint.value = '登录窗口已在运行，请在已弹出的浏览器中完成登录并选择店铺...'
-        }
-      } else {
-        crawlHint.value = '登录窗口已在运行，请在已弹出的浏览器中完成登录并选择店铺...'
-      }
-      session = await pollTemuSessionUntilReady({
-        timeoutMs: 300000,
-        intervalMs: 2000,
-        maxIntervalMs: 5000,
-        maxAttempts: 72,
-      })
-      await loginGuideRef.value?.reload?.()
-    }
-
-    crawlHint.value = '正在等待登录窗口释放，以便开始同步...'
-    await pollTemuProfileIdle({
-      timeoutMs: 120000,
-      intervalMs: 2000,
-      maxIntervalMs: 5000,
-      maxAttempts: 36,
+    const res = await enqueueAndPollTemuSync({
+      force: true,
+      onStatus: ({ label }) => {
+        crawlHint.value = label || '同步进行中'
+      },
     })
-    crawlHint.value = '登录已完成，正在同步销售数据...'
-    // 运营页「刷新数据」视为用户主动重试：带 force，避免侧栏成功同步后的 3h 冷却误伤
-    const res = await refreshTemuDataWithCrawl({ force: true })
     syncError.value = null
     await loadTemuStores()
     await loadProducts()
     await loginGuideRef.value?.reload?.()
-    if (res.conflict) {
-      ElMessage.warning('已有同步任务进行中，已等待其完成')
-    }
-    const rows = res.job?.rows_count
+    await helperBannerRef.value?.reload?.()
+    const rows = res.job?.rows_count ?? res.job?.shops?.rows_count
     const reportTime = res.job?.report_time || ''
     markSidebarTemuSync({
       status: 'success',
@@ -262,7 +241,9 @@ async function handleRefreshData() {
       syncedAt: reportTime,
     })
     ElMessage.success(
-      rows != null ? `已同步 ${rows} 条销售数据` : '已刷新 Temu 数据',
+      res.partial
+        ? (res.job?.error_message || '同步部分完成，请检查店铺数据')
+        : (rows != null ? `已同步 ${rows} 条销售数据` : '已刷新 Temu 数据'),
     )
   } catch (err) {
     syncError.value = resolveAppError(
@@ -275,6 +256,7 @@ async function handleRefreshData() {
     })
     ElMessage.error(syncError.value.title)
     await loginGuideRef.value?.reload?.()
+    await helperBannerRef.value?.reload?.()
   } finally {
     crawling.value = false
     crawlHint.value = ''
@@ -331,13 +313,13 @@ watch(selectedStoreId, (id, prev) => {
             size="small"
             :icon="Refresh"
             :loading="crawling"
-            :disabled="crawling"
+            :disabled="crawling || !helperOnline"
             @click="handleRefreshData"
           >
             刷新数据
           </el-button>
-          <el-tag v-else-if="useBackendData" type="info" size="small" effect="plain">
-            定时自动同步
+          <el-tag v-if="showManualSyncControls && !helperOnline" type="warning" size="small" effect="plain">
+            助手离线
           </el-tag>
         </div>
       </div>
@@ -395,7 +377,7 @@ watch(selectedStoreId, (id, prev) => {
       title="店铺已绑定，运营数据待同步"
     >
       <template #default>
-        {{ OPS_SYNC_READONLY_HINT }}
+        请确认本机 Sync Helper 在线后点击「刷新数据」；也可等待每日自动同步（在线助手）完成后查看结果。
       </template>
     </el-alert>
 
@@ -410,7 +392,16 @@ watch(selectedStoreId, (id, prev) => {
     </el-empty>
 
     <template v-else-if="temuStores.length">
-      <TemuLoginGuide v-if="showManualSyncControls" ref="loginGuideRef" />
+      <TemuHelperBanner
+        v-if="showManualSyncControls"
+        ref="helperBannerRef"
+        @update:online="onHelperOnline"
+      />
+      <TemuLoginGuide
+        v-if="showManualSyncControls"
+        ref="loginGuideRef"
+        :helper-online="helperOnline"
+      />
 
       <div
         v-loading="loading || crawling"
