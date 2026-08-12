@@ -77,6 +77,7 @@ public class TemuMapper {
     public Map<String, Object> toCrawlJobDto(TemuCrawlJob job) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("job_id", job.getId());
+        data.put("triggered_by", job.getTriggeredBy());
         data.put("status", job.getStatus());
         data.put("mode", job.getMode());
         data.put("report_time", job.getReportTime());

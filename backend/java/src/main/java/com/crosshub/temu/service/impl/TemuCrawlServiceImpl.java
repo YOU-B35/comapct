@@ -1,6 +1,7 @@
 package com.crosshub.temu.service.impl;
 
 import com.crosshub.common.AppErrorCode;
+import com.crosshub.common.JobListLimits;
 import com.crosshub.common.SqliteRetry;
 import com.crosshub.platform.service.PlatformAccountService;
 import com.crosshub.temu.service.TemuCrawlService;
@@ -208,6 +209,21 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, AppErrorCode.CRAWL_JOB_NOT_FOUND.getUserMessage());
         }
         return job;
+    }
+
+    public static int clampJobListLimit(Integer limit) {
+        return JobListLimits.clamp(limit);
+    }
+
+    @Override
+    public List<TemuCrawlJob> listRecentJobs(int limit) {
+        Long tenantId = dataScopeService.requireTenantId();
+        int n = clampJobListLimit(limit);
+        List<TemuCrawlJob> all = jobRepository.findTop60ByTenantIdOrderByCreatedAtDesc(tenantId);
+        if (all.size() <= n) {
+            return all;
+        }
+        return all.subList(0, n);
     }
 
     void executeJob(String jobId) {

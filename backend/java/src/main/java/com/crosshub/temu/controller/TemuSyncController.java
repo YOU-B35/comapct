@@ -17,10 +17,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -85,6 +88,16 @@ public class TemuSyncController {
                 temuAgentService.enqueueLoginOpenForUser(tenantId, userId, accountId)
         );
         return ApiResult.ok(queued);
+    }
+
+    @GetMapping("/jobs")
+    public Map<String, Object> listJobs(@RequestParam(value = "limit", required = false) Integer limit) {
+        List<TemuCrawlJob> jobs = crawlService.listRecentJobs(limit == null ? 20 : limit);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (TemuCrawlJob job : jobs) {
+            rows.add(temuMapper.toCrawlJobDto(job));
+        }
+        return ApiResult.ok(Map.of("jobs", rows));
     }
 
     @GetMapping("/jobs/{id}")

@@ -2,6 +2,8 @@ package com.crosshub.temu.service;
 
 import com.crosshub.temu.entity.TemuCrawlJob;
 
+import java.util.List;
+
 public interface TemuCrawlService {
     TemuCrawlJob triggerCrawl(String reportTime, boolean seed);
 
@@ -11,4 +13,6 @@ public interface TemuCrawlService {
     TemuCrawlJob enqueueUserSync(String reportTime, boolean seed, boolean force, boolean recordCooldown);
 
     TemuCrawlJob getJob(String jobId);
+
+    List<TemuCrawlJob> listRecentJobs(int limit);
 }
