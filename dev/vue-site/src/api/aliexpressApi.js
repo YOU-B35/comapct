@@ -35,9 +35,9 @@ export function canUseAliExpressBackend(auth) {
   return hasBackendSession(auth)
 }
 
-/** AE seller session probe (HelperStatusBar). Backend session API not exposed yet. */
+/** AE seller session probe (HelperStatusBar). No real AE session API yet — stay honest/offline. */
 export async function fetchAliExpressSessionStatus() {
-  return { ready: true, requires_auth: false, agent_online: true }
+  return { ready: false, requires_auth: true, agent_online: false }
 }
 
 export async function openAliExpressSellerLogin() {
