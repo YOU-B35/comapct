@@ -169,10 +169,30 @@ public class AmazonController {
         row.put("created_at", job.getCreatedAt() == null ? "" : job.getCreatedAt());
         row.put("started_at", job.getStartedAt() == null ? "" : job.getStartedAt());
         row.put("finished_at", job.getFinishedAt() == null ? "" : job.getFinishedAt());
+        Map<String, Object> summary;
         try {
-            row.put("result_summary", objectMapper.readValue(job.getResultSummary() == null ? "{}" : job.getResultSummary(), new TypeReference<Map<String, Object>>() {}));
+            summary = objectMapper.readValue(
+                    job.getResultSummary() == null ? "{}" : job.getResultSummary(),
+                    new TypeReference<Map<String, Object>>() {}
+            );
         } catch (Exception ex) {
-            row.put("result_summary", Map.of());
+            summary = Map.of();
+        }
+        row.put("result_summary", summary);
+        if (summary.containsKey("products_count") || summary.containsKey("product_count")) {
+            Object val = summary.getOrDefault("products_count", summary.get("product_count"));
+            row.put("products_count", val instanceof Number n ? n.intValue() : 0);
+        }
+        if (summary.containsKey("item_count") || summary.containsKey("items_count")) {
+            Object val = summary.getOrDefault("item_count", summary.get("items_count"));
+            row.put("item_count", val instanceof Number n ? n.intValue() : 0);
+        }
+        if (summary.containsKey("metric_count")) {
+            Object val = summary.get("metric_count");
+            row.put("metric_count", val instanceof Number n ? n.intValue() : 0);
+        }
+        if (summary.containsKey("trigger")) {
+            row.put("trigger", String.valueOf(summary.get("trigger")));
         }
         return row;
     }

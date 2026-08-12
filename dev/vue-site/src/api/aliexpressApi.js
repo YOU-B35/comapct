@@ -134,10 +134,12 @@ export async function refreshAliExpressDataWithCrawl(options = {}) {
       return result
     }
     if (job.status === 'failed') {
-      throw new AppApiError(
+      const err = new AppApiError(
         formatAliExpressCrawlError(job.error_code, job.error_message),
         job.error_code || 'CRAWL_PROCESS_FAILED',
       )
+      err.job = job
+      throw err
     }
     await sleep(CRAWL_POLL_MS)
   }
@@ -178,10 +180,12 @@ async function waitForCrawlJob(jobId) {
     const job = await fetchAliExpressCrawlJob(jobId)
     if (job.status === 'success') return job
     if (job.status === 'failed') {
-      throw new AppApiError(
+      const err = new AppApiError(
         formatAliExpressCrawlError(job.error_code, job.error_message),
         job.error_code || 'CRAWL_PROCESS_FAILED',
       )
+      err.job = job
+      throw err
     }
     await sleep(CRAWL_POLL_MS)
   }
@@ -238,12 +242,19 @@ export async function fetchTodayAliExpressOrdersFromApi({ storeId, refresh = fal
 
   if (refresh) {
     try {
-      await refreshAliExpressDataWithCrawl(crawlOptions)
+      const crawlRes = await refreshAliExpressDataWithCrawl(crawlOptions)
+      const cached = await loadCachedOrders()
+      return {
+        ...cached,
+        job: crawlRes.job || null,
+        message: crawlRes.message || '',
+      }
     } catch (err) {
       const cached = await loadCachedOrders()
       if ((cached.orders || []).length) {
         return {
           ...cached,
+          job: err.job || null,
           message: `${err.message || '实时同步失败'}，已展示最近一次入库数据`,
         }
       }
@@ -272,10 +283,10 @@ export async function crawlAliExpressViolationsFromApi(options = {}) {
   if (!jobId) {
     throw new AppApiError('未获取到违规同步任务 ID', 'CRAWL_PROCESS_FAILED')
   }
-  await waitForCrawlJob(jobId)
+  const completed = await waitForCrawlJob(jobId)
   const data = await loadAliExpressViolationsFromApi()
   markPlatformCrawlOnSuccess(null, { success: true }, { enabled: crawlOpts.recordCooldown })
-  return data
+  return { ...data, job: completed }
 }
 
 export async function confirmAliExpressViolationAppealFromApi(id, payload) {

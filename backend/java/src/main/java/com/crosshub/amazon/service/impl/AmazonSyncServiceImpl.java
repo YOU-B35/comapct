@@ -222,7 +222,6 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         int n = JobListLimits.clamp(limit);
         List<AmazonSyncJob> jobs = syncJobRepository.findTop60ByTenantIdOrderByCreatedAtDesc(tenantId);
         List<Map<String, Object>> items = new ArrayList<>();
-        int unread = 0;
         for (AmazonSyncJob raw : jobs) {
             AmazonSyncJob job = reconcileJob(raw);
             Map<String, Object> summary = readMap(job.getResultSummary());
@@ -230,9 +229,6 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
             int retryCount = readInt(summary.get("retry_count"), 0);
             int maxRetryCount = readInt(summary.get("max_retry_count"), MAX_AUTO_RETRY_COUNT);
             boolean retryExhausted = Boolean.TRUE.equals(summary.get("retry_exhausted"));
-            if ("failed".equalsIgnoreCase(job.getStatus()) && retryExhausted) {
-                unread++;
-            }
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("job_id", job.getId());
             item.put("platform_account_id", job.getPlatformAccountId());
@@ -265,6 +261,13 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
             items.add(item);
         }
         items = items.subList(0, Math.min(n, items.size()));
+        int unread = 0;
+        for (Map<String, Object> item : items) {
+            if ("failed".equalsIgnoreCase(String.valueOf(item.getOrDefault("status", "")))
+                    && Boolean.TRUE.equals(item.get("retry_exhausted"))) {
+                unread++;
+            }
+        }
         return Map.of("items", items, "unread", unread);
     }
 
@@ -604,6 +607,24 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         out.put("scope", job.getScope());
         out.put("status", job.getStatus());
         out.put("mode", job.getMode());
+        out.put("error_code", defaultText(job.getErrorCode(), ""));
+        out.put("error_message", defaultText(job.getErrorMessage(), ""));
+        out.put("created_at", defaultText(job.getCreatedAt(), ""));
+        out.put("started_at", defaultText(job.getStartedAt(), ""));
+        out.put("finished_at", defaultText(job.getFinishedAt(), ""));
+        Map<String, Object> summary = readMap(job.getResultSummary());
+        if (summary.containsKey("products_count") || summary.containsKey("product_count")) {
+            out.put("products_count", readInt(summary.getOrDefault("products_count", summary.get("product_count")), 0));
+        }
+        if (summary.containsKey("item_count") || summary.containsKey("items_count")) {
+            out.put("item_count", readInt(summary.getOrDefault("item_count", summary.get("items_count")), 0));
+        }
+        if (summary.containsKey("metric_count")) {
+            out.put("metric_count", readInt(summary.get("metric_count"), 0));
+        }
+        if (summary.containsKey("trigger")) {
+            out.put("trigger", String.valueOf(summary.get("trigger")));
+        }
         return out;
     }
 

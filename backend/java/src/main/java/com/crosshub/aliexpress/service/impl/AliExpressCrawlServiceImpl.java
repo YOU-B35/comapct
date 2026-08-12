@@ -264,6 +264,10 @@ public class AliExpressCrawlServiceImpl implements AliExpressCrawlService {
         map.put("finished_at", job.getFinishedAt());
         map.put("rows_count", job.getRowsCount());
         map.put("shops_count", job.getShopsCount());
+        map.put("orders_count", job.getOrdersCount());
+        map.put("products_count", job.getProductsCount());
+        map.put("violations_count", job.getViolationsCount());
+        map.put("triggered_by", job.getTriggeredBy());
         return map;
     }
 

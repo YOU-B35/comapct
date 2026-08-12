@@ -312,10 +312,12 @@ async function waitForJobs(jobIds, options = {}) {
         continue
       }
       if (job.status === 'failed') {
-        throw new AppApiError(
+        const err = new AppApiError(
           getAppErrorMessage(job.error_code, job.error_message || 'Amazon 数据同步失败'),
           job.error_code || 'AMAZON_SYNC_FAILED',
         )
+        err.job = job
+        throw err
       }
     }
     if (pending.size) {
@@ -350,15 +352,16 @@ async function refreshWithSync(stores, options, fetcher, message) {
   const waitOptions = { conflict: started.conflict }
   const outcomes = await waitForJobs(jobIds, waitOptions)
   const res = await fetcher(stores)
-  const lastJob = outcomes[outcomes.length - 1] || {}
-  const resultSummary = lastJob.result_summary || lastJob.resultSummary || {}
+  const lastJob = outcomes[outcomes.length - 1] || null
+  const resultSummary = lastJob?.result_summary || lastJob?.resultSummary || {}
   const result = {
     success: true,
     partial: Boolean(waitOptions.partial),
     warning: waitOptions.partialWarning || '',
-    errorCode: waitOptions.partialCode || lastJob.error_code || '',
-    errorMessage: lastJob.error_message || '',
+    errorCode: waitOptions.partialCode || lastJob?.error_code || '',
+    errorMessage: lastJob?.error_message || '',
     resultSummary,
+    job: lastJob,
     message: waitOptions.partial
       ? (waitOptions.partialWarning || '同步完成，但产品数据为空')
       : (started.conflict ? '已等待进行中的同步任务完成' : message),
@@ -428,6 +431,9 @@ export async function refreshAmazonAllWithSync(stores = [], options = {}) {
 
   const dailyData = dailyResult.status === 'fulfilled' ? dailyResult.value.data : null
   const insightsData = reportsResult.status === 'fulfilled' ? reportsResult.value.data : null
+  const job = (dailyResult.status === 'fulfilled' && dailyResult.value.job)
+    || (reportsResult.status === 'fulfilled' && reportsResult.value.job)
+    || null
   const partial = [dailyResult, reportsResult].some(
     (item) => item.status === 'fulfilled' && item.value.partial,
   ) || errors.length > 0
@@ -440,6 +446,7 @@ export async function refreshAmazonAllWithSync(stores = [], options = {}) {
     success: true,
     partial,
     warning,
+    job,
     message: errors.length
       ? `部分同步完成：${errors[0]}`
       : (partial ? warning : '已刷新 Amazon 全部数据'),

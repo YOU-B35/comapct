@@ -29,7 +29,8 @@ export async function fetchTodayAliExpressOrders(stores, options = {}) {
         orders: data.orders,
         syncedAt: data.syncedAt,
       },
-      message: refresh ? `已同步 ${data.orders.length} 笔今日订单` : '',
+      job: data.job || null,
+      message: refresh ? (data.message || `已同步 ${data.orders.length} 笔今日订单`) : '',
     }
   }
   const demoRes = fetchAliexpressDemoData(stores)
@@ -71,6 +72,7 @@ export async function crawlAliExpressViolations(stores, options = {}) {
     const data = await crawlAliExpressViolationsFromApi(options)
     return {
       data,
+      job: data.job || null,
       message: `已同步 ${data.violations.length} 条违规记录`,
     }
   }

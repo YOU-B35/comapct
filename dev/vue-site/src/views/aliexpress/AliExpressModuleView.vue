@@ -194,10 +194,12 @@ async function syncTodayOrders(refresh = false) {
     todayOrders.value = res.data.orders
     ordersSyncedAt.value = res.data.syncedAt
     if (refresh) {
+      if (res.job) lastSyncJob.value = res.job
       await hydrateAliExpressLastSync()
       ElMessage.success(res.message || '已刷新当日订单')
     }
   } catch (err) {
+    if (err.job) lastSyncJob.value = err.job
     ElMessage.error(err.message || '订单抓取失败')
   } finally {
     loadingOrders.value = false
@@ -219,10 +221,12 @@ async function syncViolations(refresh = false) {
     violations.value = res.data.violations
     violationsSyncedAt.value = res.data.syncedAt
     if (refresh) {
+      if (res.job) lastSyncJob.value = res.job
       await hydrateAliExpressLastSync()
       ElMessage.success(res.message || '已刷新违规信息')
     }
   } catch (err) {
+    if (err.job) lastSyncJob.value = err.job
     ElMessage.error(err.message || '违规信息抓取失败')
   } finally {
     loadingViolations.value = false
@@ -302,6 +306,7 @@ async function handleRefreshAll() {
     const violationRes = await loadAliExpressViolations(aliexpressStores.value, auth)
     violations.value = violationRes.data.violations
     violationsSyncedAt.value = violationRes.data.syncedAt
+    if (orderRes.job) lastSyncJob.value = orderRes.job
     await hydrateAliExpressLastSync()
     ElMessage.success(
       orderRes.message
@@ -309,6 +314,7 @@ async function handleRefreshAll() {
     )
     markSidebarAliExpressSync()
   } catch (err) {
+    if (err.job) lastSyncJob.value = err.job
     ElMessage.error(err.message || '同步失败')
   } finally {
     loadingOrders.value = false
@@ -377,7 +383,7 @@ onActivated(loadAliExpressModule)
             同步数据
           </el-button>
           <SyncSummaryLine
-            v-if="lastSyncJob || ordersSyncedAt || violationsSyncedAt"
+            v-if="lastSyncJob"
             :summary-text="syncSummaryText"
             @open-history="syncHistoryOpen = true"
           />

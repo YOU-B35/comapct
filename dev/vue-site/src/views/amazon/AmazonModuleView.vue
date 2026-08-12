@@ -242,7 +242,12 @@ async function hydrateAmazonLastSync() {
   try {
     const status = await fetchPlatformSyncStatus()
     let job = status?.platforms?.amazon?.last_job || null
-    if (!job) {
+    const hasClock = Boolean(
+      job?.finished_at || job?.finishedAt
+      || job?.started_at || job?.startedAt
+      || job?.created_at || job?.createdAt,
+    )
+    if (!job || !hasClock) {
       const jobs = await fetchAmazonSyncJobs({ limit: 1 })
       job = Array.isArray(jobs) && jobs.length ? jobs[0] : null
     }
@@ -296,10 +301,12 @@ async function syncBossInsights(refresh = false) {
       : await loadAmazonBossInsights(amazonStores.value)
     applyBossData(res.data)
     if (refresh) {
+      if (res.job) lastSyncJob.value = res.job
       await hydrateAmazonLastSync()
       notifySyncResult(res, '已刷新产品数据')
     }
   } catch (err) {
+    if (err.job) lastSyncJob.value = err.job
     notifySyncError(err)
   } finally {
     loadingBoss.value = false
@@ -317,10 +324,12 @@ async function syncBossReports(refresh = false) {
       : await loadAmazonBossInsights(amazonStores.value)
     applyBossData(res.data)
     if (refresh) {
+      if (res.job) lastSyncJob.value = res.job
       await hydrateAmazonLastSync()
       notifySyncResult(res, '已刷新 Business Report 产品数据')
     }
   } catch (err) {
+    if (err.job) lastSyncJob.value = err.job
     notifySyncError(err)
   } finally {
     loadingReports.value = false
@@ -339,10 +348,12 @@ async function syncWorkflow(refresh = false) {
       : await loadAmazonDailyWorkflow(amazonStores.value)
     applyWorkflowData(res.data)
     if (refresh) {
+      if (res.job) lastSyncJob.value = res.job
       await hydrateAmazonLastSync()
       notifySyncResult(res, '已刷新今日运营数据')
     }
   } catch (err) {
+    if (err.job) lastSyncJob.value = err.job
     notifySyncError(err)
   } finally {
     loading.value = false
@@ -360,10 +371,12 @@ async function syncAccountHealth(refresh = false) {
       : await loadAmazonDailyWorkflow(amazonStores.value)
     applyWorkflowData({ ...workflow.value, accountMetrics: res.data.accountMetrics || [], syncedAt: res.data.syncedAt })
     if (refresh) {
+      if (res.job) lastSyncJob.value = res.job
       await hydrateAmazonLastSync()
       ElMessage.success(res.message || '已刷新账户状况')
     }
   } catch (err) {
+    if (err.job) lastSyncJob.value = err.job
     ElMessage.error(err.message || '账户状况加载失败')
   } finally {
     loading.value = false
@@ -390,9 +403,11 @@ async function syncAllAmazon() {
       applyWorkflowData(dailyRes.data)
       applyBossData(insightsRes.data)
     }
+    if (res.job) lastSyncJob.value = res.job
     await hydrateAmazonLastSync()
     notifySyncResult(res, '已刷新 Amazon 全部数据（运营 + 产品 + 广告）')
   } catch (err) {
+    if (err.job) lastSyncJob.value = err.job
     notifySyncError(err)
   } finally {
     loadingAll.value = false
