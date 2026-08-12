@@ -33,17 +33,17 @@ Start-CrosshubLauncherWindow -Name "express" -LauncherPath $expressLauncher -Scr
     "npm start"
 )
 
-Write-Host "==> start Vue dev :5173" -ForegroundColor Cyan
+Write-Host "==> start Vue dev :5174" -ForegroundColor Cyan
 $webLauncher = Join-Path $env:TEMP "crosshub-web.ps1"
 Start-CrosshubLauncherWindow -Name "web" -LauncherPath $webLauncher -ScriptLines @(
     "Set-Location '$Root\dev\vue-site'"
     "if (-not (Test-Path node_modules)) { npm install }"
-    "npm run dev"
+    "npm run dev -- --port 5174 --strictPort"
 )
 
 Start-Sleep -Seconds 8
 Write-Host ""
 Write-Host "Local URLs:" -ForegroundColor Green
-Write-Host "  Web     http://localhost:5173"
+Write-Host "  Web     http://localhost:5174"
 Write-Host "  Java    http://localhost:18080/api/temu/shops"
 Write-Host "  Express http://localhost:3000/api/health"

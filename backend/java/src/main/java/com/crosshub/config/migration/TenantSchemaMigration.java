@@ -33,6 +33,7 @@ public class TenantSchemaMigration {
         addColumnIfMissing("app_user", "tenant_id", "INTEGER");
         addColumnIfMissing("app_user", "job_title", "TEXT NOT NULL DEFAULT ''");
         addColumnIfMissing("app_user", "phone", "TEXT NOT NULL DEFAULT ''");
+        addColumnIfMissing("app_user", "other_role", "TEXT NOT NULL DEFAULT ''");
         addColumnIfMissing("app_user", "status", "TEXT NOT NULL DEFAULT 'active'");
         addColumnIfMissing("app_user", "created_at", "TEXT NOT NULL DEFAULT ''");
         addColumnIfMissing("temu_shop", "tenant_id", "INTEGER NOT NULL DEFAULT 1");

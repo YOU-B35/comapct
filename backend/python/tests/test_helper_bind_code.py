@@ -79,6 +79,7 @@ def test_consume_bind_code_posts_snake_case_body_and_persists(tmp_path: Path):
 
     assert result["agent_token"] == "tok-from-bind"
     assert result["user_id"] == 42
+    assert result["java_api_url"] == "https://www.yoto.work"
 
     saved = json.loads(config_path.read_text(encoding="utf-8"))
     assert saved["agent_token"] == "tok-from-bind"
@@ -86,6 +87,50 @@ def test_consume_bind_code_posts_snake_case_body_and_persists(tmp_path: Path):
     assert saved["user_id"] == 42
     assert saved["tenant_id"] == 5
     assert saved["machine_fingerprint"] == machine_fingerprint()
+
+
+def test_consume_bind_code_keeps_request_api_not_server_payload(tmp_path: Path):
+    """Local Java may echo prod java_api_url; Helper must keep the URL it called."""
+    from agent.bind import consume_bind_code
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text("{}", encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url).startswith("http://127.0.0.1:18080/")
+        return httpx.Response(
+            200,
+            json={
+                "success": True,
+                "data": {
+                    "agent_token": "tok-local",
+                    "tenant_id": 5,
+                    "user_id": 56,
+                    "java_api_url": "https://www.yoto.work",
+                },
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    real_client = httpx.Client
+
+    def _make_client(*args, **kwargs):
+        kwargs = dict(kwargs)
+        kwargs["transport"] = transport
+        return real_client(*args, **kwargs)
+
+    with patch("agent.bind.httpx.Client", side_effect=_make_client):
+        result = consume_bind_code(
+            "LocalCode",
+            display_name="本机",
+            config_path=config_path,
+            base_url="http://127.0.0.1:18080",
+        )
+
+    assert result["java_api_url"] == "http://127.0.0.1:18080"
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["java_api_url"] == "http://127.0.0.1:18080"
+    assert saved["agent_token"] == "tok-local"
 
 
 def test_profile_root_ignores_user_isolation_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

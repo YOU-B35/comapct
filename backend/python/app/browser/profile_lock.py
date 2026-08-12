@@ -13,6 +13,16 @@ from app.temu.session_scope import normalize_session_key
 LOCK_FILENAME = ".crosshub-profile.lock"
 CACHE_FILENAME = ".crosshub-session.json"
 
+# Fallback wall-clock trust when Cookie DB cannot be read (locked/missing).
+# Prefer cookie-expiry trust via temu_login_cookies_alive — see read_ready_session_cache.
+SESSION_CACHE_READY_MAX_AGE_SECONDS = int(
+    os.getenv("TEMU_SESSION_CACHE_MAX_AGE", str(7 * 24 * 3600)).strip() or str(7 * 24 * 3600)
+)
+# While login window holds the profile, keep a shorter busy-cache window.
+SESSION_CACHE_BUSY_MAX_AGE_SECONDS = int(
+    os.getenv("TEMU_SESSION_CACHE_BUSY_MAX_AGE", "1800").strip() or "1800"
+)
+
 
 def _lock_path(tenant_id: int, session_key: str | None = None) -> Path:
     return resolve_profile_dir(tenant_id, session_key) / LOCK_FILENAME
@@ -110,16 +120,55 @@ def write_session_cache(
 def read_session_cache(
     tenant_id: int,
     *,
-    max_age_seconds: int = 300,
+    max_age_seconds: int | None = None,
     session_key: str | None = None,
 ) -> dict[str, Any] | None:
     cached = _read_json(_cache_path(tenant_id, session_key))
     if not cached:
         return None
     cached_at = float(cached.get("cached_at") or 0)
-    if cached_at <= 0 or (time.time() - cached_at) > max_age_seconds:
+    age_limit = SESSION_CACHE_READY_MAX_AGE_SECONDS if max_age_seconds is None else max_age_seconds
+    if cached_at <= 0 or (time.time() - cached_at) > age_limit:
         return None
     return cached
+
+
+def read_ready_session_cache(
+    tenant_id: int,
+    *,
+    session_key: str | None = None,
+    max_age_seconds: int | None = None,
+) -> dict[str, Any] | None:
+    """Return ready cache while Temu login cookies are still unexpired.
+
+    If Cookie DB cannot be inspected, fall back to wall-clock max_age (default 7 days).
+    """
+    from app.browser.session_state import session_ready
+    from app.browser.temu_cookie_trust import temu_login_cookies_alive
+
+    cached = _read_json(_cache_path(tenant_id, session_key))
+    if not cached or not session_ready(cached):
+        return None
+
+    cached_at = float(cached.get("cached_at") or 0)
+    if cached_at <= 0:
+        return None
+
+    cookies_ok: bool | None
+    try:
+        cookies_ok = temu_login_cookies_alive(tenant_id, session_key)
+    except Exception:
+        cookies_ok = None
+
+    if cookies_ok is True:
+        return cached
+    if cookies_ok is False:
+        return None
+
+    age_limit = SESSION_CACHE_READY_MAX_AGE_SECONDS if max_age_seconds is None else max_age_seconds
+    if (time.time() - cached_at) <= age_limit:
+        return cached
+    return None
 
 
 def clear_session_cache(tenant_id: int, session_key: str | None = None) -> None:

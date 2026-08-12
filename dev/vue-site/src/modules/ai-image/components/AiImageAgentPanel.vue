@@ -27,7 +27,7 @@ function applyTemplate(item) {
     append-to-body
     destroy-on-close
   >
-    <p class="ai-agent__hint">选择模板后写入底部输入框，可再编辑后生成。</p>
+    <p class="ai-agent__hint">选择模板后仅复制到剪贴板，不会自动填入输入框；请自行粘贴并改写后再生成。</p>
     <div class="ai-agent__list">
       <button
         v-for="item in AGENT_PROMPT_TEMPLATES"

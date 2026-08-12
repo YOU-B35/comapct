@@ -8,7 +8,7 @@ export const APP_ERROR_MESSAGES = {
   UNKNOWN: '操作失败，请稍后重试',
 
   CRAWL_IN_PROGRESS: '已有爬取任务进行中，请稍后再试',
-  CRAWL_NOT_LOGGED_IN: 'Temu 卖家后台未登录，请联系运维在肉机完成登录；数据由定时任务自动同步',
+  CRAWL_NOT_LOGGED_IN: 'Temu 卖家后台未登录：请用本机 Sync Helper 打开登录窗口完成登录后，再点「我已完成登录」',
   CRAWL_AE_NOT_LOGGED_IN: 'AliExpress 卖家后台未登录，请先在本机助手打开登录并完成登录',
   CRAWL_MALL_NOT_SELECTED: '卖家后台未选择店铺，请联系运维在肉机选店后等待定时同步',
   CRAWL_SCRIPT_MISSING: '爬虫环境未配置，请联系管理员',
@@ -123,11 +123,12 @@ const CRAWL_ERROR_UI = {
     steps: [],
   },
   TEMU_AGENT_OFFLINE: {
-    title: '运维同步节点离线',
-    summary: '未检测到当前企业的运维机同步心跳。登录与爬取只在运维肉机执行，运营网页不提供助手下载。',
+    title: '本机同步助手未在线',
+    summary: '未检测到当前企业的 Sync Helper 心跳。登录 Temu 与刷新数据都依赖本机助手在线。',
     steps: [
-      '联系运维确认已启动 CrossHub-Sync-Helper.exe（运维机常驻）。',
-      '等待服务端定时同步完成后刷新本页查看数据。',
+      '确认已安装并启动 CrossHub Sync Helper。',
+      '在助手中填入本页生成的绑定码。',
+      '助手显示在线后，再打开 Temu 登录并刷新数据。',
     ],
   },
   AE_AGENT_OFFLINE: {
@@ -149,19 +150,19 @@ const CRAWL_ERROR_UI = {
   },
   CRAWL_NOT_LOGGED_IN: {
     title: 'Temu 卖家后台未登录',
-    summary: '运维肉机上的 Temu 会话未就绪，无法完成同步。运营成员无需在网页操作登录或同步。',
+    summary: '本机 Sync Helper 在线，但 Temu 卖家会话尚未就绪。上方数据可能是历史缓存；要刷新必须先完成卖家后台登录。',
     steps: [
-      '联系运维在肉机完成 Temu 卖家后台登录并选择店铺。',
-      '确认运维机 CrossHub-Sync-Helper.exe 常驻在线。',
-      '等待每天定时同步完成后刷新本页查看数据。',
+      '确认本机 CrossHub Sync Helper 已运行并绑定当前企业。',
+      '点击「打开登录」，在弹出的浏览器中登录 Temu 卖家后台并选店。',
+      '回到本页点击「我已完成登录」，状态变为「Temu 已登录」后再点「刷新数据」。',
     ],
   },
   CRAWL_MALL_NOT_SELECTED: {
     title: '请在卖家后台选择店铺',
-    summary: '运维肉机已登录 Temu，但尚未选定要同步的店铺。',
+    summary: '已检测到 Temu 登录，但尚未选定要同步的店铺。',
     steps: [
-      '联系运维在肉机浏览器左上角选择正确店铺。',
-      '等待定时同步完成后刷新本页。',
+      '在本机弹出的 Temu 浏览器左上角选择正确店铺。',
+      '回到本页点「我已完成登录」，再点「刷新数据」。',
     ],
   },
   CRAWL_PYTHON_ENV: {

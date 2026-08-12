@@ -3,7 +3,7 @@ import { AppApiError, toAppApiError } from '@/utils/appErrorCode'
 import { service, getAccessToken } from './request'
 import { TEMU_API_BASE_URL } from './config'
 
-const JOB_POLL_MS = 2500
+const JOB_POLL_MS = 1500
 const JOB_MAX_WAIT_MS = 300000
 
 const TERMINAL_STATUSES = new Set(['success', 'partial', 'failed', 'cancelled', 'canceled'])
@@ -21,9 +21,9 @@ export function formatTemuJobStatusZh(status) {
   const key = String(status || '').toLowerCase()
   switch (key) {
     case 'pending':
-      return '排队中'
+      return '任务排队中，助手即将领取'
     case 'running':
-      return '同步进行中'
+      return '助手正在抓取 Temu 销售数据'
     case 'retry_wait':
       return '等待重试'
     case 'success':
@@ -86,8 +86,17 @@ export async function enqueueTemuSync({ force = false, seed = false, recordCoold
   throw toAppApiError(payload, '提交同步任务失败')
 }
 
-/** POST /api/temu/login/enqueue */
+/** POST /api/temu/login/enqueue — prefers local helper panel for instant browser open. */
 export async function enqueueTemuLogin(payload = {}) {
+  const { openLocalTemuLogin } = await import('@/utils/agentProbe')
+  const local = await openLocalTemuLogin({
+    tenantId: payload.tenantId,
+    sessionKey: payload.sessionKey,
+    platformAccountId: payload.platformAccountId,
+    account: payload.account,
+  })
+  if (local) return local
+
   const body = {}
   if (payload.platformAccountId) {
     body.platform_account_id = payload.platformAccountId

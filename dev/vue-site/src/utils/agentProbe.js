@@ -106,6 +106,59 @@ export function getHelperPanelUrl() {
   return `http://127.0.0.1:${DEFAULT_PANEL_PORT}/`
 }
 
+/**
+ * 本机面板直连打开 Temu 登录（绕过 Java 任务队列，秒开浏览器）。
+ * 面板不可达或失败时返回 null，由调用方回退到 /api/temu/login/enqueue。
+ */
+export async function openLocalTemuLogin(
+  { tenantId, sessionKey, platformAccountId, account } = {},
+  timeoutMs = 4000,
+) {
+  let tid = Number(tenantId)
+  if (!Number.isFinite(tid) || tid <= 0) {
+    try {
+      const bind = await fetchLocalHelperBind(Math.min(timeoutMs, 1500))
+      tid = Number(bind?.tenant_id)
+    } catch {
+      tid = NaN
+    }
+  }
+  if (!Number.isFinite(tid) || tid <= 0) return null
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const body = {
+      tenant_id: tid,
+      platform: 'temu',
+    }
+    if (sessionKey) body.session_key = String(sessionKey)
+    if (platformAccountId) body.platform_account_id = String(platformAccountId)
+    if (account) body.account = String(account)
+    const res = await fetch(`http://127.0.0.1:${DEFAULT_PANEL_PORT}/api/login`, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const data = await res.json().catch(() => ({}))
+    if (!data?.ok) return null
+    return {
+      queued: true,
+      mode: 'local_panel',
+      tenant_id: tid,
+      session_key: sessionKey || '',
+      message: data.msg || '正在打开登录窗口...',
+    }
+  } catch {
+    return null
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
 export function markHelperInstalledLocally() {
   try {
     localStorage.setItem(INSTALL_HINT_KEY, '1')

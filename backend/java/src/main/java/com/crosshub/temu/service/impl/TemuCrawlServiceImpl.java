@@ -353,6 +353,10 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
             if (!Boolean.TRUE.equals(session.get("profile_busy"))) {
                 return;
             }
+            // Login finished (ready) but snapshot may still say busy while assist browser closes.
+            if (Boolean.TRUE.equals(session.get("ready")) || Boolean.TRUE.equals(session.get("logged_in"))) {
+                return;
+            }
             Optional<TemuCrawlJob> active = jobRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(
                     tenantId, ACTIVE_STATUSES
             );

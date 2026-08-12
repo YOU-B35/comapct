@@ -242,9 +242,7 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
 async function reload() {
   await loadHelperStatus()
   await loadSessionStatus()
-  if (online.value && supportsSessionLogin.value && !sessionReady.value) {
-    void startSessionPoll()
-  }
+  // Avoid auto live-probes on page load; poll only after「打开登录」/确认登录.
 }
 
 function startHelperPoll() {
@@ -343,10 +341,12 @@ async function handleOpenLogin() {
     if (props.platform === 'aliexpress') {
       await openAliExpressSellerLogin()
     } else {
-      await enqueueTemuLogin()
+      await enqueueTemuLogin({
+        tenantId: currentTenantId.value,
+      })
     }
     ElMessage.success('请在本机弹出的浏览器中完成登录')
-    await loadSessionStatus()
+    void loadSessionStatus()
     void startSessionPoll()
   } catch (err) {
     ElMessage.error(err.message || '打开登录窗口失败')
@@ -364,10 +364,8 @@ async function handleConfirmLogin() {
   if (!sessionStatus.value.ready) void startSessionPoll()
 }
 
-watch(online, (val) => {
-  if (val && supportsSessionLogin.value && !sessionReady.value) {
-    void startSessionPoll()
-  }
+watch(online, () => {
+  // Online alone must not start live session probes.
 })
 
 onMounted(async () => {

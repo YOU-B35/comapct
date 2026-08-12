@@ -52,3 +52,11 @@ backend/python/tests/fixtures/_tmp_profile/
 # Python monitor runtime artifacts
 backend/python/exports/
 backend/python/reports/
+
+# Local Commander credentials (copy from .example)
+backend/java/.commander.env
+
+
+# Local Sync Helper runtime config (contains tokens)
+/config.json
+

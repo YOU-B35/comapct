@@ -102,6 +102,20 @@ def _launch_kwargs(headless: bool) -> dict:
     return kwargs
 
 
+def _clear_chrome_profile_locks(profile_dir: Path) -> None:
+    for name in (
+        "lockfile",
+        "SingletonLock",
+        "SingletonCookie",
+        "SingletonSocket",
+        "DevToolsActivePort",
+    ):
+        try:
+            (profile_dir / name).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def close_tenant_profile_browsers(
     tenant_id: int,
     *,
@@ -112,17 +126,23 @@ def close_tenant_profile_browsers(
     if not sys.platform.startswith("win"):
         return 0
 
+    from app.temu.session_scope import normalize_session_key
+
     profile_dir = resolve_profile_dir(tenant_id, session_key)
     profile_text = str(profile_dir.resolve())
-    profile_name = profile_text.replace("\\", "/").split("/tenant-")[-1]
+    key = normalize_session_key(session_key)
+    account_needle = f"account-{key}"
+    tenant_needle = f"tenant-{tenant_id}"
+    # Match full path OR account folder (Playwright cmdlines vary on slash/quoting).
     script = f"""
 $profile = {json.dumps(profile_text)}
 $profileBack = $profile.ToLowerInvariant()
 $profileSlash = $profileBack.Replace('\\', '/')
-$profileName = {json.dumps(profile_name)}
+$accountNeedle = {json.dumps(account_needle.lower())}
+$tenantNeedle = {json.dumps(tenant_needle.lower())}
 $names = @('chrome.exe', 'chromium.exe', 'msedge.exe')
 $count = 0
-for ($i = 0; $i -lt 5; $i += 1) {{
+for ($i = 0; $i -lt 8; $i += 1) {{
   $matches = Get-CimInstance Win32_Process |
     Where-Object {{
       $cmd = if ($_.CommandLine) {{ $_.CommandLine.ToLowerInvariant() }} else {{ '' }}
@@ -132,7 +152,7 @@ for ($i = 0; $i -lt 5; $i += 1) {{
       (
         $cmd.Contains($profileBack) -or
         $cmdSlash.Contains($profileSlash) -or
-        ($cmd.Contains('.temu-browser-profile') -and $cmd.Contains($profileName))
+        ($cmd.Contains('.temu-browser-profile') -and $cmd.Contains($tenantNeedle) -and $cmd.Contains($accountNeedle))
       )
     }}
   if (-not $matches) {{ break }}
@@ -142,21 +162,77 @@ for ($i = 0; $i -lt 5; $i += 1) {{
       $count += 1
     }} catch {{}}
   }}
-  Start-Sleep -Milliseconds 250
+  Start-Sleep -Milliseconds 300
 }}
 Write-Output $count
 """
+    killed = 0
     try:
         result = subprocess.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=20,
         )
-        sleeper(0.8)
-        return int((result.stdout or "0").strip().splitlines()[-1])
+        lines = [ln.strip() for ln in (result.stdout or "").splitlines() if ln.strip()]
+        if lines:
+            try:
+                killed = int(lines[-1])
+            except ValueError:
+                killed = 0
     except Exception:
-        return 0
+        killed = 0
+    _clear_chrome_profile_locks(profile_dir)
+    sleeper(1.0 if killed else 0.3)
+    return killed
+
+
+def _launch_persistent_context(
+    playwright: Playwright,
+    profile_dir: Path,
+    launch_kwargs: dict,
+    *,
+    tenant_id: int,
+    session_key: str | None,
+    attempts: int = 3,
+):
+    """Launch persistent Chrome; on SingletonLock clash, kill holders and retry."""
+    last_error: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            context = playwright.chromium.launch_persistent_context(
+                user_data_dir=str(profile_dir),
+                **launch_kwargs,
+            )
+            context.add_init_script(STEALTH_INIT_SCRIPT)
+            return context
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            text = str(exc).lower()
+            busy = any(
+                token in text
+                for token in (
+                    "target page, context or browser has been closed",
+                    "singleton",
+                    "user data directory",
+                    "already in use",
+                    "browser has been closed",
+                )
+            )
+            if not busy or attempt + 1 >= attempts:
+                break
+            print(
+                f"[TemuBrowser] launch busy (attempt {attempt + 1}/{attempts}), reclaiming profile…",
+                flush=True,
+            )
+            try:
+                close_temu_runtime(tenant_id, session_key=session_key)
+            except Exception:
+                pass
+            close_tenant_profile_browsers(tenant_id, session_key=session_key)
+            time.sleep(1.2)
+    assert last_error is not None
+    raise last_error
 
 
 @contextmanager
@@ -186,12 +262,19 @@ def open_temu_context(
     profile_dir.mkdir(parents=True, exist_ok=True)
     effective_headless = is_headless() if headless is None else headless
     launch_kwargs = _launch_kwargs(effective_headless)
+    try:
+        close_temu_runtime(tenant_id, session_key=session_key)
+    except Exception:
+        pass
+    close_tenant_profile_browsers(tenant_id, session_key=session_key)
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(profile_dir),
-            **launch_kwargs,
+        context = _launch_persistent_context(
+            p,
+            profile_dir,
+            launch_kwargs,
+            tenant_id=tenant_id,
+            session_key=session_key,
         )
-        context.add_init_script(STEALTH_INIT_SCRIPT)
         try:
             yield p, context
         finally:
@@ -203,11 +286,14 @@ def launch_managed_temu_context(
     *,
     headless: bool | None = None,
     session_key: str | None = None,
+    skip_profile_pull: bool = False,
+    force_kill_browsers: bool = True,
 ) -> ManagedBrowserContext:
+    from app.browser.profile_lock import is_profile_locked
     from app.browser.profile_sync import profile_pull_enabled, pull_profile_if_needed
     from app.temu.profile_migration import maybe_migrate_legacy_temu_profile
 
-    if profile_pull_enabled():
+    if (not skip_profile_pull) and profile_pull_enabled():
         try:
             from agent.java_client import AgentApiClient
 
@@ -224,12 +310,28 @@ def launch_managed_temu_context(
     profile_dir.mkdir(parents=True, exist_ok=True)
     effective_headless = is_headless() if headless is None else headless
     launch_kwargs = _launch_kwargs(effective_headless)
+    try:
+        close_temu_runtime(tenant_id, session_key=session_key)
+    except Exception:
+        pass
+    # PowerShell process scan is slow (~0.7s+); skip when profile is free (login fast path).
+    if force_kill_browsers or is_profile_locked(tenant_id, session_key):
+        close_tenant_profile_browsers(tenant_id, session_key=session_key)
     playwright = sync_playwright().start()
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir=str(profile_dir),
-        **launch_kwargs,
-    )
-    context.add_init_script(STEALTH_INIT_SCRIPT)
+    try:
+        context = _launch_persistent_context(
+            playwright,
+            profile_dir,
+            launch_kwargs,
+            tenant_id=tenant_id,
+            session_key=session_key,
+        )
+    except Exception:
+        try:
+            playwright.stop()
+        except Exception:
+            pass
+        raise
     return ManagedBrowserContext(playwright=playwright, context=context)
 
 
@@ -248,6 +350,8 @@ def get_or_create_temu_runtime(
     *,
     headless: bool | None = None,
     session_key: str | None = None,
+    skip_profile_pull: bool = False,
+    force_kill_browsers: bool = True,
 ):
     effective_headless = is_headless() if headless is None else headless
     return browser_runtime.get_or_create_browser_runtime(
@@ -258,6 +362,8 @@ def get_or_create_temu_runtime(
             runtime_tenant_id,
             headless=runtime_headless,
             session_key=session_key,
+            skip_profile_pull=skip_profile_pull,
+            force_kill_browsers=force_kill_browsers,
         ),
         is_usable=is_runtime_context_usable,
     )
@@ -267,23 +373,93 @@ def close_temu_runtime(tenant_id: int, session_key: str | None = None) -> None:
     browser_runtime.close_browser_runtime(tenant_id=tenant_id, session_key=session_key)
 
 
+_TEMU_SELLER_HOST_MARKERS = (
+    "agentseller.temu.com",
+    "seller.kuajingmaihuo.com",
+)
+
+
+def is_temu_seller_url(url: str) -> bool:
+    normalized = (url or "").lower()
+    return any(marker in normalized for marker in _TEMU_SELLER_HOST_MARKERS)
+
+
+def close_non_temu_seller_pages(context: BrowserContext) -> int:
+    """Drop restored unrelated tabs (店小秘 / other sites) from the crawl profile."""
+    closed = 0
+    for page in list(context.pages):
+        if is_temu_seller_url(page.url):
+            continue
+        try:
+            page.close()
+            closed += 1
+        except Exception:
+            pass
+    return closed
+
+
+def ensure_seller_login_page(context: BrowserContext, *, force_navigate: bool = True) -> Page:
+    """Open/focus only Temu seller login path; never leave third-party tabs active."""
+    # Session restore can re-create 店小秘 tabs shortly after launch — sweep twice.
+    for _ in range(2):
+        close_non_temu_seller_pages(context)
+        page: Page | None = None
+        for candidate in context.pages:
+            if is_temu_seller_url(candidate.url):
+                page = candidate
+                break
+        if page is None:
+            page = context.new_page()
+            force_navigate = True
+        if force_navigate or not is_temu_seller_url(page.url):
+            try:
+                page.goto(TEMU_SELLER_HOME, wait_until="domcontentloaded", timeout=45_000)
+            except Exception:
+                try:
+                    page.goto(TEMU_SELLER_HOME, wait_until="commit", timeout=30_000)
+                except Exception:
+                    pass
+        try:
+            page.bring_to_front()
+        except Exception:
+            pass
+        close_non_temu_seller_pages(context)
+        if is_temu_seller_url(page.url):
+            return page
+        time.sleep(0.35)
+    # Last resort: dedicated tab
+    page = context.new_page()
+    page.goto(TEMU_SELLER_HOME, wait_until="commit", timeout=30_000)
+    close_non_temu_seller_pages(context)
+    try:
+        page.bring_to_front()
+    except Exception:
+        pass
+    return page
+
+
 def get_or_open_seller_page(context: BrowserContext) -> Page:
+    close_non_temu_seller_pages(context)
     for page in context.pages:
-        if "agentseller.temu.com" in (page.url or ""):
+        if is_temu_seller_url(page.url):
             return page
     page = context.new_page()
-    page.goto(TEMU_SELLER_HOME, wait_until="domcontentloaded", timeout=120_000)
+    page.goto(TEMU_SELLER_HOME, wait_until="domcontentloaded", timeout=60_000)
     human_pause()
     return page
 
 
 def requires_auth(url: str) -> bool:
     normalized = (url or "").lower()
-    return (
-        "/login" in normalized
-        or "/auth/" in normalized
-        or "seller.kuajingmaihuo.com" in normalized
-    )
+    if "/login" in normalized or "/auth/" in normalized:
+        return True
+    # CN SSO host: only treat login/passport paths as auth — seller console itself is not.
+    if "seller.kuajingmaihuo.com" in normalized:
+        return any(
+            marker in normalized
+            for marker in ("passport", "authenticate", "sso", "/login", "/auth")
+        )
+    return False
 
 
 def read_mall_id_optional(page: Page) -> str:
@@ -366,7 +542,9 @@ def wait_for_login_and_mall(
     last_error = ""
 
     while True:
-        if "agentseller.temu.com" not in (page.url or ""):
+        current_url = page.url or ""
+        # Do not yank the user off Temu CN SSO / seller hosts mid-login.
+        if not is_temu_seller_url(current_url) and "agentseller.temu.com" not in current_url.lower():
             page.goto(TEMU_SELLER_HOME, wait_until="domcontentloaded", timeout=120_000)
 
         try:

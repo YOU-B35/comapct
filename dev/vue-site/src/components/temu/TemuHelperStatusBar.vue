@@ -18,7 +18,7 @@ import { getAppErrorMessage, resolveAppError } from '@/utils/appErrorCode'
 import { fetchLocalHelperBind, getHelperPanelUrl } from '@/utils/agentProbe'
 import { useAuthStore } from '@/stores/auth'
 
-const emit = defineEmits(['update:online', 'status'])
+const emit = defineEmits(['update:online', 'update:sessionReady', 'status'])
 const auth = useAuthStore()
 
 const helperLoading = ref(false)
@@ -110,11 +110,11 @@ const barTitle = computed(() => {
   }
   if (barMode.value === 'offline') return '本机同步助手未在线'
   if (barMode.value === 'need-login') {
-    if (sellerRows.value.length > 1) return '助手在线，待登录 Temu（多账号）'
-    return '助手在线，待登录 Temu'
+    if (sellerRows.value.length > 1) return '助手在线 · Temu 未登录（多账号）'
+    return '助手在线 · Temu 未登录'
   }
   const name = recommendedAgent.value?.name
-  return name ? `助手在线 · ${name}` : '助手在线 · 可同步'
+  return name ? `Temu 已登录 · 助手 ${name}` : 'Temu 已登录 · 可刷新数据'
 })
 
 const barMeta = computed(() => {
@@ -124,13 +124,22 @@ const barMeta = computed(() => {
     }
     return '同企业任意账号生成绑定码填入助手即可；绑定后本机同企业账号共享在线状态。若已绑定仍提示，请点「连接助手」或刷新状态'
   }
-  if (barMode.value === 'ready' && sessionStatus.value.session_count > 1) {
-    return `已登录 ${sessionStatus.value.ready_count ?? 0}/${sessionStatus.value.session_count}`
+  if (barMode.value === 'ready') {
+    const readyRows = sellerRows.value.filter((row) => row.ready)
+    const account = readyRows[0]?.account || sellerRows.value[0]?.account || ''
+    const mall = mallLabel(readyRows[0] || sellerRows.value[0] || {})
+    if (sessionStatus.value.session_count > 1) {
+      return `Temu 已登录 ${sessionStatus.value.ready_count ?? 0}/${sessionStatus.value.session_count}${account ? ` · ${account}` : ''}`
+    }
+    const bits = ['Temu 卖家后台已登录']
+    if (account) bits.push(account)
+    if (mall) bits.push(mall)
+    return bits.join(' · ')
   }
-  if (barMode.value === 'need-login' && sessionHint.value?.summary) {
-    return sessionHint.value.summary
+  if (barMode.value === 'need-login') {
+    if (sessionHint.value?.summary) return sessionHint.value.summary
+    return '请点「打开登录」完成 Temu 卖家后台登录，再点「我已完成登录」确认'
   }
-  if (barMode.value === 'ready') return '可在本机完成 Temu 登录与数据同步'
   return '下载安装 Sync Helper 后，在助手中填入绑定码'
 })
 
@@ -208,6 +217,7 @@ const sessionHint = computed(() => {
 
 function publishHelperStatus() {
   emit('update:online', online.value)
+  emit('update:sessionReady', sessionReady.value)
   emit('status', helperStatus.value)
 }
 
@@ -251,6 +261,7 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
   sessionLoading.value = true
   try {
     sessionStatus.value = await fetchTemuSessionStatus()
+    publishHelperStatus()
     if (notifyIfPending && !sessionStatus.value.ready) {
       const hint = sessionStatus.value.error_hint
       const message =
@@ -260,6 +271,7 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
     }
   } catch {
     sessionStatus.value = { ready: false, requires_auth: true, agent_online: false }
+    publishHelperStatus()
   } finally {
     sessionLoading.value = false
   }
@@ -268,9 +280,8 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
 async function reload() {
   await loadHelperStatus()
   await loadSessionStatus()
-  if (online.value && !sessionReady.value) {
-    void startSessionPoll()
-  }
+  // Do not auto-poll live session probes on page load — that opened Chrome every few
+  // seconds while "not logged in". Poll only after「打开登录」/「我已完成登录」.
 }
 
 function startHelperPoll() {
@@ -373,10 +384,12 @@ async function handleOpenLogin(row) {
   openingKey.value = row.sessionKey
   try {
     await enqueueTemuLogin({
+      tenantId: currentTenantId.value,
+      sessionKey: row.sessionKey,
       platformAccountId: row.platformAccountId || undefined,
     })
     ElMessage.success('请在本机弹出的浏览器中完成登录')
-    await loadSessionStatus()
+    void loadSessionStatus()
     void startSessionPoll()
   } catch (err) {
     ElMessage.error(err.message || '打开登录窗口失败')
@@ -399,15 +412,21 @@ async function handleConfirmLogin() {
     return
   }
   await loadSessionStatus({ notifyIfPending: true })
-  if (!sessionStatus.value.ready) {
-    void startSessionPoll()
+  if (sessionStatus.value.ready) {
+    ElMessage.success('已确认 Temu 登录态，可以点击「刷新数据」')
+    sellersDialogVisible.value = false
+    return
   }
+  ElMessage.warning('仍未检测到 Temu 登录，请先在弹出窗口完成登录并选店')
+  void startSessionPoll()
 }
 
-watch(online, (val) => {
-  if (val && !sessionReady.value) {
-    void startSessionPoll()
-  }
+watch(sessionReady, () => {
+  publishHelperStatus()
+})
+
+watch(online, () => {
+  publishHelperStatus()
 })
 
 onMounted(async () => {
@@ -420,7 +439,13 @@ onUnmounted(() => {
   stopSessionPoll()
 })
 
-defineExpose({ reload, online, sessionReady })
+defineExpose({
+  reload,
+  online,
+  sessionReady,
+  openLogin: onOpenLoginClick,
+  confirmLogin: handleConfirmLogin,
+})
 </script>
 
 <template>
@@ -513,6 +538,7 @@ defineExpose({ reload, online, sessionReady })
       </template>
 
       <template v-else>
+        <el-tag type="success" size="small" effect="plain">Temu 已登录</el-tag>
         <el-button text type="primary" size="small" :loading="connecting" @click="onConnectHelper">
           连接助手
         </el-button>
@@ -526,7 +552,7 @@ defineExpose({ reload, online, sessionReady })
           :loading="helperLoading || sessionLoading"
           @click="reload"
         >
-          刷新
+          刷新状态
         </el-button>
       </template>
     </div>

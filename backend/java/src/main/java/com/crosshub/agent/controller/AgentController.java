@@ -210,6 +210,16 @@ public class AgentController {
         return Map.of("success", true, "data", temuAgentService.ingestFromAgent(tenantId, payload));
     }
 
+    /** Agent：登录窗口内会话就绪时即时上报，供网站状态栏刷新。 */
+    @PostMapping("/temu/session-snapshot")
+    public Map<String, Object> reportTemuSessionSnapshot(@RequestBody Map<String, Object> payload) {
+        Long tenantId = agentContext.tenantId();
+        if (tenantId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Agent 未认证");
+        }
+        return Map.of("success", true, "data", temuAgentService.reportSessionSnapshot(tenantId, payload));
+    }
+
     @PostMapping("/amazon/sync")
     public ResponseEntity<Map<String, Object>> triggerAmazonSync(@RequestBody(required = false) AmazonSyncRequest request) {
         Long tenantId = agentContext.tenantId();

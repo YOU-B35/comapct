@@ -19,9 +19,11 @@ from app.browser.context import (
     wait_for_login_and_mall,
 )
 from app.browser.profile_lock import (
+    SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
     clear_profile_lock,
     clear_session_cache,
     is_profile_locked,
+    read_ready_session_cache,
     read_session_cache,
     write_session_cache,
 )
@@ -40,27 +42,49 @@ def ensure_profile_available(
     session_key: str | None = None,
     timeout_seconds: int = 30,
 ) -> None:
-    cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=session_key)
-    if cached and session_ready(cached) and is_profile_locked(tenant_id, session_key):
+    from app.browser.context import close_temu_runtime
+
+    # Always drop in-process login/crawl runtimes first (lock file may be absent).
+    try:
+        close_temu_runtime(tenant_id, session_key=session_key)
+    except Exception:
+        pass
+
+    cached = read_ready_session_cache(tenant_id, session_key=session_key)
+    if cached and session_ready(cached):
         close_tenant_profile_browsers(tenant_id, session_key=session_key)
         clear_profile_lock(tenant_id, session_key)
-        time.sleep(1)
+        time.sleep(1.5)
         return
 
     deadline = time.monotonic() + max(0, timeout_seconds)
     while is_profile_locked(tenant_id, session_key) and time.monotonic() < deadline:
+        try:
+            close_temu_runtime(tenant_id, session_key=session_key)
+        except Exception:
+            pass
+        close_tenant_profile_browsers(tenant_id, session_key=session_key)
+        clear_profile_lock(tenant_id, session_key)
         time.sleep(2)
 
     if is_profile_locked(tenant_id, session_key):
-        cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=session_key)
+        cached = read_session_cache(
+            tenant_id,
+            max_age_seconds=SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+            session_key=session_key,
+        )
         if cached and session_ready(cached):
             close_tenant_profile_browsers(tenant_id, session_key=session_key)
             clear_profile_lock(tenant_id, session_key)
-            time.sleep(1)
+            time.sleep(1.5)
             return
         raise RuntimeError(
             "Temu 登录窗口仍在使用中。请关闭 CrossHub 弹出的登录浏览器，再点击「刷新数据」。"
         )
+
+    # Even without a lock file, kill leftover Chrome holding this profile.
+    close_tenant_profile_browsers(tenant_id, session_key=session_key)
+    time.sleep(0.8)
 
 
 def _resolve_malls(page, fallback_mall_id: str) -> list[dict]:
@@ -81,7 +105,7 @@ def crawl_temu_sales_live(
 ) -> dict:
     key = normalize_session_key(session_key)
     report_time = report_day or date.today().isoformat()
-    cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=key)
+    cached = read_ready_session_cache(tenant_id, session_key=key)
 
     ensure_profile_available(tenant_id, session_key=key)
     close_tenant_profile_browsers(tenant_id, session_key=key)

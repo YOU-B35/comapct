@@ -1,17 +1,26 @@
 import { http } from '@sau/utils/request'
 
+/** 本地开发勿开 mock；线上 ContentWorks 同为 false */
 export const useContentMock = false
 
+/** SAU 作品 / 同步 API（对齐线上 automedia 契约） */
 export const contentApi = {
-  async list() {
-    try {
-      const data = await http.get('/content/list')
-      return Array.isArray(data) ? data : data?.list || data?.data || []
-    } catch {
-      return []
-    }
+  sync(accountId, limit = 20) {
+    return http.post('/content/sync', { account_id: accountId, limit })
   },
-  async detail(id) {
-    return http.get('/content/detail', { params: { id } })
+  getJob(jobId) {
+    return http.get(`/content/sync/${jobId}`)
+  },
+  listWorks(params = {}) {
+    return http.get('/content/works', params)
+  },
+  getDashboard(params = {}) {
+    return http.get('/content/dashboard', params)
+  },
+  getWork(id) {
+    return http.get(`/content/works/${id}`)
+  },
+  getWorkSnapshots(id, params = {}) {
+    return http.get(`/content/works/${id}/snapshots`, params)
   },
 }

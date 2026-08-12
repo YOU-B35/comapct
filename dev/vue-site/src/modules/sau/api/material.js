@@ -1,18 +1,21 @@
+import { buildApiUrl } from '@sau/utils/apiBase'
 import { http } from '@sau/utils/request'
 
+/** SAU 素材 API（对齐线上 automedia 契约） */
 export const materialApi = {
-  async list() {
-    try {
-      const data = await http.get('/material/list')
-      return Array.isArray(data) ? data : data?.list || data?.data || []
-    } catch {
-      return []
-    }
+  getAllMaterials() {
+    return http.get('/getFiles')
   },
-  async upload(formData) {
-    return http.post('/material/upload', formData)
+  uploadMaterial(formData, onUploadProgress) {
+    return http.upload('/uploadSave', formData, onUploadProgress)
   },
-  async remove(id) {
-    return http.post('/material/delete', { id })
+  deleteMaterial(id) {
+    return http.get(`/deleteFile?id=${id}`)
+  },
+  downloadMaterial(filePath) {
+    return buildApiUrl(`/download/${filePath}`)
+  },
+  getMaterialPreviewUrl(filename) {
+    return buildApiUrl(`/getFile?filename=${filename}`)
   },
 }

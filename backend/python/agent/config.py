@@ -14,7 +14,8 @@ load_dotenv(ROOT / ".env", override=False)
 # Helper 默认走线上后端真实联调；仅当用户主动要求时才切 localhost:18080
 JAVA_API_URL = os.getenv("JAVA_API_URL", "https://www.yoto.work").rstrip("/")
 AGENT_TOKEN = os.getenv("AGENT_TOKEN", "").strip()
-POLL_INTERVAL_SECONDS = int(os.getenv("AGENT_POLL_INTERVAL_SECONDS", "10"))
+# Login / task pickup latency: keep short so「打开登录」不必干等一整轮轮询
+POLL_INTERVAL_SECONDS = int(os.getenv("AGENT_POLL_INTERVAL_SECONDS", "2"))
 HEARTBEAT_INTERVAL_SECONDS = int(os.getenv("AGENT_HEARTBEAT_INTERVAL_SECONDS", "30"))
 AGENT_HEALTH_PORT = int(os.getenv("AGENT_HEALTH_PORT", "18765"))
 ZINIAO_SOCKET_PORT = int(os.getenv("ZINIAO_SOCKET_PORT", "16851"))

@@ -208,7 +208,10 @@ def consume_bind_code(
     path = resolve_config_path(config_path)
     cfg = _read_config(path)
     cfg["agent_token"] = token
-    cfg["java_api_url"] = str(data.get("java_api_url") or api or DEFAULT_JAVA_API_URL).rstrip("/")
+    # Persist the API base that actually accepted this bind.
+    # Local Java may still return prod java_api_url in the payload; rewriting
+    # would send the new token to online and break local联调.
+    cfg["java_api_url"] = api
     if data.get("tenant_id") is not None:
         cfg["tenant_id"] = data.get("tenant_id")
         cfg["agent_tenant_id"] = data.get("tenant_id")

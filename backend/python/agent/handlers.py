@@ -172,17 +172,35 @@ def handle_temu_login_open(client: AgentApiClient, task: dict[str, Any]) -> None
     tenant_id = int(payload.get("tenant_id") or 0)
     session_key = payload.get("session_key")
     try:
-        from agent.temu_tasks import _run_json_script
+        from agent.temu_tasks import open_login_window, wait_login_session_ready
 
-        extra = []
-        if session_key:
-            extra.extend(["--session-key", str(session_key)])
         login_result = open_login_window(tenant_id, session_key=str(session_key or ""))
-        session = _run_json_script(
-            "seller_session_status.py",
+        # Playwright sync API is not thread-safe — wait on the same worker thread.
+        # Report busy snapshot immediately so the website can leave a stale「未登录」state.
+        try:
+            client.report_temu_session(
+                {
+                    "tenant_id": tenant_id,
+                    "session_key": str(session_key or ""),
+                    "ready": False,
+                    "logged_in": False,
+                    "requires_auth": True,
+                    "profile_busy": True,
+                    "mall_id": "",
+                    "mall_count": 0,
+                    "malls": [],
+                    "message": "登录窗口已打开。请在弹出的浏览器中完成登录并选择店铺。",
+                }
+            )
+        except Exception as report_exc:  # noqa: BLE001
+            print(f"[TemuLogin] busy snapshot failed: {report_exc}", flush=True)
+
+        session = wait_login_session_ready(
             tenant_id,
-            "--cache-only",
-            *extra,
+            session_key=str(session_key or ""),
+            timeout_seconds=600,
+            poll_seconds=2.0,
+            client=client,
         )
         client.complete_task_with_retry(
             task_id,

@@ -1,6 +1,10 @@
 import unittest
 
 from app.browser.session_state import build_session_payload, session_ready
+from app.browser.profile_lock import (
+    SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+    SESSION_CACHE_READY_MAX_AGE_SECONDS,
+)
 
 
 class SessionStateTests(unittest.TestCase):
@@ -18,6 +22,11 @@ class SessionStateTests(unittest.TestCase):
         )
         self.assertTrue(payload["profile_busy"])
         self.assertFalse(payload["ready"])
+
+    def test_ready_cache_fallback_age_is_days(self):
+        # Wall-clock fallback when Cookie DB unreadable; primary trust is cookie expiry.
+        self.assertGreaterEqual(SESSION_CACHE_READY_MAX_AGE_SECONDS, 7 * 24 * 3600)
+        self.assertLessEqual(SESSION_CACHE_BUSY_MAX_AGE_SECONDS, SESSION_CACHE_READY_MAX_AGE_SECONDS)
 
 
 if __name__ == "__main__":

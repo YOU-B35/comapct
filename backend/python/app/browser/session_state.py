@@ -16,10 +16,11 @@ def session_ready(status: dict[str, Any]) -> bool:
         return True
     if status.get("requires_auth"):
         return False
-    logged_in = bool(status.get("logged_in") or status.get("ready_hint"))
-    if not logged_in:
+    # Having a mall selection (or mall list) implies the seller console is logged in.
+    if not _has_mall(status):
         return False
-    return _has_mall(status)
+    logged_in = bool(status.get("logged_in") or status.get("ready_hint") or _has_mall(status))
+    return logged_in
 
 
 def _apply_not_ready_message(payload: dict[str, Any], status: dict[str, Any]) -> None:

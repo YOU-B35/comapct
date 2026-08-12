@@ -1,0 +1,4 @@
+# Local / spring-boot:run (SPRING_PROFILES_ACTIVE=dev)
+crosshub:
+  # Bind 响应里回传给 Helper；必须与本机实际 API 一致，否则会把 Helper 指回线上
+  java-api-url: ${CROSSHUB_JAVA_API_URL:http://127.0.0.1:18080}

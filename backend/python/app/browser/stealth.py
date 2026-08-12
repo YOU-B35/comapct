@@ -34,6 +34,13 @@ BROWSER_ARGS = [
     "--no-sandbox",
     "--disable-infobars",
     "--window-size=1280,900",
+    # Reduce crash/session restore that resurrects unrelated tabs (e.g. 店小秘).
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-session-crashed-bubble",
+    "--hide-crash-restore-bubble",
+    "--disable-features=InfiniteSessionRestore,TabRestoreService",
+    f"--homepage=https://agentseller.temu.com/",
 ]
 
 # Playwright 默认会带 --enable-automation，需剔除

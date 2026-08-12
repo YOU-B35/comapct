@@ -59,6 +59,18 @@ class AgentApiClient:
             body = resp.json()
             return body.get("data") if isinstance(body, dict) else {}
 
+    def report_temu_session(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Push Temu seller session snapshot while login window is still open."""
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/temu/session-snapshot",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
     def complete_task(
         self,
         task_id: str,

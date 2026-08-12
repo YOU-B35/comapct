@@ -1,21 +1,23 @@
 import { http } from '@sau/utils/request'
 
+/** SAU 账号 API（对齐线上 automedia 契约） */
 export const accountApi = {
-  async list() {
-    try {
-      const data = await http.get('/account/list')
-      return Array.isArray(data) ? data : data?.list || data?.data || []
-    } catch {
-      return []
-    }
+  getValidAccounts(validate = true) {
+    return http.get('/getValidAccounts', { validate: +!!validate })
   },
-  async create(payload) {
-    return http.post('/account/create', payload)
+  checkAccount(id) {
+    return http.post('/checkAccount', { id })
   },
-  async update(payload) {
-    return http.post('/account/update', payload)
+  getAccounts() {
+    return http.get('/getAccounts')
   },
-  async remove(id) {
-    return http.post('/account/delete', { id })
+  addAccount(payload) {
+    return http.post('/account', payload)
+  },
+  updateAccount(payload) {
+    return http.post('/updateUserinfo', payload)
+  },
+  deleteAccount(id) {
+    return http.get(`/deleteAccount?id=${id}`)
   },
 }

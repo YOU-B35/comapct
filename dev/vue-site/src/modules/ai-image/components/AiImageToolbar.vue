@@ -1,17 +1,11 @@
 <script setup>
-import {
-  Clock,
-  Refresh,
-  Setting,
-  Share,
-  Upload,
-} from '@element-plus/icons-vue'
+import { Refresh, Setting } from '@element-plus/icons-vue'
 
 defineProps({
   refreshing: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['refresh', 'upload', 'share', 'history', 'settings', 'agent', 'guide'])
+const emit = defineEmits(['refresh', 'settings', 'agent', 'guide'])
 </script>
 
 <template>
@@ -24,9 +18,6 @@ const emit = defineEmits(['refresh', 'upload', 'share', 'history', 'settings', '
     <div class="ai-toolbar__right">
       <el-button :icon="Refresh" :loading="refreshing" @click="emit('refresh')">刷新</el-button>
       <el-button class="ai-toolbar__agent" @click="emit('agent')">Agent</el-button>
-      <el-button :icon="Upload" circle title="上传参考图" @click="emit('upload')" />
-      <el-button :icon="Share" circle title="分享" @click="emit('share')" />
-      <el-button :icon="Clock" circle title="历史" @click="emit('history')" />
       <el-button :icon="Setting" circle title="设置" @click="emit('settings')" />
     </div>
   </div>

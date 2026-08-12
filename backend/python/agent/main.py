@@ -109,6 +109,15 @@ def main() -> int:
                 for fut in done:
                     _on_done(fut)
                 tasks = client.poll_tasks()
+                _LOGIN_FIRST = {
+                    "temu_login_open": 0,
+                    "temu_frontend_login_open": 1,
+                    "aliexpress_login_open": 0,
+                }
+                tasks = sorted(
+                    tasks,
+                    key=lambda t: _LOGIN_FIRST.get(str(t.get("task_type") or ""), 50),
+                )
                 for task in tasks:
                     print(f"==> 执行任务: {task.get('task_type')} ({task.get('task_id')})")
                     fut = pool.submit(dispatch_task, client, task)

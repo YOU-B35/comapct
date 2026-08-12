@@ -4,6 +4,7 @@ server:
 crosshub:
   jwt-secret: crosshub-dev-secret-change-in-production
   db-path: ${CROSSHUB_DB_PATH:../data/crosshub.db}
+  java-api-url: ${CROSSHUB_JAVA_API_URL:https://www.yoto.work}
   agent:
     concurrency:
       # 16GB 机器默认：Temu≤3 / AE≤2 / Amazon≤1 / 全局≤5；按 session_key·browser_id 互斥
@@ -28,6 +29,22 @@ crosshub:
       enabled: ${CROSSHUB_TEMU_DAILY_SYNC:true}
       cron: "0 30 9 * * *"
       zone: Asia/Shanghai
+  sau:
+    # 与线上 automedia 同契约；Nginx 对外路径为 /api/* → Flask
+    base-url: ${CROSSHUB_SAU_BASE_URL:https://automedia.yoto.work/api}
+    exchange-secret: ${CROSSHUB_SAU_EXCHANGE_SECRET:crosshub-sau-dev-secret}
+    # 本地联调默认挂到已有数据的 SAU 账号；线上隔离请设为空
+    link-username: ${CROSSHUB_SAU_LINK_USERNAME:admin}
+  commander:
+    # 自动上货 BFF：服务端共用运维账号代登线上 Commander（勿把 token 下发给浏览器）
+    base-url: ${CROSSHUB_COMMANDER_BASE_URL:https://www.yoto.work}
+    username: ${CROSSHUB_COMMANDER_USERNAME:}
+    password: ${CROSSHUB_COMMANDER_PASSWORD:}
+  ai-image:
+    # 生图代理（可选）；Key 只在服务端，不下发浏览器
+    base-url: ${CROSSHUB_AI_IMAGE_BASE_URL:https://api.hyhacct.com/v1}
+    api-key: ${CROSSHUB_AI_IMAGE_API_KEY:}
+    timeout-seconds: ${CROSSHUB_AI_IMAGE_TIMEOUT:300}
 
 spring:
   codec:

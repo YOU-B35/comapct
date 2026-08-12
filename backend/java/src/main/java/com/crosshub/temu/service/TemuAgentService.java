@@ -32,7 +32,9 @@ import java.util.UUID;
 public class TemuAgentService {
     private static final Logger log = LoggerFactory.getLogger(TemuAgentService.class);
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final long SESSION_PROBE_COOLDOWN_SECONDS = 8;
+    private static final long SESSION_PROBE_COOLDOWN_READY_SECONDS = 7L * 24 * 3600;
+    private static final long SESSION_PROBE_COOLDOWN_BUSY_SECONDS = 15;
+    private static final long SESSION_PROBE_COOLDOWN_NOT_READY_SECONDS = 120;
 
     private final AgentPresenceService agentPresenceService;
     private final CrawlerProperties crawlerProperties;
@@ -71,6 +73,24 @@ public class TemuAgentService {
 
     public boolean useAgentMode() {
         return crawlerProperties.isUseAgent();
+    }
+
+    /**
+     * Ready sessions: rare probes (avoid thrashing Chrome).
+     * Login window busy: snappy probes.
+     * Not ready: still slow — frontend used to poll every 2s and open a browser every ~8s.
+     */
+    private long resolveSessionProbeCooldownSeconds(Map<String, Object> snapshot) {
+        if (snapshot == null || snapshot.isEmpty()) {
+            return SESSION_PROBE_COOLDOWN_NOT_READY_SECONDS;
+        }
+        if (Boolean.TRUE.equals(snapshot.get("ready")) || Boolean.TRUE.equals(snapshot.get("logged_in"))) {
+            return SESSION_PROBE_COOLDOWN_READY_SECONDS;
+        }
+        if (Boolean.TRUE.equals(snapshot.get("profile_busy"))) {
+            return SESSION_PROBE_COOLDOWN_BUSY_SECONDS;
+        }
+        return SESSION_PROBE_COOLDOWN_NOT_READY_SECONDS;
     }
 
     public void assertAgentOnline(Long tenantId) {
@@ -298,7 +318,7 @@ public class TemuAgentService {
             if (updated != null) {
                 out.put(
                         "probe_cooldown_until",
-                        updated.plusSeconds(SESSION_PROBE_COOLDOWN_SECONDS).format(TS)
+                        updated.plusSeconds(resolveSessionProbeCooldownSeconds(snapshot)).format(TS)
                 );
             } else {
                 out.put("probe_cooldown_until", "");
@@ -367,7 +387,8 @@ public class TemuAgentService {
         Map<String, Object> snapshot = readSessionSnapshot(tenantId);
         String snapshotAt = stringValue(snapshot.get("snapshot_at"));
         LocalDateTime updated = parseTime(snapshotAt);
-        if (updated != null && updated.plusSeconds(SESSION_PROBE_COOLDOWN_SECONDS).isAfter(LocalDateTime.now())) {
+        long cooldownSeconds = resolveSessionProbeCooldownSeconds(snapshot);
+        if (updated != null && updated.plusSeconds(cooldownSeconds).isAfter(LocalDateTime.now())) {
             return;
         }
         Integer pending = jdbc.queryForObject(
@@ -521,6 +542,23 @@ public class TemuAgentService {
             return;
         }
         saveSessionSnapshot(tenantId, mergeSessionRow(tenantId, session));
+    }
+
+    /** Agent 在登录等待过程中主动上报会话，避免网站一直显示未登录。 */
+    @Transactional
+    public Map<String, Object> reportSessionSnapshot(Long tenantId, Map<String, Object> payload) {
+        Map<String, Object> body = payload == null ? Map.of() : payload;
+        Map<String, Object> row = body;
+        if (body.get("session") instanceof Map<?, ?> nested) {
+            Map<String, Object> mapped = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : nested.entrySet()) {
+                mapped.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+            row = mapped;
+        }
+        Map<String, Object> saved = mergeSessionRow(tenantId, row);
+        saveSessionSnapshot(tenantId, saved);
+        return saved;
     }
 
     private Map<String, Object> mergeSessionRow(Long tenantId, Map<String, Object> row) {

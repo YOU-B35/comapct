@@ -421,7 +421,7 @@ def _try_start_tray_mode(cfg: dict) -> bool:
     try:
         from agent.tray_app import (
             start_panel_server, start_tray, run_agent_loop,
-            start_ops_notify_watcher, PANEL_PORT,
+            start_ops_notify_watcher, note_agent_loop_thread, PANEL_PORT,
         )
         from agent.health_server import start_health_server
         from agent.config import AGENT_HEALTH_PORT
@@ -456,8 +456,10 @@ def _try_start_tray_mode(cfg: dict) -> bool:
                 target=run_agent_loop, args=(client, stop_event), daemon=True, name="agent-loop"
             )
             agent_thread.start()
+            note_agent_loop_thread(agent_thread, ops_started=True)
         else:
             print("    [INFO] 未绑定：Agent 轮询未启动，请在面板填入绑定码。")
+            note_agent_loop_thread(None, ops_started=False)
 
         # 延迟 1.5s 自动打开面板
         def _open_later():

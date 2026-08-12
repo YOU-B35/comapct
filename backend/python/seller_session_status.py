@@ -7,9 +7,15 @@ import json
 import sys
 
 from app.browser.context import describe_session, get_or_open_seller_page, open_temu_context
-from app.browser.profile_lock import is_profile_locked, read_profile_lock, read_session_cache
+from app.browser.profile_lock import (
+    SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+    is_profile_locked,
+    read_profile_lock,
+    read_ready_session_cache,
+    read_session_cache,
+)
 from app.browser.session_state import build_session_payload, session_ready
-from app.config import resolve_tenant_id
+from app.config import is_headless, resolve_tenant_id
 from app.temu.session_aggregate import aggregate_tenant_sessions, merge_session_meta, parse_seller_sessions_payload
 from app.temu.session_scope import DEFAULT_SESSION_KEY, normalize_session_key
 
@@ -46,7 +52,13 @@ def build_cache_only_payload(
 ) -> dict:
     key = normalize_session_key(session_key)
     profile_busy = is_profile_locked(tenant_id, key)
-    cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=key)
+    cached = read_ready_session_cache(tenant_id, session_key=key)
+    if not cached and profile_busy:
+        cached = read_session_cache(
+            tenant_id,
+            max_age_seconds=SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+            session_key=key,
+        )
 
     if cached:
         return payload_from_cache(tenant_id, cached, profile_busy=profile_busy, session_key=key)
@@ -87,14 +99,19 @@ def build_cache_only_payload(
 def probe_session_live(tenant_id: int, session_key: str | None = None) -> dict:
     key = normalize_session_key(session_key)
     if is_profile_locked(tenant_id, key):
-        cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=key)
+        cached = read_session_cache(
+            tenant_id,
+            max_age_seconds=SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+            session_key=key,
+        )
         if cached:
             return payload_from_cache(tenant_id, cached, profile_busy=True, session_key=key)
         return build_cache_only_payload(tenant_id, session_key=key)
 
+    # Align with crawl (default headed). Headless probes often false-negative to /auth.
     profile_busy = False
     try:
-        with open_temu_context(tenant_id, headless=True, session_key=key) as (_, context):
+        with open_temu_context(tenant_id, headless=is_headless(), session_key=key) as (_, context):
             page = get_or_open_seller_page(context)
             page.wait_for_load_state("domcontentloaded", timeout=60_000)
             page.wait_for_timeout(1500)
@@ -102,7 +119,11 @@ def probe_session_live(tenant_id: int, session_key: str | None = None) -> dict:
     except Exception as exc:
         if profile_busy_error(exc):
             profile_busy = True
-            cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=key)
+            cached = read_session_cache(
+                tenant_id,
+                max_age_seconds=SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+                session_key=key,
+            )
             if cached:
                 return payload_from_cache(tenant_id, cached, profile_busy=True, session_key=key)
             status = {

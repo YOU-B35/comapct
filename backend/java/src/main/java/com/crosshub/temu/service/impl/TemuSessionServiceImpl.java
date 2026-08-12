@@ -288,12 +288,23 @@ public class TemuSessionServiceImpl implements TemuSessionService {
         }
         boolean loggedIn = Boolean.TRUE.equals(out.get("logged_in"));
         boolean requiresAuth = Boolean.TRUE.equals(out.get("requires_auth"));
+        boolean profileBusy = Boolean.TRUE.equals(out.get("profile_busy"));
         String mallId = stringValue(out.get("mall_id"));
         int mallCount = intValue(out.get("mall_count"));
 
         if (loggedIn && mallId.isBlank() && mallCount <= 0) {
             out.put("error_hint", AppErrorCode.CRAWL_MALL_NOT_SELECTED.getCode());
             out.put("message", AppErrorCode.CRAWL_MALL_NOT_SELECTED.getUserMessage());
+            return;
+        }
+        // Login browser still open — keep agent-provided guidance, don't overwrite as plain「未登录」.
+        if (profileBusy) {
+            if (stringValue(out.get("message")).isBlank()) {
+                out.put("message", "登录窗口已打开。请在本机浏览器完成登录并选择店铺，然后点击「我已完成登录」。");
+            }
+            if (stringValue(out.get("error_hint")).isBlank()) {
+                out.put("error_hint", AppErrorCode.CRAWL_NOT_LOGGED_IN.getCode());
+            }
             return;
         }
         if (requiresAuth || !loggedIn) {

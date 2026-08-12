@@ -43,6 +43,7 @@ class LoginWaitTests(unittest.TestCase):
         self.assertEqual(closed, 2)
         script = commands[0][-1]
         self.assertIn("tenant-5", script)
+        self.assertIn("account-", script)
         self.assertIn("Stop-Process", script)
         self.assertIn("CommandLine", script)
 

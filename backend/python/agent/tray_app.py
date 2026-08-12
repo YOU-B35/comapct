@@ -43,8 +43,62 @@ def _locate_panel_dir() -> Path:
 
 _PANEL_DIR = _locate_panel_dir()
 
+# Panel/agent runtime: bind-after-start must be able to launch heartbeat without restart.
+_runtime_lock = threading.Lock()
+_panel_stop_event: threading.Event | None = None
+_agent_loop_thread: threading.Thread | None = None
+_ops_watcher_started = False
+_active_java_client: Any = None
 
-# ─── 全局状态（线程共享）──────────────────────────────────────────────────────
+
+def _set_active_java_client(client: Any) -> None:
+    global _active_java_client
+    _active_java_client = client
+
+
+def ensure_agent_started_after_bind(bind_result: dict[str, Any]) -> None:
+    """After panel bind, start heartbeat/poll so the website shows online without restart."""
+    global _agent_loop_thread, _ops_watcher_started
+
+    token = str(bind_result.get("agent_token") or "").strip()
+    api = str(bind_result.get("java_api_url") or "").strip().rstrip("/")
+    if not token:
+        return
+
+    from agent.java_client import AgentApiClient
+
+    client = AgentApiClient(token=token, base_url=api or None)
+    _set_active_java_client(client)
+
+    # Immediate heartbeat — website TTL is ~90s; don't wait for the first poll tick.
+    try:
+        client.heartbeat(ziniao_online=False)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[Agent] 绑定后首心跳失败: {exc}", file=sys.stderr)
+
+    with _runtime_lock:
+        stop_event = _panel_stop_event
+        if stop_event is None:
+            print("[Agent] 面板未就绪，请重启助手以开始同步", file=sys.stderr)
+            return
+        alive = _agent_loop_thread is not None and _agent_loop_thread.is_alive()
+        if alive:
+            return
+        thread = threading.Thread(
+            target=run_agent_loop,
+            args=(client, stop_event),
+            daemon=True,
+            name="agent-loop",
+        )
+        _agent_loop_thread = thread
+        thread.start()
+        if not _ops_watcher_started:
+            try:
+                start_ops_notify_watcher(stop_event)
+                _ops_watcher_started = True
+            except Exception as exc:  # noqa: BLE001
+                print(f"[OpsNotify] start after bind failed: {exc}", file=sys.stderr)
+
 class _AppState:
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -157,8 +211,17 @@ def _build_flask_app(java_client: Any) -> "Flask":
                 config_path=_helper_config_path(),
                 base_url=_api_base() or None,
             )
-            _state.update_agent("running", error="")
-            return jsonify({"ok": True, "msg": "绑定成功，请重启助手以开始同步", "data": result})
+            try:
+                ensure_agent_started_after_bind(result)
+                _state.update_agent("running", error="")
+                return jsonify({"ok": True, "msg": "绑定成功，助手已开始同步", "data": result})
+            except Exception as start_exc:  # noqa: BLE001
+                _state.update_agent("running", error=str(start_exc))
+                return jsonify({
+                    "ok": True,
+                    "msg": "绑定成功，但自动启动同步失败，请重启助手",
+                    "data": result,
+                })
         except Exception as exc:
             return jsonify({"ok": False, "msg": str(exc)}), 400
 
@@ -299,27 +362,18 @@ def _build_flask_app(java_client: Any) -> "Flask":
         def _do_login():
             try:
                 if platform in ("temu", ""):
-                    try:
-                        from app.browser.profile_sync import pull_profile_if_needed
-
-                        pull_profile_if_needed(
-                            java_client,
-                            platform="temu",
-                            tenant_id=tenant_id,
-                            session_key=session_key,
-                        )
-                    except Exception:
-                        pass
                     from agent.temu_tasks import open_login_window, wait_login_session_ready
 
+                    # Open window first (no remote profile pull) so UI feels instant.
                     open_login_window(tenant_id, session_key=session_key)
-                    # Persist Cookie vault for HTTP sync after user finishes login.
                     try:
+                        # Must pass java_client — otherwise website never receives session-ready.
                         wait_login_session_ready(
                             tenant_id,
                             session_key=session_key,
                             timeout_seconds=600,
-                            poll_seconds=5.0,
+                            poll_seconds=2.0,
+                            client=java_client,
                         )
                     except Exception as wait_exc:  # noqa: BLE001
                         print(f"[Panel] temu login wait end: {wait_exc}", file=sys.stderr)
@@ -832,9 +886,17 @@ def start_ops_notify_watcher(stop_event: threading.Event) -> None:
 
 # ─── 面板 HTTP 服务 ────────────────────────────────────────────────────────────
 def start_panel_server(java_client: Any, stop_event: threading.Event) -> None:
+    global _panel_stop_event, _agent_loop_thread, _ops_watcher_started
+
     if not _HAS_FLASK:
         print("[Panel] Flask 未安装，跳过 Web 面板。")
         return
+
+    _panel_stop_event = stop_event
+    _set_active_java_client(java_client)
+    if java_client is not None:
+        # Caller starts the loop; remember thread later via note_agent_loop_thread.
+        pass
 
     try:
         from agent.install_marker import write_install_marker
@@ -857,6 +919,15 @@ def start_panel_server(java_client: Any, stop_event: threading.Event) -> None:
     t = threading.Thread(target=_run, daemon=True, name="panel-server")
     t.start()
     print(f"[Panel] 面板已启动: http://127.0.0.1:{PANEL_PORT}")
+
+
+def note_agent_loop_thread(thread: threading.Thread | None, *, ops_started: bool = False) -> None:
+    """Record agent loop started by sync_helper_app so bind won't double-start."""
+    global _agent_loop_thread, _ops_watcher_started
+    with _runtime_lock:
+        _agent_loop_thread = thread
+        if ops_started:
+            _ops_watcher_started = True
 
 
 # ─── Agent 包装（带状态上报）─────────────────────────────────────────────────
@@ -902,6 +973,16 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
                 consecutive_errors = 0
                 # 恢复 running 时显式清空 last_error，避免开机连不上的残留一直显示
                 _state.update_agent("running", error="")
+                # Login opens must jump the queue ahead of session_probe / crawl.
+                _LOGIN_FIRST = {
+                    "temu_login_open": 0,
+                    "temu_frontend_login_open": 1,
+                    "aliexpress_login_open": 0,
+                }
+                tasks = sorted(
+                    tasks,
+                    key=lambda t: _LOGIN_FIRST.get(str(t.get("task_type") or ""), 50),
+                )
                 for task in tasks:
                     t_type = str(task.get("task_type") or "")
                     _state.update_agent("running", task=t_type)

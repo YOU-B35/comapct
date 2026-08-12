@@ -27,6 +27,9 @@ public class AppUser {
 
     private String phone;
 
+    @Column(name = "other_role")
+    private String otherRole = "";
+
     @Column(name = "status")
     private String status;
 
@@ -50,6 +53,8 @@ public class AppUser {
     public void setRole(String role) { this.role = role; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+    public String getOtherRole() { return otherRole; }
+    public void setOtherRole(String otherRole) { this.otherRole = otherRole; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getCreatedAt() { return createdAt; }

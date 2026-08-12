@@ -41,10 +41,13 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/agent/register",
                         "/api/agent/setup",
                         "/api/agent/nodes",
+                        "/api/agent/me",
                         "/api/agent/me/**",
                         "/api/amazon/**",
                         "/api/aliexpress/**",
-                        "/api/monitor/**"
+                        "/api/monitor/**",
+                        "/api/sau/**",
+                        "/api/commander/**"
                 );
         registry.addInterceptor(agentAuthInterceptor)
                 .addPathPatterns(
@@ -52,10 +55,12 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/agent/tasks",
                         "/api/agent/tasks/**",
                         "/api/agent/temu/**",
+                        "/api/agent/aliexpress/**",
                         "/api/agent/tenants",
                         "/api/agent/platform-accounts",
                         "/api/agent/platform-accounts/**",
                         "/api/agent/amazon/**",
+                        "/api/agent/ops/**",
                         "/api/agent/profiles",
                         "/api/agent/profiles/**"
                 );

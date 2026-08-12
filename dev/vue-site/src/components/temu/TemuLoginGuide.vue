@@ -187,9 +187,10 @@ async function handleOpenLogin(row) {
   try {
     await enqueueTemuLogin({
       platformAccountId: row.platformAccountId || undefined,
+      sessionKey: row.sessionKey,
     })
     ElMessage.success('请在本机弹出的浏览器中完成登录')
-    await loadStatus()
+    void loadStatus()
     void startGuidePoll()
   } catch (err) {
     ElMessage.error(err.message || '打开登录窗口失败')
@@ -218,9 +219,7 @@ async function handleConfirmLogin() {
 
 onMounted(async () => {
   await loadStatus()
-  if (!sessionReady.value) {
-    void startGuidePoll()
-  }
+  // Poll only after user opens/confirms login — avoid thrashing session_probe on mount.
 })
 
 onUnmounted(() => {

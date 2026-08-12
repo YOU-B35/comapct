@@ -39,11 +39,11 @@ while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 2
 }
 
-Write-Host "==> start Vue dev :5173" -ForegroundColor Cyan
+Write-Host "==> start Vue dev :5174" -ForegroundColor Cyan
 $webLauncher = Join-Path $env:TEMP "crosshub-web.ps1"
 Start-CrosshubLauncherWindow -Name "web" -LauncherPath $webLauncher -ScriptLines @(
     "Set-Location '$Root\dev\vue-site'"
-    "npm run dev"
+    "npm run dev -- --port 5174 --strictPort"
 )
 
 Write-Host "==> start Temu collector :18082" -ForegroundColor Cyan
@@ -75,14 +75,14 @@ Save-CrosshubLauncherPid -Name "worker" -ProcessId $workerProc.Id
 
 Start-Sleep -Seconds 12
 $javaUp = Get-NetTCPConnection -LocalPort 18080 -State Listen -ErrorAction SilentlyContinue
-$webUp = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
+$webUp = Get-NetTCPConnection -LocalPort 5174 -State Listen -ErrorAction SilentlyContinue
 if ($javaUp) {
     Write-Host "Java API ready: http://localhost:18080" -ForegroundColor Green
 } else {
     Write-Host "Java API not ready on 18080 — check Java launcher window" -ForegroundColor Yellow
 }
 if ($webUp) {
-    Write-Host "Vue dev ready: http://localhost:5173" -ForegroundColor Green
+    Write-Host "Vue dev ready: http://localhost:5174" -ForegroundColor Green
 } else {
-    Write-Host "Vue dev not ready on 5173 — check Web launcher window" -ForegroundColor Yellow
+    Write-Host "Vue dev not ready on 5174 — check Web launcher window" -ForegroundColor Yellow
 }

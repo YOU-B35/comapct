@@ -9,11 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from agent.java_client import AgentApiClient
+from app.browser import runtime as browser_runtime
 from app.browser.context import (
     close_temu_runtime,
     close_tenant_profile_browsers,
+    ensure_seller_login_page,
     get_or_create_temu_runtime,
     get_or_open_seller_page,
+    is_runtime_context_usable,
 )
 from app.browser.profile_lock import is_profile_locked, read_profile_lock
 from app.browser.session_state import session_ready
@@ -94,20 +97,30 @@ def _run_inprocess(script_name: str, tenant_id: int, *extra: str) -> dict[str, A
 
 def _probe_session_live(tenant_id: int, session_key: str | None = None) -> dict[str, Any]:
     from app.browser.context import describe_session, get_or_open_seller_page, open_temu_context
-    from app.browser.profile_lock import read_session_cache, write_session_cache
+    from app.browser.profile_lock import (
+        SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+        read_session_cache,
+        write_session_cache,
+    )
     from app.browser.session_state import build_session_payload
+    from app.config import is_headless
     from seller_session_status import build_cache_only_payload, payload_from_cache, profile_busy_error
 
     key = normalize_session_key(session_key)
     if is_profile_locked(tenant_id, key):
-        cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=key)
+        cached = read_session_cache(
+            tenant_id,
+            max_age_seconds=SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+            session_key=key,
+        )
         if cached:
             return payload_from_cache(tenant_id, cached, profile_busy=True, session_key=key)
         return build_cache_only_payload(tenant_id, session_key=key)
 
+    # Align with crawl (default headed). Headless probes often false-negative to /auth.
     profile_busy = False
     try:
-        with open_temu_context(tenant_id, headless=True, session_key=key) as (_, context):
+        with open_temu_context(tenant_id, headless=is_headless(), session_key=key) as (_, context):
             page = get_or_open_seller_page(context)
             page.wait_for_load_state("domcontentloaded", timeout=60_000)
             page.wait_for_timeout(1500)
@@ -115,7 +128,11 @@ def _probe_session_live(tenant_id: int, session_key: str | None = None) -> dict[
     except Exception as exc:
         if profile_busy_error(exc):
             profile_busy = True
-            cached = read_session_cache(tenant_id, max_age_seconds=1800, session_key=key)
+            cached = read_session_cache(
+                tenant_id,
+                max_age_seconds=SESSION_CACHE_BUSY_MAX_AGE_SECONDS,
+                session_key=key,
+            )
             if cached:
                 return payload_from_cache(tenant_id, cached, profile_busy=True, session_key=key)
             status = {
@@ -138,35 +155,137 @@ def _probe_session_live(tenant_id: int, session_key: str | None = None) -> dict[
 
 
 def open_login_window(tenant_id: int, session_key: str | None = None) -> dict[str, Any]:
+    import time
+
+    from app.browser.profile_startup import sanitize_profile_startup_for_temu
+    from app.config import resolve_profile_dir
+
     key = normalize_session_key(session_key)
-    if is_profile_locked(tenant_id, key):
-        lock = read_profile_lock(tenant_id, key) or {}
+    profile_dir = resolve_profile_dir(tenant_id, key)
+
+    # Fast path: reuse live Playwright runtime, but always force Temu seller URL.
+    peeked = browser_runtime.peek_browser_runtime(tenant_id=tenant_id, session_key=key)
+    if peeked is not None and is_runtime_context_usable(peeked.context):
+        page = ensure_seller_login_page(peeked.context, force_navigate=True)
         return {
             "tenant_id": tenant_id,
             "session_key": key,
-            "opened": False,
-            "already_open": True,
+            "opened": True,
+            "already_open": False,
+            "reused": True,
             "engine": "playwright",
-            "url": TEMU_SELLER_HOME,
-            "lock_role": lock.get("role") or "login_assist",
+            "url": page.url or TEMU_SELLER_HOME,
         }
 
-    close_temu_runtime(tenant_id, session_key=key)
-    close_tenant_profile_browsers(tenant_id, session_key=key)
-    runtime = get_or_create_temu_runtime(tenant_id, headless=False, session_key=key)
-    page = get_or_open_seller_page(runtime.context)
+    # Never leave an orphan Chrome (often restored 店小秘 tabs) as "already open".
+    # Reclaim profile, wipe session restore, then open Temu seller only.
     try:
-        page.bring_to_front()
+        close_temu_runtime(tenant_id, session_key=key)
     except Exception:
         pass
+    try:
+        close_tenant_profile_browsers(tenant_id, session_key=key)
+    except Exception:
+        pass
+    time.sleep(0.4)
+    sanitize_profile_startup_for_temu(profile_dir, home_url=TEMU_SELLER_HOME)
+
+    runtime = get_or_create_temu_runtime(
+        tenant_id,
+        headless=False,
+        session_key=key,
+        skip_profile_pull=True,
+        force_kill_browsers=True,
+    )
+    page = ensure_seller_login_page(runtime.context, force_navigate=True)
     return {
         "tenant_id": tenant_id,
         "session_key": key,
         "opened": True,
         "already_open": False,
+        "reused": False,
         "engine": "playwright",
-        "url": TEMU_SELLER_HOME,
+        "url": page.url or TEMU_SELLER_HOME,
     }
+
+
+def wait_login_session_ready(
+    tenant_id: int,
+    *,
+    session_key: str | None = None,
+    timeout_seconds: int = 600,
+    poll_seconds: float = 5.0,
+    client: AgentApiClient | None = None,
+) -> dict[str, Any]:
+    """Poll the already-open login browser until seller session is ready; persist cache + optional Java push."""
+    from app.browser.context import describe_session, wait_for_login_and_mall
+    from app.browser.profile_lock import write_session_cache
+    from app.browser.session_state import build_session_payload
+
+    key = normalize_session_key(session_key)
+    runtime = get_or_create_temu_runtime(
+        tenant_id,
+        headless=False,
+        session_key=key,
+        skip_profile_pull=True,
+        force_kill_browsers=False,
+    )
+    # Keep Temu seller tab only; do not force-navigate (would interrupt mid-login).
+    page = ensure_seller_login_page(runtime.context, force_navigate=False)
+    reported_ready = {"done": False}
+
+    def _on_poll(status: dict[str, Any]) -> None:
+        ready_now = session_ready(status)
+        # Keep reporting progress so the website leaves「未登录」as soon as possible.
+        payload = build_session_payload(tenant_id, status, profile_busy=not ready_now)
+        payload["session_key"] = key
+        write_session_cache(tenant_id, payload, session_key=key)
+        if client is None:
+            return
+        try:
+            client.report_temu_session(payload)
+            if ready_now:
+                reported_ready["done"] = True
+                print(
+                    f"[TemuLogin] session ready reported tenant={tenant_id} key={key} "
+                    f"mall={payload.get('mall_id')}",
+                    flush=True,
+                )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[TemuLogin] report session failed: {exc}", flush=True)
+
+    wait_for_login_and_mall(
+        page,
+        tenant_id=tenant_id,
+        timeout_seconds=int(timeout_seconds),
+        poll_interval_seconds=max(1, int(poll_seconds)),
+        on_poll=_on_poll,
+    )
+    status = describe_session(page)
+    payload = build_session_payload(tenant_id, status, profile_busy=False)
+    payload["session_key"] = key
+    write_session_cache(tenant_id, payload, session_key=key)
+    if client is not None:
+        try:
+            client.report_temu_session(payload)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[TemuLogin] final report session failed: {exc}", flush=True)
+    # Release the profile so「刷新数据」can launch a crawl browser without SingletonLock clash.
+    try:
+        close_temu_runtime(tenant_id, session_key=key)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[TemuLogin] close login runtime: {exc}", flush=True)
+    try:
+        from app.browser.profile_lock import clear_profile_lock
+
+        clear_profile_lock(tenant_id, session_key=key)
+    except Exception:
+        pass
+    try:
+        close_tenant_profile_browsers(tenant_id, session_key=key)
+    except Exception:
+        pass
+    return payload
 
 
 def open_frontend_login_window(tenant_id: int, url: str | None = None) -> dict[str, Any]:

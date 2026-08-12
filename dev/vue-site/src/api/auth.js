@@ -47,10 +47,11 @@ async function requireBackendLogin(account, password, portalRole) {
 export async function loginAccount({ account, password, preferredPortal }) {
   const acc = String(account || '').trim()
   const pwd = String(password || '')
-  void preferredPortal
+  const portalHint = String(preferredPortal || '').trim().toLowerCase()
 
   if (isTemuBackendEnabled()) {
-    const backend = await requireBackendLogin(acc, pwd)
+    // 后端 LoginRequest.portalRole 缺省为 boss；员工/仓库账号必须带上入口选择
+    const backend = await requireBackendLogin(acc, pwd, portalHint || undefined)
     const portal = String(backend.portal_role || '').toLowerCase()
     const session = mapBackendSession(backend)
     if (portal === 'boss') {

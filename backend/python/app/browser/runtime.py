@@ -66,6 +66,13 @@ def get_or_create_browser_runtime(
         return runtime
 
 
+def peek_browser_runtime(*, tenant_id: int, session_key: str | None = None) -> BrowserRuntime | None:
+    """Return in-memory runtime if present (does not launch)."""
+    key = runtime_key(tenant_id, session_key)
+    with _LOCK:
+        return _RUNTIMES.get(key)
+
+
 def close_browser_runtime(*, tenant_id: int, session_key: str | None = None) -> None:
     key = runtime_key(tenant_id, session_key)
     with _LOCK:
