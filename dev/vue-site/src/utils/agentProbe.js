@@ -1,4 +1,5 @@
 const DEFAULT_PORT = 18765
+const DEFAULT_PANEL_PORT = 18766
 
 /**
  * 探测本机 CrossHub 同步助手健康端口（默认 :18765）。
@@ -21,6 +22,10 @@ export async function probeLocalAgent(port = DEFAULT_PORT, timeoutMs = 2500) {
   } finally {
     window.clearTimeout(timer)
   }
+}
+
+export function getHelperPanelUrl() {
+  return `http://127.0.0.1:${DEFAULT_PANEL_PORT}/`
 }
 
 export function getAgentProbePort() {
