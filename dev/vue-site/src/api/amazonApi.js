@@ -462,6 +462,12 @@ export async function fetchAmazonSpApiStatus() {
   return { success: true, data: unwrapData(res) }
 }
 
+export async function fetchAmazonSyncJobs({ limit = 20 } = {}) {
+  const res = await service.get('/api/amazon/sync-jobs', { params: { limit }, skipGlobalErrorToast: true })
+  const body = unwrapData(res) || {}
+  return Array.isArray(body.items) ? body.items : []
+}
+
 const WRITE_POLL_MS = 2000
 const WRITE_MAX_WAIT_MS = 180000
 

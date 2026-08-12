@@ -5,6 +5,7 @@ import com.crosshub.amazon.entity.AmazonSyncJob;
 import com.crosshub.amazon.service.*;
 import com.crosshub.common.ApiResult;
 import com.crosshub.common.AppErrorCode;
+import com.crosshub.tenant.service.DataScopeService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
@@ -21,13 +22,22 @@ public class AmazonController {
     private final AmazonOperationalService operationalService;
     private final AmazonWriteService writeService;
     private final AmazonZiniaoService ziniaoService;
+    private final DataScopeService dataScopeService;
     private final ObjectMapper objectMapper;
 
-    public AmazonController(AmazonSyncService syncService, AmazonOperationalService operationalService, AmazonWriteService writeService, AmazonZiniaoService ziniaoService, ObjectMapper objectMapper) {
+    public AmazonController(
+            AmazonSyncService syncService,
+            AmazonOperationalService operationalService,
+            AmazonWriteService writeService,
+            AmazonZiniaoService ziniaoService,
+            DataScopeService dataScopeService,
+            ObjectMapper objectMapper
+    ) {
         this.syncService = syncService;
         this.operationalService = operationalService;
         this.writeService = writeService;
         this.ziniaoService = ziniaoService;
+        this.dataScopeService = dataScopeService;
         this.objectMapper = objectMapper;
     }
 
@@ -49,6 +59,12 @@ public class AmazonController {
     @GetMapping("/sync/{jobId}")
     public Map<String, Object> getSyncJob(@PathVariable String jobId) {
         return ApiResult.ok(toJobDto(syncService.getJob(jobId)));
+    }
+
+    @GetMapping("/sync-jobs")
+    public Map<String, Object> listSyncJobs(@RequestParam(value = "limit", required = false) Integer limit) {
+        Long tenantId = dataScopeService.requireTenantId();
+        return ApiResult.ok(syncService.listRecentJobsForTenant(tenantId, limit));
     }
 
     @GetMapping("/sync-versions")

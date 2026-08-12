@@ -32,9 +32,3 @@ export async function fetchAmazonIntegrationStatus() {
   const res = await service.get('/api/amazon/integration/status', { skipGlobalErrorToast: true })
   return { success: true, data: unwrapData(res) || {} }
 }
-
-export async function fetchAmazonSyncJobs({ limit = 20 } = {}) {
-  const res = await service.get('/api/agent/amazon/sync-jobs', { params: { limit }, skipGlobalErrorToast: true })
-  const body = unwrapData(res) || {}
-  return Array.isArray(body.items) ? body.items : []
-}
