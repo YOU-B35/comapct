@@ -24,8 +24,7 @@ import SlowMovingPanel from '@/components/temu/SlowMovingPanel.vue'
 import HotProductBroadcast from '@/components/temu/HotProductBroadcast.vue'
 import RestockPlanner from '@/components/temu/RestockPlanner.vue'
 import CompetitorAnalysis from '@/components/temu/CompetitorAnalysis.vue'
-import TemuHelperBanner from '@/components/temu/TemuHelperBanner.vue'
-import TemuLoginGuide from '@/components/temu/TemuLoginGuide.vue'
+import TemuHelperStatusBar from '@/components/temu/TemuHelperStatusBar.vue'
 
 const auth = useAuthStore()
 const syncStore = usePlatformSyncStore()
@@ -37,8 +36,7 @@ const productsRaw = ref([])
 const loading = ref(false)
 const crawling = ref(false)
 const crawlHint = ref('')
-const loginGuideRef = ref(null)
-const helperBannerRef = ref(null)
+const helperStatusBarRef = ref(null)
 const helperOnline = ref(false)
 const syncError = ref(null)
 const dataLoadError = ref('')
@@ -213,7 +211,7 @@ async function handleRefreshData() {
   if (!showManualSyncControls.value || crawling.value) return
   if (!helperOnline.value) {
     ElMessage.warning('本机同步助手未在线，请先安装并绑定')
-    await helperBannerRef.value?.reload?.()
+    await helperStatusBarRef.value?.reload?.()
     return
   }
 
@@ -230,8 +228,7 @@ async function handleRefreshData() {
     syncError.value = null
     await loadTemuStores()
     await loadProducts()
-    await loginGuideRef.value?.reload?.()
-    await helperBannerRef.value?.reload?.()
+    await helperStatusBarRef.value?.reload?.()
     const rows = res.job?.rows_count ?? res.job?.shops?.rows_count
     const reportTime = res.job?.report_time || ''
     markSidebarTemuSync({
@@ -255,8 +252,7 @@ async function handleRefreshData() {
       message: syncError.value.title || err.message || 'Temu 同步失败',
     })
     ElMessage.error(syncError.value.title)
-    await loginGuideRef.value?.reload?.()
-    await helperBannerRef.value?.reload?.()
+    await helperStatusBarRef.value?.reload?.()
   } finally {
     crawling.value = false
     crawlHint.value = ''
@@ -381,28 +377,28 @@ watch(selectedStoreId, (id, prev) => {
       </template>
     </el-alert>
 
+    <!-- Boss / 员工共用：有后端会话即可绑定本机助手（即使尚未分配店铺） -->
+    <TemuHelperStatusBar
+      v-if="showManualSyncControls"
+      ref="helperStatusBarRef"
+      @update:online="onHelperOnline"
+    />
+
     <el-empty
       v-if="!temuStores.length && !loading"
       description="暂无可见的 Temu 店铺"
       :image-size="96"
     >
       <el-text type="info" size="small">
-        Boss 请在「运营绑定」确认 Temu 店铺；员工需被分配 Temu 平台或负责店铺
+        {{
+          auth.isBoss
+            ? '请在「运营绑定」确认 Temu 店铺；本机可先下载并绑定 Sync Helper'
+            : '请联系管理员分配 Temu 店铺；本机可先下载并绑定 Sync Helper'
+        }}
       </el-text>
     </el-empty>
 
     <template v-else-if="temuStores.length">
-      <TemuHelperBanner
-        v-if="showManualSyncControls"
-        ref="helperBannerRef"
-        @update:online="onHelperOnline"
-      />
-      <TemuLoginGuide
-        v-if="showManualSyncControls"
-        ref="loginGuideRef"
-        :helper-online="helperOnline"
-      />
-
       <div
         v-loading="loading || crawling"
         :element-loading-text="crawlHint || '加载中...'"

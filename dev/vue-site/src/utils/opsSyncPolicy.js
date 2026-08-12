@@ -1,17 +1,21 @@
 /**
- * 运营网页同步策略（产品强制口径）
+ * 运营网页同步策略
  *
- * - 任何成员（Boss / 员工）只看运营数据，不操作同步、不下载/启动助手
- * - 同步由一台运维肉机常驻 CrossHub-Sync-Helper.exe + 服务端日批（默认 09:30）完成
- * - 运维排障仍可用 API / 肉机本机工具；网页不再暴露同步入口
+ * - Temu / AliExpress / Amazon：用户本机 Sync Helper（Boss+员工可下载绑定、登录、手动刷新）
+ * - 其它仍可能只读；旧开关 OPS_MANUAL_SYNC_ENABLED 仅留给尚未迁移的入口
  */
 
-/** 是否允许运营网页触发手动同步 / 打开登录窗 / 下载助手 */
+/** @deprecated 用户本机 Helper 平台请用 canUsePlatformUserHelper() */
 export const OPS_MANUAL_SYNC_ENABLED = false
 
 export function canUseOpsManualSync() {
   return OPS_MANUAL_SYNC_ENABLED === true
 }
 
+/** Temu / AE / Amazon 用户本机助手模式 */
+export function canUsePlatformUserHelper(auth) {
+  return Boolean(auth?.backendLinked) && !auth?.isWarehouse
+}
+
 export const OPS_SYNC_READONLY_HINT =
-  '店铺数据由运维机定时自动同步（默认每天 09:30），本页仅展示结果，无需手动同步或安装助手。'
+  '请先安装并绑定本机 CrossHub Sync Helper，再在本页登录与刷新数据。'

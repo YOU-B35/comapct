@@ -38,7 +38,8 @@ import AmazonSellerNewsPanel from '@/components/amazon/AmazonSellerNewsPanel.vue
 import AmazonShipmentsPanel from '@/components/amazon/AmazonShipmentsPanel.vue'
 import AmazonCasesPanel from '@/components/amazon/AmazonCasesPanel.vue'
 import AmazonIntegrationGuide from '@/components/amazon/AmazonIntegrationGuide.vue'
-import { canUseOpsManualSync, OPS_SYNC_READONLY_HINT } from '@/utils/opsSyncPolicy'
+import HelperStatusBar from '@/components/helper/HelperStatusBar.vue'
+import { canUsePlatformUserHelper } from '@/utils/opsSyncPolicy'
 
 const auth = useAuthStore()
 const syncStore = usePlatformSyncStore()
@@ -71,10 +72,15 @@ const outboundFilter = ref('pending')
 
 const operationalDemoOnly = computed(() => isPlatformOperationalDemoOnly('amazon'))
 const operationalHint = computed(() => platformOperationalHint('amazon'))
-const showManualSyncControls = computed(() => canUseOpsManualSync())
+const showManualSyncControls = computed(() => canUsePlatformUserHelper(auth))
 const showIntegrationGuide = computed(
-  () => showManualSyncControls.value && auth.backendLinked && !operationalDemoOnly.value,
+  () => false,
 )
+const helperOnline = ref(false)
+
+function onHelperOnline(online) {
+  helperOnline.value = Boolean(online)
+}
 
 const storeNameMap = computed(() =>
   Object.fromEntries(amazonStores.value.map((s) => [s.id, s.storeName])),
@@ -257,7 +263,7 @@ function markAmazonSidebarSync({ status = 'success', message = '' } = {}) {
 }
 
 async function syncBossInsights(refresh = false) {
-  if (refresh && !canUseOpsManualSync()) return
+  if (refresh && !showManualSyncControls.value) return
   if (operationalDemoOnly.value || !amazonStores.value.length) {
     applyBossData({ products: [], outboundOrders: [], syncedAt: '' })
     return
@@ -336,7 +342,7 @@ async function syncAccountHealth(refresh = false) {
 }
 
 async function syncAllAmazon() {
-  if (!canUseOpsManualSync()) return
+  if (!showManualSyncControls.value) return
   if (operationalDemoOnly.value || !amazonStores.value.length) return
   loadingAll.value = true
   loadingBoss.value = true
@@ -499,13 +505,23 @@ onActivated(loadModule)
       />
     </template>
 
+    <HelperStatusBar
+      v-if="showManualSyncControls"
+      platform="amazon"
+      @update:online="onHelperOnline"
+    />
+
     <el-empty
       v-if="!loadingStores && !amazonStores.length"
       description="暂无可见的 Amazon 店铺"
       :image-size="96"
     >
       <el-text type="info" size="small">
-        {{ auth.isBoss ? '请先在「账户绑定」中绑定 Amazon 店铺' : '请联系企业管理员分配负责店铺' }}
+        {{
+          auth.isBoss
+            ? '请先在「账户绑定」中绑定 Amazon 店铺；本机可先下载并绑定 Sync Helper'
+            : '请联系企业管理员分配负责店铺；本机可先下载并绑定 Sync Helper'
+        }}
       </el-text>
       <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
         前往账户绑定
@@ -515,21 +531,17 @@ onActivated(loadModule)
     <template v-else-if="amazonStores.length">
       <AmazonIntegrationGuide v-if="showIntegrationGuide" />
 
-      <el-alert
-        v-else-if="auth.backendLinked && !operationalDemoOnly"
-        type="info"
-        :closable="false"
-        show-icon
-        class="operational-hint"
-        :title="OPS_SYNC_READONLY_HINT"
-      />
-
-      <div v-if="showIntegrationGuide && auth.isBoss" class="amazon-sync-bar">
-        <el-button type="primary" :loading="loadingAll" @click="syncAllAmazon">
+      <div v-if="showManualSyncControls" class="amazon-sync-bar">
+        <el-button
+          type="primary"
+          :loading="loadingAll"
+          :disabled="!helperOnline"
+          @click="syncAllAmazon"
+        >
           一键刷新全部数据
         </el-button>
         <el-text size="small" type="info">
-          依次同步今日运营、Business Report 产品与广告（约 3–8 分钟，需紫鸟与同步助手在线）
+          依次同步今日运营、Business Report 产品与广告（约 3–8 分钟，需本机 Sync Helper 与紫鸟在线）
         </el-text>
       </div>
 

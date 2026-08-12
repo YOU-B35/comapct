@@ -25,6 +25,8 @@ import AliExpressBossOverview from '@/components/aliexpress/AliExpressBossOvervi
 import AliExpressOrdersPanel from '@/components/aliexpress/AliExpressOrdersPanel.vue'
 import AliExpressViolationsPanel from '@/components/aliexpress/AliExpressViolationsPanel.vue'
 import AliExpressHotBroadcast from '@/components/aliexpress/AliExpressHotBroadcast.vue'
+import HelperStatusBar from '@/components/helper/HelperStatusBar.vue'
+import { canUsePlatformUserHelper } from '@/utils/opsSyncPolicy'
 
 const auth = useAuthStore()
 const syncStore = usePlatformSyncStore()
@@ -44,6 +46,13 @@ const loadingOrders = ref(false)
 const loadingViolations = ref(false)
 const violationsPanel = ref(null)
 const violationsFilter = ref('all')
+const helperOnline = ref(false)
+
+const showHelperBar = computed(() => canUsePlatformUserHelper(auth))
+
+function onHelperOnline(online) {
+  helperOnline.value = Boolean(online)
+}
 
 const operationalDemoOnly = computed(() => isPlatformOperationalDemoOnly('aliexpress'))
 const operationalHint = computed(() => platformOperationalHint('aliexpress'))
@@ -341,6 +350,7 @@ onActivated(loadAliExpressModule)
             size="small"
             :icon="Refresh"
             :loading="loadingOrders || loadingViolations"
+            :disabled="showHelperBar && !helperOnline"
             @click="handleRefreshAll"
           >
             同步数据
@@ -358,13 +368,23 @@ onActivated(loadAliExpressModule)
       />
     </template>
 
+    <HelperStatusBar
+      v-if="showHelperBar"
+      platform="aliexpress"
+      @update:online="onHelperOnline"
+    />
+
     <el-empty
       v-if="!loadingStores && !aliexpressStores.length"
       description="暂无可见的 AliExpress 店铺"
       :image-size="96"
     >
       <el-text type="info" size="small">
-        {{ auth.isBoss ? '请先在「账户绑定」中绑定速卖通店铺' : '请联系企业管理员在运营绑定中分配负责店铺' }}
+        {{
+          auth.isBoss
+            ? '请先在「账户绑定」中绑定速卖通店铺；本机可先下载并绑定 Sync Helper'
+            : '请联系企业管理员分配负责店铺；本机可先下载并绑定 Sync Helper'
+        }}
       </el-text>
       <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
         前往账户绑定

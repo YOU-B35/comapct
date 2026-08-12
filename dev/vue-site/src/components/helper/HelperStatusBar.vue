@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download, Link, Refresh, Monitor } from '@element-plus/icons-vue'
+import { Connection, Download, Link, Refresh, Monitor } from '@element-plus/icons-vue'
 import {
   createBindCode,
   enqueueTemuLogin,
@@ -9,6 +9,7 @@ import {
   openHelperDownload,
   resolveHelperDownloadUrl,
 } from '@/api/agentHelper'
+import { connectLocalHelper } from '@/utils/agentConnect'
 import {
   fetchTemuSessionStatus,
   pollTemuSessionUntilReady,
@@ -33,6 +34,7 @@ const auth = useAuthStore()
 const helperLoading = ref(false)
 const sessionLoading = ref(false)
 const openingKey = ref('')
+const connecting = ref(false)
 const helperStatus = ref({ online: false, agents: [], recommended_agent_id: '' })
 const sessionStatus = ref({})
 /** 本机助手进程探测结果（与当前用户 Java 在线状态独立） */
@@ -48,6 +50,24 @@ const bindDialogVisible = ref(false)
 const bindLoading = ref(false)
 const bindInfo = ref(null)
 const stepsDialogVisible = ref(false)
+
+async function onConnectHelper() {
+  if (connecting.value) return
+  connecting.value = true
+  try {
+    const result = await connectLocalHelper()
+    if (result.status === 'not_found') {
+      ElMessage.warning(result.message)
+    } else {
+      ElMessage.success(result.message)
+      await reload()
+    }
+  } catch (err) {
+    ElMessage.error(err?.message || '连接助手失败，请重试')
+  } finally {
+    connecting.value = false
+  }
+}
 
 let helperPollTimer = null
 let sessionPollAbort = null
@@ -364,6 +384,15 @@ defineExpose({ reload, online, sessionReady })
 
     <div class="bar-actions">
       <template v-if="barMode === 'rebind'">
+        <el-button
+          type="primary"
+          size="small"
+          :icon="Connection"
+          :loading="connecting"
+          @click="onConnectHelper"
+        >
+          连接助手
+        </el-button>
         <el-button type="primary" size="small" :icon="Link" @click="openBindDialog">
           生成绑定码
         </el-button>
@@ -376,6 +405,15 @@ defineExpose({ reload, online, sessionReady })
       </template>
 
       <template v-else-if="barMode === 'offline'">
+        <el-button
+          type="primary"
+          size="small"
+          :icon="Connection"
+          :loading="connecting"
+          @click="onConnectHelper"
+        >
+          连接助手
+        </el-button>
         <el-button type="primary" size="small" :icon="Download" native-type="button" @click="onDownloadHelper">
           {{ canDownload ? '下载' : '获取安装包' }}
         </el-button>
@@ -400,6 +438,9 @@ defineExpose({ reload, online, sessionReady })
         <el-button size="small" :loading="sessionLoading" @click="handleConfirmLogin">
           我已完成登录
         </el-button>
+        <el-button text type="primary" size="small" :loading="connecting" @click="onConnectHelper">
+          连接助手
+        </el-button>
         <el-button text type="primary" size="small" @click="stepsDialogVisible = true">
           查看步骤
         </el-button>
@@ -407,6 +448,9 @@ defineExpose({ reload, online, sessionReady })
       </template>
 
       <template v-else>
+        <el-button text type="primary" size="small" :loading="connecting" @click="onConnectHelper">
+          连接助手
+        </el-button>
         <el-button text type="primary" size="small" :icon="Link" @click="openBindDialog">
           绑定码
         </el-button>
