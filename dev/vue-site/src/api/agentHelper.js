@@ -160,15 +160,17 @@ export async function enqueueAndPollTemuSync(options = {}) {
   }
 }
 
-/** 线上静态占位路径；真实 zip 由发版上传，见 install checklist。 */
-export const DEFAULT_HELPER_DOWNLOAD_URL = '/crosshub/downloads/CrossHub-Sync-Helper.zip'
-
 /**
- * Sync Helper 安装包下载 URL。
- * - 未设置环境变量 → 默认占位路径
+ * Sync Helper 安装包下载。
+ *
+ * - 未设置 env → 默认官网 zip（须由 Nginx `/crosshub/downloads/` 直出，不能回落 SPA）
  * - 显式空 / `none` / `off` / `-` → 空字符串（UI 提示「请联系管理员获取安装包」）
- * - 其他非空 → 原样使用
+ * - 其他非空 → 使用（相对路径会升为绝对 URL）
  */
+export const HELPER_DOWNLOAD_ORIGIN = 'https://www.yoto.work'
+export const DEFAULT_HELPER_DOWNLOAD_PATH = '/crosshub/downloads/CrossHub-Sync-Helper.zip'
+export const DEFAULT_HELPER_DOWNLOAD_URL = `${HELPER_DOWNLOAD_ORIGIN}${DEFAULT_HELPER_DOWNLOAD_PATH}`
+
 export function resolveHelperDownloadUrl() {
   const raw = import.meta.env.VITE_HELPER_DOWNLOAD_URL
   if (raw === undefined || raw === null) {
@@ -178,5 +180,50 @@ export function resolveHelperDownloadUrl() {
   if (!trimmed || /^(none|off|-)$/i.test(trimmed)) {
     return ''
   }
-  return trimmed
+  return absolutizeHelperDownloadUrl(trimmed)
+}
+
+/** 相对路径升绝对；本机开发拼官网 origin，线上 yoto.work 用当前 origin。 */
+export function absolutizeHelperDownloadUrl(url) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (/^https?:\/\//i.test(value) || value.startsWith('blob:') || value.startsWith('data:')) {
+    return value
+  }
+  if (value.startsWith('/')) {
+    const origin =
+      typeof window !== 'undefined' &&
+      window.location?.hostname &&
+      /yoto\.work$/i.test(window.location.hostname)
+        ? window.location.origin
+        : HELPER_DOWNLOAD_ORIGIN
+    return `${origin}${value}`
+  }
+  return value
+}
+
+/**
+ * 打开安装包下载。无有效 URL 时返回 false。
+ * 使用绝对官网 downloads URL，避免本机相对路径被 Vue Router 劫持。
+ * @returns {boolean}
+ */
+export function openHelperDownload(url = resolveHelperDownloadUrl()) {
+  const href = absolutizeHelperDownloadUrl(url)
+  if (!href) return false
+  const pathOnly = href.replace(/^https?:\/\/[^/]+/i, '')
+  if (!/\.(zip|exe|msi|7z)(\?|#|$)/i.test(pathOnly) && !pathOnly.includes('/downloads/')) {
+    return false
+  }
+  const anchor = document.createElement('a')
+  anchor.href = href
+  anchor.target = '_blank'
+  anchor.rel = 'noopener noreferrer'
+  const fileName = pathOnly.split('/').pop()?.split(/[?#]/)[0]
+  if (fileName && /\.(zip|exe|msi|7z)$/i.test(fileName)) {
+    anchor.setAttribute('download', fileName)
+  }
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  return true
 }
