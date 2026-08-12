@@ -12,6 +12,7 @@ import { OUTCOME_OPTIONS } from '@/constants/opsFeedbackDemo'
 import { formatWarehouseScopeText } from '@/utils/warehouseScope'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -121,6 +122,7 @@ onMounted(loadTasks)
     <template #header>
       <PageHeader
         title="任务中心"
+        eyebrow="仓储"
         :description="`${auth.warehouse.name} · ${auth.warehouse.role}${scopeText ? ` · 负责 ${scopeText}` : ''}`"
       >
         <template #actions>
@@ -130,91 +132,95 @@ onMounted(loadTasks)
     </template>
 
     <div v-loading="loading" class="task-center">
-      <div class="metrics-bar metrics-bar--4">
-        <div class="metric-item">
-          <div class="metric-value">{{ stats.total }}</div>
-          <div class="metric-label">分配任务</div>
+      <PageSection title="概览">
+        <div class="metrics-bar metrics-bar--4">
+          <div class="metric-item">
+            <div class="metric-value">{{ stats.total }}</div>
+            <div class="metric-label">分配任务</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value is-warning">{{ stats.pending + stats.inProgress }}</div>
+            <div class="metric-label">待完成</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value is-danger">{{ stats.overdue }}</div>
+            <div class="metric-label">已逾期</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value is-success">{{ stats.completionRate }}<small>%</small></div>
+            <div class="metric-label">完成率</div>
+          </div>
         </div>
-        <div class="metric-item">
-          <div class="metric-value is-warning">{{ stats.pending + stats.inProgress }}</div>
-          <div class="metric-label">待完成</div>
+      </PageSection>
+
+      <PageSection title="任务列表">
+        <div class="filter-bar">
+          <button
+            v-for="item in filterOptions"
+            :key="item.value"
+            type="button"
+            class="filter-chip"
+            :class="{ 'is-active': activeFilter === item.value }"
+            @click="activeFilter = item.value"
+          >
+            {{ item.label }}
+            <span v-if="item.count" class="filter-chip__count">{{ item.count }}</span>
+          </button>
         </div>
-        <div class="metric-item">
-          <div class="metric-value is-danger">{{ stats.overdue }}</div>
-          <div class="metric-label">已逾期</div>
+
+        <el-empty
+          v-if="!loading && !visibleTasks.length"
+          description="暂无管理员分配的仓库任务"
+          :image-size="88"
+        />
+
+        <div v-else class="task-panel">
+          <header class="task-panel__head">
+            <strong>管理员分配</strong>
+            <el-button link type="primary" :icon="Right" @click="goOrders">去处理出库单</el-button>
+          </header>
+
+          <el-table :data="visibleTasks" size="small" stripe class="task-table">
+            <el-table-column label="任务" min-width="240">
+              <template #default="{ row }">
+                <div class="task-title">{{ row.title }}</div>
+                <div v-if="row.detail" class="task-detail">{{ row.detail }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="storeName" label="关联仓库" width="130" show-overflow-tooltip />
+            <el-table-column prop="category" label="类型" width="80" />
+            <el-table-column label="优先级" width="72" align="center">
+              <template #default="{ row }">
+                <el-tag :type="priorityMap[row.priority]?.type || 'info'" size="small">
+                  {{ priorityMap[row.priority]?.label || '中' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="due" label="截止" width="110" />
+            <el-table-column label="状态" width="88" align="center">
+              <template #default="{ row }">
+                <el-tag :type="TASK_STATUS_META[row.status]?.type" size="small">
+                  {{ row.status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" align="center" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  v-if="row.status !== '已完成'"
+                  link
+                  type="primary"
+                  size="small"
+                  @click="openFeedback(row)"
+                >
+                  提交反馈
+                </el-button>
+                <el-text v-else type="success" size="small">已完成</el-text>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
-        <div class="metric-item">
-          <div class="metric-value is-success">{{ stats.completionRate }}<small>%</small></div>
-          <div class="metric-label">完成率</div>
-        </div>
-      </div>
-
-      <div class="filter-bar">
-        <button
-          v-for="item in filterOptions"
-          :key="item.value"
-          type="button"
-          class="filter-chip"
-          :class="{ 'is-active': activeFilter === item.value }"
-          @click="activeFilter = item.value"
-        >
-          {{ item.label }}
-          <span v-if="item.count" class="filter-chip__count">{{ item.count }}</span>
-        </button>
-      </div>
-
-      <el-empty
-        v-if="!loading && !visibleTasks.length"
-        description="暂无管理员分配的仓库任务"
-        :image-size="88"
-      />
-
-      <div v-else class="task-panel">
-        <header class="task-panel__head">
-          <strong>管理员分配</strong>
-          <el-button link type="primary" :icon="Right" @click="goOrders">去处理出库单</el-button>
-        </header>
-
-        <el-table :data="visibleTasks" size="small" stripe class="task-table">
-          <el-table-column label="任务" min-width="240">
-            <template #default="{ row }">
-              <div class="task-title">{{ row.title }}</div>
-              <div v-if="row.detail" class="task-detail">{{ row.detail }}</div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="storeName" label="关联仓库" width="130" show-overflow-tooltip />
-          <el-table-column prop="category" label="类型" width="80" />
-          <el-table-column label="优先级" width="72" align="center">
-            <template #default="{ row }">
-              <el-tag :type="priorityMap[row.priority]?.type || 'info'" size="small">
-                {{ priorityMap[row.priority]?.label || '中' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="due" label="截止" width="110" />
-          <el-table-column label="状态" width="88" align="center">
-            <template #default="{ row }">
-              <el-tag :type="TASK_STATUS_META[row.status]?.type" size="small">
-                {{ row.status }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="120" align="center" fixed="right">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.status !== '已完成'"
-                link
-                type="primary"
-                size="small"
-                @click="openFeedback(row)"
-              >
-                提交反馈
-              </el-button>
-              <el-text v-else type="success" size="small">已完成</el-text>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
+      </PageSection>
     </div>
 
     <el-dialog
@@ -270,6 +276,7 @@ onMounted(loadTasks)
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 12px;
 }
 
 .filter-chip {

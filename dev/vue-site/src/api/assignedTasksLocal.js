@@ -196,5 +196,7 @@ export function mapAssignedTaskToCenterTask(task) {
     lastOutcome: task.lastOutcome,
     lastFeedback: task.lastFeedback,
     lastFeedbackAt: task.lastFeedbackAt,
+    nudgedAt: task.nudgedAt || '',
+    nudgedBy: task.nudgedBy || '',
   }
 }

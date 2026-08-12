@@ -81,9 +81,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-height: 38px;
-  padding: 6px 4px;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 10px;
   border: none;
   border-radius: var(--ch-radius-xs);
   font-size: 13px;
@@ -95,13 +95,14 @@
 }
 
 .role-tab .el-icon {
-  font-size: 15px;
+  font-size: 16px;
   flex-shrink: 0;
 }
 
 .role-tab__text {
   line-height: 1.2;
   text-align: center;
+  white-space: nowrap;
 }
 
 .role-tab.is-active {
@@ -137,13 +138,18 @@
 
   .role-tab {
     flex-direction: column;
-    gap: 2px;
-    min-height: 52px;
-    font-size: 11px;
+    gap: 4px;
+    min-height: 56px;
+    padding: 8px 4px;
+    font-size: 12px;
   }
 
   .role-tab .el-icon {
     font-size: 18px;
+  }
+
+  .role-tab__text {
+    white-space: normal;
   }
 
   .password-row {

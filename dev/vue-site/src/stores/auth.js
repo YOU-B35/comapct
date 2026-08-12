@@ -52,10 +52,14 @@ export const useAuthStore = defineStore('auth', () => {
   const shopScope = ref(readJson('crosshub_shop_scope', []))
   const warehouseScope = ref(readJson('crosshub_warehouse_scope', []))
   const warehouseScopeNames = ref(readJson('crosshub_warehouse_scope_names', []))
+  const teamLeader = ref(localStorage.getItem('crosshub_team_leader') === '1')
+  const teamId = ref(Number(localStorage.getItem('crosshub_team_id') || 0) || null)
+  const teamName = ref(localStorage.getItem('crosshub_team_name') || '')
 
   const isBoss = computed(() => role.value === 'boss')
   const isEmployee = computed(() => role.value === 'employee')
   const isWarehouse = computed(() => role.value === 'warehouse')
+  const isTeamLeader = computed(() => Boolean(teamLeader.value))
   const portalLabel = computed(() => {
     if (isBoss.value) return '企业管理员'
     if (isWarehouse.value) return '仓库端口'
@@ -99,6 +103,10 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('crosshub_shop_scope', JSON.stringify(shopScope.value))
     localStorage.setItem('crosshub_warehouse_scope', JSON.stringify(warehouseScope.value))
     localStorage.setItem('crosshub_warehouse_scope_names', JSON.stringify(warehouseScopeNames.value))
+    localStorage.setItem('crosshub_team_leader', teamLeader.value ? '1' : '0')
+    if (teamId.value) localStorage.setItem('crosshub_team_id', String(teamId.value))
+    else localStorage.removeItem('crosshub_team_id')
+    localStorage.setItem('crosshub_team_name', teamName.value || '')
     if (backendUserId.value) {
       localStorage.setItem('backend_user_id', String(backendUserId.value))
     } else {
@@ -122,6 +130,9 @@ export const useAuthStore = defineStore('auth', () => {
     if (payload.tenant_id) tenantId.value = payload.tenant_id
     if (payload.user_id) backendUserId.value = payload.user_id
     if (payload.role) backendRole.value = payload.role
+    teamLeader.value = Boolean(payload.team_leader)
+    teamId.value = payload.team_id || null
+    teamName.value = payload.team_name || ''
     backendLinked.value = true
     persistSession()
   }
@@ -191,6 +202,7 @@ export const useAuthStore = defineStore('auth', () => {
       name: payload.name,
       account: payload.account,
       role: payload.role,
+      otherRole: payload.otherRole || payload.other_role || '',
       platforms: payload.platforms || [],
       assignedStoreIds: payload.assignedStoreIds || payload.shop_scope || [],
       menuCodes: payload.menuCodes || payload.menu_codes || [],
@@ -202,6 +214,9 @@ export const useAuthStore = defineStore('auth', () => {
     if (payload.platforms) platforms.value = payload.platforms
     if (payload.shop_scope) shopScope.value = payload.shop_scope
     if (payload.tenant_id) tenantId.value = payload.tenant_id
+    if (payload.team_leader !== undefined) teamLeader.value = Boolean(payload.team_leader)
+    if (payload.team_id !== undefined) teamId.value = payload.team_id || null
+    if (payload.team_name !== undefined) teamName.value = payload.team_name || ''
     persistSession()
   }
 
@@ -227,6 +242,7 @@ export const useAuthStore = defineStore('auth', () => {
       } else {
         employee.value = {
           ...employee.value,
+          otherRole: data.other_role || employee.value.otherRole || '',
           platforms: data.platforms || employee.value.platforms,
           assignedStoreIds: data.shop_scope || employee.value.assignedStoreIds,
         }
@@ -266,6 +282,9 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('crosshub_shop_scope')
     localStorage.removeItem('crosshub_warehouse_scope')
     localStorage.removeItem('crosshub_warehouse_scope_names')
+    localStorage.removeItem('crosshub_team_leader')
+    localStorage.removeItem('crosshub_team_id')
+    localStorage.removeItem('crosshub_team_name')
   }
 
   return {
@@ -283,10 +302,14 @@ export const useAuthStore = defineStore('auth', () => {
     shopScope,
     warehouseScope,
     warehouseScopeNames,
+    teamLeader,
+    teamId,
+    teamName,
     assignedWarehouseLabels,
     isBoss,
     isEmployee,
     isWarehouse,
+    isTeamLeader,
     portalLabel,
     displayName,
     sidebarMenus,

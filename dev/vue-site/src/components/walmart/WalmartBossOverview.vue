@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { summarizeWalmartByStore, summarizeWalmartOrders, summarizeWalmartListings } from '@/utils/walmart'
 import { resolveStoreAssignee } from '@/utils/storeAssignment'
 import AssigneeTag from '@/components/common/AssigneeTag.vue'
+import PlatformAnalyticsCharts from '@/components/charts/PlatformAnalyticsCharts.vue'
 
 const props = defineProps({
   orders: { type: Array, default: () => [] },
@@ -59,6 +60,30 @@ function storeAlerts(row) {
   if (row.listings.high) items.push({ text: `高优 ${row.listings.high}`, type: 'danger' })
   return items
 }
+
+const chartMetrics = computed(() => [
+  { name: '今日订单', value: orderSummary.value.total },
+  { name: '待处理', value: orderSummary.value.pending },
+  { name: 'Listing问题', value: issueSummary.value.open },
+  { name: '已解决', value: issueSummary.value.resolved },
+])
+
+const chartStructure = computed(() =>
+  alertItems.value.map((i) => ({
+    name: i.label,
+    value: i.count,
+    tab: i.tab,
+    color: i.type === 'danger' ? '#ef4444' : i.type === 'warning' ? '#f59e0b' : '#3b82f6',
+  })),
+)
+
+const chartCompare = computed(() =>
+  storeSummaries.value.map((row) => ({
+    id: row.store.id,
+    name: row.store.storeName,
+    value: row.orders.total,
+  })),
+)
 </script>
 
 <template>
@@ -86,6 +111,16 @@ function storeAlerts(row) {
         <span>{{ item.label }}</span>
       </button>
     </div>
+
+    <PlatformAnalyticsCharts
+      title="Walmart 数据分析"
+      :metric-items="chartMetrics"
+      :compare-items="chartCompare"
+      compare-title="店铺订单对比"
+      compare-value-label="订单"
+      :structure-items="chartStructure"
+      @navigate="emit('navigate', $event)"
+    />
 
     <el-table
       v-if="showStoreList && storeSummaries.length"

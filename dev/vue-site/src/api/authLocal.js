@@ -1,4 +1,5 @@
 import { setLocalTenantId } from '@/utils/tenantStorage'
+import { fetchLocalEmployees, saveLocalEmployee } from './employeesLocal'
 
 const STORAGE_KEY = 'crosshub_auth_users'
 
@@ -75,7 +76,66 @@ export function registerLocalUser({ company, account, password }) {
   users.push(user)
   saveAll(users)
   setLocalTenantId(tenantId)
-  return { success: true, data: { ...user, password: undefined } }
+  return { success: true, data: { ...user, password: undefined, tenant_code: `local-${tenantId}` } }
+}
+
+/** 离线模式：员工加入已有本地企业（按企业名匹配 Boss），并写入 employees 列表 */
+export function registerLocalEmployee({ company, tenantCode, account, password, name }) {
+  ensureDefaultUser()
+  const companyName = String(company || '').trim()
+  const code = String(tenantCode || '').trim()
+  const acc = String(account || '').trim()
+  const pwd = String(password || '')
+  const displayName = String(name || '').trim() || acc
+
+  if (!companyName && !code) return { error: '请填写企业名称或企业邀请码' }
+  if (!acc) return { error: '请填写登录账号' }
+  if (pwd.length < 6) return { error: '密码至少 6 位' }
+
+  const users = loadAll()
+  let boss = null
+  if (code.startsWith('local-')) {
+    const tid = Number(code.slice('local-'.length))
+    boss = users.find((u) => Number(u.tenant_id) === tid) || null
+  }
+  if (!boss && companyName) {
+    boss = users.find((u) => String(u.company || '').toLowerCase() === companyName.toLowerCase()) || null
+  }
+  if (!boss) {
+    return { error: '未找到该企业，请确认企业名称或邀请码' }
+  }
+
+  const existing = fetchLocalEmployees().data || []
+  if (existing.some((e) => String(e.account).toLowerCase() === acc.toLowerCase())) {
+    return { error: '该账号已注册，请直接登录' }
+  }
+  if (users.some((u) => u.account.toLowerCase() === acc.toLowerCase())) {
+    return { error: '该账号已注册，请直接登录' }
+  }
+
+  setLocalTenantId(boss.tenant_id)
+  const saved = saveLocalEmployee({
+    name: displayName,
+    account: acc,
+    role: '运营',
+    platforms: ['temu'],
+    password: pwd,
+    status: true,
+    assignedStoreIds: [],
+    menuCodes: [],
+  })
+  if (saved.error) return saved
+  return {
+    success: true,
+    data: {
+      tenant_id: boss.tenant_id,
+      tenant_code: code || `local-${boss.tenant_id}`,
+      company: boss.company,
+      account: acc,
+      name: displayName,
+      portal_role: 'employee',
+    },
+  }
 }
 
 export function loginLocalBoss({ account, password }) {

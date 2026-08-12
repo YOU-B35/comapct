@@ -13,6 +13,7 @@ import { TASK_STATUS_META } from '@/constants/operations'
 import { OUTCOME_MAP } from '@/constants/opsFeedbackDemo'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import AssignedTaskDetailDrawer from '@/components/tasks/AssignedTaskDetailDrawer.vue'
 import EmployeeTaskDetailDrawer from '@/components/tasks/EmployeeTaskDetailDrawer.vue'
 import TaskFeedbackDialog from '@/components/tasks/TaskFeedbackDialog.vue'
@@ -140,6 +141,17 @@ function rowNeedsAttention(task) {
   return task.lastOutcome === 'need_help' || task.lastOutcome === 'blocked'
 }
 
+function isTaskNudged(task) {
+  if (!task || task.status === '已完成' || task.status === '已取消') return false
+  return Boolean(String(task.nudgedAt || '').trim())
+}
+
+function assignedTableRowClass({ row }) {
+  if (isTaskNudged(row)) return 'is-nudged-row'
+  if (rowNeedsAttention(row)) return 'is-attention-row'
+  return ''
+}
+
 function openFeedback(task) {
   activeTask.value = task
   feedbackForm.outcome = task.lastOutcome === 'resolved' ? 'resolved' : 'in_progress'
@@ -227,6 +239,7 @@ onMounted(loadTasks)
     <template #header>
       <PageHeader
         title="任务中心"
+        eyebrow="协作"
         :description="`${auth.employee.name} · ${auth.employee.role} · 负责 ${platformLabels}`"
       >
         <template #actions>
@@ -236,6 +249,7 @@ onMounted(loadTasks)
     </template>
 
     <div v-loading="loading" class="task-center">
+      <PageSection title="概览">
       <div class="metrics-bar metrics-bar--4">
         <div class="metric-item">
           <div class="metric-value" :class="assignedPending ? 'is-primary' : ''">{{ assignedPending }}</div>
@@ -260,7 +274,9 @@ onMounted(loadTasks)
           <div class="metric-hint">{{ assignedStats.completed }}/{{ assignedStats.total || 0 }} 已完成</div>
         </div>
       </div>
+      </PageSection>
 
+      <PageSection title="任务列表">
       <div class="filter-bar">
         <button
           v-for="item in filterOptions"
@@ -289,13 +305,32 @@ onMounted(loadTasks)
             <el-tag v-if="assignedPending" type="warning" size="small" effect="plain">
               {{ assignedPending }} 待完成
             </el-tag>
+            <el-tag
+              v-if="assignedTasks.some((t) => isTaskNudged(t))"
+              type="danger"
+              size="small"
+              effect="plain"
+            >
+              有催办
+            </el-tag>
           </div>
         </header>
 
-        <el-table :data="visibleAssignedTasks" size="small" stripe class="task-table">
+        <el-table
+          :data="visibleAssignedTasks"
+          size="small"
+          stripe
+          class="task-table"
+          :row-class-name="assignedTableRowClass"
+        >
           <el-table-column label="任务" min-width="220">
             <template #default="{ row }">
-              <div class="task-title">{{ row.title }}</div>
+              <div class="task-title">
+                {{ row.title }}
+                <el-tag v-if="isTaskNudged(row)" type="warning" size="small" effect="plain" class="nudge-tag">
+                  催办
+                </el-tag>
+              </div>
               <div v-if="row.detail" class="task-detail">{{ row.detail }}</div>
             </template>
           </el-table-column>
@@ -443,6 +478,7 @@ onMounted(loadTasks)
           </el-table>
         </section>
       </div>
+      </PageSection>
     </div>
 
     <TaskFeedbackDialog
@@ -597,5 +633,18 @@ onMounted(loadTasks)
 
 .need-help-icon {
   font-size: 14px;
+}
+
+.nudge-tag {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+:deep(.is-nudged-row) > td {
+  background: color-mix(in srgb, var(--el-color-warning) 12%, transparent) !important;
+}
+
+:deep(.is-attention-row) > td {
+  background: color-mix(in srgb, var(--el-color-warning) 7%, transparent) !important;
 }
 </style>

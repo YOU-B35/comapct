@@ -5,6 +5,7 @@ import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import {
   deleteEmployee,
   fetchEmployees,
@@ -15,10 +16,16 @@ import { fetchAllPlatformStores } from '@/api/platformAccounts'
 import {
   PLATFORM_OPTION_GROUPS,
   ROLE_OPTIONS,
+  OTHER_ROLE_OPTIONS,
   WAREHOUSE_MENU_CODE,
   platformLabels,
 } from '@/constants/employees'
 import { collapsePlatformsForForm, storeMatchesPlatforms } from '@/constants/platforms'
+
+const props = defineProps({
+  /** 部分主管模式：仅编辑本组绑定，不可建号/删号/重置密码/停用 */
+  teamLeaderMode: { type: Boolean, default: false },
+})
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -65,6 +72,7 @@ const emptyForm = () => ({
   password: '',
   phone: '',
   role: '',
+  otherRole: '',
   platforms: [],
   assignedStoreIds: [],
   warehouseOrdering: false,
@@ -145,6 +153,7 @@ function openEdit(row) {
     password: '',
     phone: row.phone || '',
     role: row.role,
+    otherRole: row.otherRole || '',
     platforms: collapsePlatformsForForm(row.platforms || []),
     assignedStoreIds: [...(row.assignedStoreIds || [])],
     warehouseOrdering: hasWarehouseOrdering(row),
@@ -173,6 +182,7 @@ async function submitForm() {
       password: form.password,
       phone: form.phone.trim(),
       role: form.role,
+      otherRole: form.otherRole || '',
       platforms: form.platforms,
       assignedStoreIds: form.assignedStoreIds,
       menuCodes: warehouseMenuCodes(form.warehouseOrdering),
@@ -229,17 +239,25 @@ onMounted(loadEmployees)
   <PageScroll>
     <template #header>
       <PageHeader
-        title="运营绑定"
-        description="管理运营员工账号；运营模块按负责平台自动显示，仓库下单单独开通"
+        :title="teamLeaderMode ? '运营绑定（本组）' : '运营绑定'"
+        eyebrow="组织"
+        :description="
+          teamLeaderMode
+            ? '管理本组员工的平台/店铺绑定、岗位与其他角色；不可建号或重置密码'
+            : '管理运营员工账号；运营模块按负责平台自动显示，仓库下单单独开通'
+        "
       >
         <template #actions>
           <el-button :icon="Refresh" :loading="loading" @click="loadEmployees">刷新</el-button>
-          <el-button type="primary" :icon="Plus" @click="openCreate">添加运营</el-button>
+          <el-button v-if="!teamLeaderMode" type="primary" :icon="Plus" @click="openCreate">
+            添加运营
+          </el-button>
         </template>
       </PageHeader>
     </template>
 
     <div v-loading="loading" class="employee-page">
+      <PageSection title="人员概览">
       <div class="metrics-bar metrics-bar--3">
         <div class="metric-item">
           <div class="metric-value">{{ stats.total }}</div>
@@ -254,7 +272,9 @@ onMounted(loadEmployees)
           <div class="metric-label">可仓库下单</div>
         </div>
       </div>
+      </PageSection>
 
+      <PageSection title="员工列表">
       <div class="toolbar">
         <el-input
           v-model="keyword"
@@ -275,7 +295,12 @@ onMounted(loadEmployees)
         :description="employees.length ? '没有匹配的运营人员' : '暂无绑定运营'"
         :image-size="88"
       >
-        <el-button v-if="!employees.length" type="primary" :icon="Plus" @click="openCreate">
+        <el-button
+          v-if="!employees.length && !teamLeaderMode"
+          type="primary"
+          :icon="Plus"
+          @click="openCreate"
+        >
           添加第一位运营
         </el-button>
       </el-empty>
@@ -320,7 +345,7 @@ onMounted(loadEmployees)
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="72" align="center">
+        <el-table-column v-if="!teamLeaderMode" label="状态" width="72" align="center">
           <template #default="{ row }">
             <el-switch
               :model-value="row.status !== false"
@@ -332,10 +357,17 @@ onMounted(loadEmployees)
         <el-table-column label="操作" width="120" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="danger" :icon="Delete" @click="removeEmployee(row)" />
+            <el-button
+              v-if="!teamLeaderMode"
+              link
+              type="danger"
+              :icon="Delete"
+              @click="removeEmployee(row)"
+            />
           </template>
         </el-table-column>
       </el-table>
+      </PageSection>
     </div>
 
     <el-dialog
@@ -359,9 +391,17 @@ onMounted(loadEmployees)
           <el-input v-model="form.name" placeholder="真实姓名" maxlength="20" />
         </el-form-item>
         <el-form-item label="登录账号" prop="account">
-          <el-input v-model="form.account" placeholder="邮箱或手机号" />
+          <el-input
+            v-model="form.account"
+            placeholder="邮箱或手机号"
+            :disabled="teamLeaderMode"
+          />
         </el-form-item>
-        <el-form-item :label="form.id ? '重置密码' : '登录密码'" prop="password">
+        <el-form-item
+          v-if="!teamLeaderMode"
+          :label="form.id ? '重置密码' : '登录密码'"
+          prop="password"
+        >
           <el-input
             v-model="form.password"
             type="password"
@@ -369,10 +409,10 @@ onMounted(loadEmployees)
             :placeholder="form.id ? '留空则不修改' : '员工端登录密码'"
           />
         </el-form-item>
-        <el-form-item label="联系电话">
+        <el-form-item v-if="!teamLeaderMode" label="联系电话">
           <el-input v-model="form.phone" placeholder="选填" />
         </el-form-item>
-        <el-form-item label="账号状态">
+        <el-form-item v-if="!teamLeaderMode" label="账号状态">
           <el-switch v-model="form.status" active-text="启用" inactive-text="停用" />
         </el-form-item>
 
@@ -381,6 +421,22 @@ onMounted(loadEmployees)
           <el-select v-model="form.role" placeholder="选择岗位" style="width: 100%">
             <el-option v-for="role in ROLE_OPTIONS" :key="role" :label="role" :value="role" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="其他角色">
+          <el-select
+            v-model="form.otherRole"
+            clearable
+            placeholder="选填：自媒体运营 / 其他"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in OTHER_ROLE_OPTIONS"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
+          <p class="form-hint">仅选择「自媒体运营」时，员工端显示自媒体运营菜单</p>
         </el-form-item>
         <el-form-item label="负责平台" prop="platforms">
           <el-select
@@ -487,10 +543,17 @@ onMounted(loadEmployees)
 .form-section-title {
   margin: 0 0 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--ch-border);
   font-size: 13px;
   font-weight: 600;
   color: var(--ch-text);
+  border-bottom: 1px solid var(--ch-border, #ebeef5);
+}
+
+.form-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ch-text-muted);
 }
 
 .form-section-title:not(:first-child) {

@@ -182,15 +182,19 @@ defineExpose({ sendMessage })
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  border-radius: var(--ch-radius-lg);
+  border-radius: 10px;
   border: 1px solid var(--ch-border);
   background: var(--ch-surface);
+  box-shadow: var(--ch-shadow-xs);
   overflow: hidden;
 }
 
 .chat-scroll {
   flex: 1;
   min-height: 0;
+  background:
+    radial-gradient(800px 280px at 10% -20%, rgba(31, 79, 214, 0.05), transparent 55%),
+    var(--ch-surface);
 }
 
 .chat-scroll :deep(.el-scrollbar__view) {
@@ -217,23 +221,23 @@ defineExpose({ sendMessage })
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   font-size: 11px;
   font-weight: 700;
 }
 
 .chat-avatar--ai {
-  background: linear-gradient(135deg, var(--ch-primary) 0%, #4080ff 100%);
+  background: var(--ch-primary);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.25);
 }
 
 .chat-avatar--user {
   background: var(--ch-surface-muted);
   color: var(--ch-text-secondary);
   font-size: 14px;
+  border: 1px solid var(--ch-border);
 }
 
 .chat-bubble-wrap {
@@ -249,13 +253,13 @@ defineExpose({ sendMessage })
 
 .chat-bubble {
   padding: 12px 14px;
-  border-radius: var(--ch-radius-md);
+  border-radius: 10px;
   line-height: 1.65;
   font-size: 14px;
 }
 
 .chat-bubble--assistant {
-  background: var(--ch-surface-muted);
+  background: #f7f9fc;
   color: var(--ch-text);
   border: 1px solid var(--ch-border);
   border-top-left-radius: 4px;
@@ -303,7 +307,7 @@ defineExpose({ sendMessage })
 }
 
 .chat-content :deep(strong) {
-  font-weight: 600;
+  font-weight: 650;
   color: inherit;
 }
 
@@ -318,7 +322,7 @@ defineExpose({ sendMessage })
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-top: 8px;
-  padding-left: 42px;
+  padding-left: 44px;
 }
 
 .welcome-card {
@@ -328,21 +332,23 @@ defineExpose({ sendMessage })
   padding: 12px 14px;
   text-align: left;
   border: 1px solid var(--ch-border);
-  border-radius: var(--ch-radius-md);
+  border-radius: 10px;
   background: var(--ch-surface);
+  box-shadow: var(--ch-shadow-xs);
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s, transform 0.15s;
 }
 
 .welcome-card:hover {
   border-color: var(--ch-primary-muted);
-  background: var(--ch-primary-soft);
-  box-shadow: var(--ch-shadow-xs);
+  background: linear-gradient(180deg, #f8faff 0%, #fff 70%);
+  box-shadow: var(--ch-shadow-sm);
+  transform: translateY(-1px);
 }
 
 .welcome-card strong {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--ch-text);
 }
 
@@ -356,7 +362,7 @@ defineExpose({ sendMessage })
   flex-shrink: 0;
   padding: 12px 16px 14px;
   border-top: 1px solid var(--ch-border);
-  background: linear-gradient(180deg, var(--ch-surface) 0%, var(--ch-surface-muted) 100%);
+  background: #fbfcfe;
 }
 
 .composer-box {
@@ -365,7 +371,7 @@ defineExpose({ sendMessage })
   align-items: flex-end;
   padding: 8px 8px 8px 14px;
   border: 1px solid var(--ch-border);
-  border-radius: var(--ch-radius-lg);
+  border-radius: 10px;
   background: var(--ch-surface);
   box-shadow: var(--ch-shadow-xs);
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -378,7 +384,7 @@ defineExpose({ sendMessage })
 
 .composer-box :deep(.el-textarea__inner) {
   border: none;
-  box-shadow: none;
+  box-shadow: none !important;
   padding: 4px 0;
   background: transparent;
   resize: none;
@@ -386,7 +392,7 @@ defineExpose({ sendMessage })
 
 .composer-send {
   flex-shrink: 0;
-  border-radius: var(--ch-radius-md);
+  border-radius: 8px;
 }
 
 .composer-hint {

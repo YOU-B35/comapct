@@ -9,7 +9,7 @@ export const APP_ERROR_MESSAGES = {
 
   CRAWL_IN_PROGRESS: '已有爬取任务进行中，请稍后再试',
   CRAWL_NOT_LOGGED_IN: 'Temu 卖家后台未登录，请联系运维在肉机完成登录；数据由定时任务自动同步',
-  CRAWL_AE_NOT_LOGGED_IN: 'AliExpress 卖家后台未登录，请联系运维处理',
+  CRAWL_AE_NOT_LOGGED_IN: 'AliExpress 卖家后台未登录，请先在本机助手打开登录并完成登录',
   CRAWL_MALL_NOT_SELECTED: '卖家后台未选择店铺，请联系运维在肉机选店后等待定时同步',
   CRAWL_SCRIPT_MISSING: '爬虫环境未配置，请联系管理员',
   CRAWL_TIMEOUT: '数据同步超时，请稍后查看侧栏同步状态或等待下次定时同步',
@@ -19,8 +19,12 @@ export const APP_ERROR_MESSAGES = {
   CRAWL_JOB_NOT_FOUND: '同步任务不存在',
   CRAWL_INTERRUPTED: '同步任务已中断，请等待下次定时同步或联系运维',
   CRAWL_COOLDOWN: '同步冷却中，请稍后再查看；日常数据由运维机定时同步',
-  TEMU_AGENT_OFFLINE: '运维同步节点未在线，请联系运维启动 CrossHub-Sync-Helper.exe',
-  TEMU_USER_HELPER_OFFLINE: '本机同步助手未在线，请启动并绑定 Sync Helper（同一公司一台电脑绑定一次即可）',
+  AE_AGENT_OFFLINE: '本机同步助手未在线，请先安装并绑定',
+  AE_USER_HELPER_OFFLINE: '本机同步助手未在线，请先安装并绑定',
+  TEMU_AGENT_OFFLINE: '本机同步助手未在线，请先安装并绑定',
+  TEMU_USER_HELPER_OFFLINE: '本机同步助手未在线，请先安装并绑定',
+  AMAZON_AGENT_OFFLINE: '本机同步助手未在线，请先安装并绑定',
+  AMAZON_USER_HELPER_OFFLINE: '本机同步助手未在线，请先安装并绑定',
   TEMU_REGION_NO_PERMISSION: 'Temu 页面提示「该区暂无权限」：请留在全球商家中心，打开侧栏「销售管理」（全托管），不要进美区/欧区',
 
   COMPETITOR_LOGIN_REQUIRED: 'Temu 前台需要登录或验证，已打开登录窗口，请完成后关闭窗口再重试',
@@ -46,6 +50,15 @@ export const APP_ERROR_MESSAGES = {
   AUTH_MISSING_USER: '登录状态无效，请重新登录',
   AUTH_MISSING_TENANT: '缺少企业上下文，请重新登录',
   AUTH_NOT_LOGGED_IN: '未登录',
+  AUTH_BAD_CREDENTIALS: '账号或密码不正确，请重新填写后重试',
+  AUTH_INACTIVE: '该账号已停用，请联系企业管理员',
+  AUTH_NO_TENANT: '账号未绑定企业，请联系企业管理员开通',
+  AUTH_MULTI_TENANT: '该账号绑定多个企业，请使用企业专用账号登录',
+
+  AI_IMAGE_JOB_NOT_FOUND: '生图任务不存在',
+  AI_IMAGE_TIMEOUT: '生图超时，请稍后重试或简化提示词',
+  AI_IMAGE_UPSTREAM_ERROR: '生图服务暂时不可用，请稍后重试',
+  AI_IMAGE_NOT_CONFIGURED: '生图服务未配置 API Key',
 
   ACCOUNT_STORE_NAME_REQUIRED: '店铺名称不能为空',
   ACCOUNT_LOGIN_REQUIRED: '登录账号不能为空',
@@ -59,6 +72,12 @@ export const APP_ERROR_MESSAGES = {
   TASK_NOT_FOUND: '任务不存在',
   TASK_FORBIDDEN: '无权查看该任务',
   TASK_BOSS_ONLY: '仅企业管理员可管理任务',
+  TASK_MANAGER_REQUIRED: '仅企业管理员或小组主管可管理任务',
+  TEAM_SCOPE_DENIED: '目标员工不在您的小组管辖范围',
+  TEAM_MEMBER_BUSY: '该员工已在其他小组中',
+  TEAM_LEADER_ONLY: '仅小组主管可操作',
+  TEAM_BOSS_ONLY: '仅企业管理员可管理运营小组',
+  TEAM_LEADER_ACTIVE: '请先更换主管或归档小组后再停用该账号',
 
   FEEDBACK_TASK_ID_REQUIRED: '缺少任务 ID',
 
@@ -83,7 +102,8 @@ export const APP_ERROR_MESSAGES = {
   MEMBER_SHOP_PLATFORM_MISMATCH: '所选店铺与平台不匹配',
   MEMBER_SHOP_PLATFORM_UNKNOWN: '无法识别店铺所属平台',
 
-  AMAZON_AGENT_OFFLINE: '本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe',
+  AMAZON_AGENT_OFFLINE: '本机同步助手未在线，请先安装并绑定',
+  AMAZON_USER_HELPER_OFFLINE: '本机同步助手未在线，请先安装并绑定',
   AMAZON_ZINIAO_OFFLINE: '紫鸟 WebDriver 未就绪，请确认开发者模式已启动',
   AMAZON_SYNC_IN_PROGRESS: '已有 Amazon 同步任务进行中，请稍后再试',
   AMAZON_SYNC_JOB_NOT_FOUND: 'Amazon 同步任务不存在',
@@ -108,6 +128,23 @@ const CRAWL_ERROR_UI = {
     steps: [
       '联系运维确认已启动 CrossHub-Sync-Helper.exe（运维机常驻）。',
       '等待服务端定时同步完成后刷新本页查看数据。',
+    ],
+  },
+  AE_AGENT_OFFLINE: {
+    title: '运维同步节点离线',
+    summary: '未检测到当前企业的运维机同步心跳。AliExpress 登录与爬取只在运维肉机执行。',
+    steps: [
+      '联系运维确认已启动 CrossHub-Sync-Helper.exe（运维机常驻）。',
+      '等待服务端定时同步完成后刷新本页查看数据。',
+    ],
+  },
+  CRAWL_AE_NOT_LOGGED_IN: {
+    title: 'AliExpress 卖家后台未登录',
+    summary: '运维肉机上的 AliExpress 会话未就绪，无法完成同步。',
+    steps: [
+      '联系运维在肉机助手打开 AliExpress 登录并完成登录。',
+      '确认运维机 CrossHub-Sync-Helper.exe 常驻在线。',
+      '等待每天定时同步完成后刷新本页查看数据。',
     ],
   },
   CRAWL_NOT_LOGGED_IN: {
@@ -303,8 +340,12 @@ export function formatCaughtError(err, fallback = '操作失败，请稍后重�
 }
 
 export function getAppErrorMessage(errorCode, fallback = '') {
-  if (!errorCode) return fallback || APP_ERROR_MESSAGES.UNKNOWN
-  return APP_ERROR_MESSAGES[errorCode] || fallback || APP_ERROR_MESSAGES.UNKNOWN
+  const code = String(errorCode || '').trim()
+  const fb = String(fallback || '').trim()
+  if (!code) return fb || APP_ERROR_MESSAGES.UNKNOWN
+  // UNKNOWN：优先用后端具体文案（如「账号或密码错误」），避免盖成笼统「操作失败」
+  if (code === 'UNKNOWN' && fb) return fb
+  return APP_ERROR_MESSAGES[code] || fb || APP_ERROR_MESSAGES.UNKNOWN
 }
 
 export function resolveAppError({ errorCode, message } = {}, tenantId = null) {

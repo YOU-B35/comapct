@@ -108,25 +108,27 @@ function stepType(item) {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 18px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #fff7ed 0%, #fff 60%);
-  border: 1px solid #fed7aa44;
+  border-radius: var(--ch-radius-md);
+  background: linear-gradient(180deg, #f8faff 0%, #fff 70%);
+  border: 1px solid var(--ch-border);
 }
 
 .progress-title {
   font-size: 16px;
   font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ch-text);
 }
 
 .progress-hint {
   margin-top: 4px;
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: var(--ch-text-muted);
 }
 
 .checklist {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .check-item {
@@ -137,24 +139,25 @@ function stepType(item) {
   width: 100%;
   padding: 12px 14px;
   text-align: left;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  background: var(--el-fill-color-blank);
+  border: 1px solid var(--ch-border);
+  border-radius: 8px;
+  background: var(--ch-surface);
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
 .check-item:hover {
-  border-color: var(--el-color-primary-light-5);
-  box-shadow: var(--ch-shadow-sm);
+  border-color: var(--ch-primary-muted);
+  background: var(--ch-surface-muted);
+  box-shadow: var(--ch-shadow-xs);
 }
 
 .check-item.is-done {
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
 .check-item.is-urgent {
-  border-left: 3px solid var(--el-color-danger);
+  border-left: 3px solid var(--ch-error);
 }
 
 .check-step {
@@ -162,20 +165,20 @@ function stepType(item) {
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 700;
   color: #fff;
-  background: var(--el-color-primary);
+  background: var(--ch-primary);
   flex-shrink: 0;
 }
 
 .check-item.is-done .check-step {
-  background: var(--el-color-success);
+  background: var(--ch-success);
 }
 
 .check-item.is-urgent .check-step {
-  background: var(--el-color-danger);
+  background: var(--ch-error);
 }
 
 .check-body {

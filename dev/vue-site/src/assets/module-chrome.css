@@ -1,0 +1,177 @@
+/**
+ * CrossHub module workspace chrome
+ * Shared by Temu / Amazon / Walmart / DTC / domestic modules
+ */
+
+/* —— Module tabs —— */
+.module-tabs,
+.temu-tabs,
+.dtc-tabs {
+  --el-tabs-header-height: 40px;
+}
+
+.module-tabs .el-tabs__header,
+.temu-tabs .el-tabs__header,
+.dtc-tabs .el-tabs__header {
+  margin: 0 0 4px;
+  padding: 0 2px;
+}
+
+.module-tabs .el-tabs__nav-wrap::after,
+.temu-tabs .el-tabs__nav-wrap::after,
+.dtc-tabs .el-tabs__nav-wrap::after {
+  height: 1px;
+  background: var(--ch-border);
+}
+
+.module-tabs .el-tabs__item,
+.temu-tabs .el-tabs__item,
+.dtc-tabs .el-tabs__item {
+  height: 40px;
+  padding: 0 14px !important;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ch-text-muted);
+  transition: color 0.15s ease;
+}
+
+.module-tabs .el-tabs__item:hover,
+.temu-tabs .el-tabs__item:hover,
+.dtc-tabs .el-tabs__item:hover {
+  color: var(--ch-text);
+}
+
+.module-tabs .el-tabs__item.is-active,
+.temu-tabs .el-tabs__item.is-active,
+.dtc-tabs .el-tabs__item.is-active {
+  font-weight: 650;
+  color: var(--ch-primary);
+}
+
+.module-tabs .el-tabs__active-bar,
+.temu-tabs .el-tabs__active-bar,
+.dtc-tabs .el-tabs__active-bar {
+  height: 2.5px;
+  border-radius: 2px 2px 0 0;
+  background: var(--ch-primary);
+}
+
+.tab-panel {
+  padding: 16px 0 4px;
+}
+
+/* —— Store switcher / toolbar inside modules —— */
+.store-switcher,
+.amazon-sync-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.store-switcher-label {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--ch-text-muted);
+  white-space: nowrap;
+}
+
+.store-switcher-select {
+  width: min(280px, 100%);
+}
+
+/* —— Tables inside modules —— */
+.module-tabs .el-table,
+.temu-tabs .el-table,
+.dtc-tabs .el-table,
+.tab-panel .el-table,
+.page-section .el-table {
+  --el-table-header-bg-color: #fbfcfe;
+  border: 1px solid var(--ch-border);
+  border-radius: var(--ch-radius-md);
+}
+
+.module-tabs .el-table th.el-table__cell,
+.temu-tabs .el-table th.el-table__cell,
+.dtc-tabs .el-table th.el-table__cell,
+.tab-panel .el-table th.el-table__cell,
+.page-section .el-table th.el-table__cell {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ch-text-muted) !important;
+  background: #fbfcfe !important;
+}
+
+/* —— Empty / alert —— */
+.module-alert {
+  margin-bottom: 12px;
+  border-radius: var(--ch-radius-md);
+}
+
+.page-section .el-empty {
+  padding: 28px 12px;
+}
+
+.page-section .el-empty__description p {
+  color: var(--ch-text-muted);
+  font-size: 13px;
+}
+
+/* —— KPI cards used by overview components —— */
+.ch-kpi-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.ch-kpi-card {
+  position: relative;
+  padding: 14px 16px 13px;
+  border: 1px solid var(--ch-border);
+  border-radius: var(--ch-radius-md);
+  background: var(--ch-surface);
+  box-shadow: var(--ch-shadow-xs);
+  overflow: hidden;
+}
+
+.ch-kpi-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--ch-kpi-accent, var(--ch-primary));
+}
+
+.ch-kpi-card__label {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ch-text-muted);
+}
+
+.ch-kpi-card__value {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ch-text);
+  line-height: 1.2;
+}
+
+.ch-kpi-card__value.is-danger { color: var(--ch-error); }
+.ch-kpi-card__value.is-warning { color: var(--ch-warning); }
+.ch-kpi-card__value.is-success { color: var(--ch-success); }
+.ch-kpi-card__value.is-primary { color: var(--ch-primary); }
+
+.ch-kpi-card__hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ch-text-muted);
+  line-height: 1.4;
+}

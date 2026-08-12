@@ -23,6 +23,7 @@ import { ORDER_STATUS_OPTIONS } from '@/constants/warehouseOrders'
 import { statusLabel, statusTagType } from '@/utils/warehouseOrders'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import WarehouseOrderFormDialog from '@/components/warehouse/WarehouseOrderFormDialog.vue'
 import WarehouseReviewDialog from '@/components/warehouse/WarehouseReviewDialog.vue'
 import WarehouseReleaseDialog from '@/components/warehouse/WarehouseReleaseDialog.vue'
@@ -243,7 +244,7 @@ onUnmounted(() => {
 
 <template>
   <PageScroll>
-    <PageHeader :title="pageTitle" :description="pageDescription">
+    <PageHeader :title="pageTitle" eyebrow="仓储" :description="pageDescription">
       <template #actions>
         <el-button :icon="Refresh" @click="loadOrders">刷新</el-button>
         <el-button v-if="canCreate" type="primary" :icon="Plus" @click="formVisible = true">
@@ -254,7 +255,8 @@ onUnmounted(() => {
 
     <WarehouseScopePanel v-if="auth.isWarehouse" variant="alert" class="scope-banner" />
 
-    <div v-if="!auth.isWarehouse" class="stat-row">
+    <PageSection v-if="!auth.isWarehouse" title="订单概览">
+    <div class="stat-row">
       <div class="stat-card">
         <span>全部</span>
         <strong>{{ stats.total }}</strong>
@@ -276,7 +278,9 @@ onUnmounted(() => {
         <strong>{{ stats.shipped }}</strong>
       </div>
     </div>
+    </PageSection>
 
+    <PageSection title="出库单列表">
     <div v-if="!routeStatusFilter?.length" class="toolbar">
       <el-radio-group v-model="filterStatus" size="small">
         <el-radio-button value="all">全部</el-radio-button>
@@ -381,6 +385,7 @@ onUnmounted(() => {
         </template>
       </el-table-column>
     </el-table>
+    </PageSection>
 
     <WarehouseOrderFormDialog v-model="formVisible" @submit="handleCreate" />
 

@@ -6,14 +6,18 @@ import { useAuthStore } from '@/stores/auth'
 import { formatCaughtError } from '@/utils/appErrorCode'
 import { loadOperationsOverview } from '@/api/operationsOverview'
 import OperationsSummaryHeader from '@/components/dashboard/OperationsSummaryHeader.vue'
+import OpsAnalyticsCharts from '@/components/dashboard/OpsAnalyticsCharts.vue'
 import OperationsIssuesPanel from '@/components/dashboard/OperationsIssuesPanel.vue'
 import OperationsTasksPanel from '@/components/dashboard/OperationsTasksPanel.vue'
 import DailyOpsReportPanel from '@/components/dashboard/DailyOpsReportPanel.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 
 const auth = useAuthStore()
 const loading = ref(false)
 const context = ref(null)
+const highlightPlatformId = ref('')
 
 const overview = computed(() => {
   if (!context.value) return null
@@ -47,27 +51,50 @@ onActivated(refresh)
 
 <template>
   <PageScroll>
-    <div v-loading="loading" class="ops-dashboard">
-      <div class="ops-toolbar">
-        <el-text size="small" type="info">
-          数据来自账户绑定店铺与员工分配，按负责人汇总
-        </el-text>
+    <PageHeader
+      title="运营工作台"
+      eyebrow="Boss"
+      description="数据来自账户绑定店铺与员工分配，按负责人汇总"
+    >
+      <template #actions>
         <el-button :icon="Refresh" size="small" :loading="loading" @click="refresh">
           刷新
         </el-button>
-      </div>
+      </template>
+    </PageHeader>
 
+    <div v-loading="loading" class="ops-dashboard">
+    <PageSection flush class="ops-summary-section">
       <OperationsSummaryHeader
         :overview="overview"
         :platform-sales="platformSales"
         :tasks="tasks"
+        :highlight-platform-id="highlightPlatformId"
       />
+    </PageSection>
 
-      <DailyOpsReportPanel :report="dailyReport" :loading="loading" />
+      <PageSection title="运营数据分析">
+        <OpsAnalyticsCharts
+          :key="`ops-charts-${platformSales.length}-${tasks.length}`"
+          :platform-sales="platformSales"
+          :overview="overview"
+          :tasks="tasks"
+          :highlight-platform-id="highlightPlatformId"
+          @select-platform="highlightPlatformId = $event"
+        />
+      </PageSection>
 
-      <OperationsIssuesPanel :overview="overview" />
+      <PageSection title="日报">
+        <DailyOpsReportPanel :report="dailyReport" :loading="loading" />
+      </PageSection>
 
-      <OperationsTasksPanel :tasks="tasks" />
+      <PageSection title="异常与预警">
+        <OperationsIssuesPanel :overview="overview" />
+      </PageSection>
+
+      <PageSection title="任务进展">
+        <OperationsTasksPanel :tasks="tasks" />
+      </PageSection>
     </div>
   </PageScroll>
 </template>
@@ -75,14 +102,6 @@ onActivated(refresh)
 <style scoped>
 .ops-dashboard {
   display: grid;
-  gap: 16px;
-}
-
-.ops-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
+  gap: 4px;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-import { Refresh } from '@element-plus/icons-vue'
+import PanelHeader from '@/components/common/PanelHeader.vue'
 
 defineProps({
   title: { type: String, required: true },
@@ -13,47 +13,12 @@ defineEmits(['action'])
 </script>
 
 <template>
-  <div class="panel-header">
-    <div class="panel-header__main">
-      <div class="panel-header__title">{{ title }}</div>
-      <div v-if="description" class="panel-header__desc">{{ description }}</div>
-    </div>
-    <div class="panel-header__actions">
-      <el-text v-if="syncedAt" size="small" type="info">最近同步 {{ syncedAt }}</el-text>
-      <el-button type="primary" :icon="Refresh" :loading="loading" @click="$emit('action')">
-        {{ actionLabel }}
-      </el-button>
-    </div>
-  </div>
+  <PanelHeader
+    :title="title"
+    :description="description"
+    :synced-at="syncedAt"
+    :action-label="actionLabel"
+    :loading="loading"
+    @action="$emit('action')"
+  />
 </template>
-
-<style scoped>
-.panel-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.panel-header__title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.panel-header__desc {
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-}
-
-.panel-header__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-}
-</style>

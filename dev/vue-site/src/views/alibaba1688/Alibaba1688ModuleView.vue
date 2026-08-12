@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -11,6 +11,7 @@ import { pushPlatformOrderToWarehouse, enrichOrdersWithWarehouseFeedback } from 
 import { isPlatformOperationalDemoOnly, platformOperationalHint } from '@/utils/platformOperationalMode'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import Alibaba1688BossOverview from '@/components/alibaba1688/Alibaba1688BossOverview.vue'
 import Alibaba1688PurchasePanel from '@/components/alibaba1688/Alibaba1688PurchasePanel.vue'
 import Alibaba1688SupplierPanel from '@/components/alibaba1688/Alibaba1688SupplierPanel.vue'
@@ -157,38 +158,43 @@ onActivated(loadModuleData)
 <template>
   <PageScroll>
     <template #header>
-      <div v-if="stores1688.length" class="page-toolbar">
-        <el-radio-group v-model="selectedStoreId" size="small">
-          <el-radio-button value="all">全部账号</el-radio-button>
-          <el-radio-button
-            v-for="store in stores1688"
-            :key="store.id"
-            :value="store.id"
-          >
-            {{ store.storeName }}
-          </el-radio-button>
-        </el-radio-group>
-      </div>
-
       <PageHeader
-        v-else-if="!stores1688.length && !auth.isBoss"
         title="1688 运营"
-        :description="`${auth.employee.name} · 采购订单与供应商跟进`"
+        eyebrow="平台"
+        :description="
+          auth.isBoss
+            ? '采购订单与供应商跟进'
+            : `${auth.employee.name} · 采购订单与供应商跟进`
+        "
       />
     </template>
 
-    <el-empty
-      v-if="!loadingStores && !stores1688.length"
-      description="暂无可见的 1688 采购账号"
-      :image-size="96"
-    >
-      <el-text type="info" size="small">
-        {{ auth.isBoss ? '请先在「账户绑定」中绑定 1688 采购账号' : '请联系企业管理员在运营绑定中分配负责账号' }}
-      </el-text>
-      <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
-        前往账户绑定
-      </el-button>
-    </el-empty>
+    <PageSection v-if="stores1688.length" tone="toolbar" title="店铺">
+      <el-radio-group v-model="selectedStoreId" size="small">
+        <el-radio-button value="all">全部账号</el-radio-button>
+        <el-radio-button
+          v-for="store in stores1688"
+          :key="store.id"
+          :value="store.id"
+        >
+          {{ store.storeName }}
+        </el-radio-button>
+      </el-radio-group>
+    </PageSection>
+
+    <PageSection v-if="!loadingStores && !stores1688.length" flush>
+      <el-empty
+        description="暂无可见的 1688 采购账号"
+        :image-size="96"
+      >
+        <el-text type="info" size="small">
+          {{ auth.isBoss ? '请先在「账户绑定」中绑定 1688 采购账号' : '请联系企业管理员在运营绑定中分配负责账号' }}
+        </el-text>
+        <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
+          前往账户绑定
+        </el-button>
+      </el-empty>
+    </PageSection>
 
     <template v-else-if="stores1688.length">
       <el-alert
@@ -200,53 +206,55 @@ onActivated(loadModuleData)
         class="operational-hint"
       />
 
-      <Alibaba1688BossOverview
-        v-if="auth.isBoss"
-        :purchase-orders="filteredOrders"
-        :supplier-alerts="filteredAlerts"
-        :stores="overviewStores"
-        :assignee-map="assigneeMap"
-        :show-store-list="showStoreList"
-        @navigate="activeTab = $event"
-      />
+      <PageSection title="经营概览与明细">
+        <Alibaba1688BossOverview
+          v-if="auth.isBoss"
+          :purchase-orders="filteredOrders"
+          :supplier-alerts="filteredAlerts"
+          :stores="overviewStores"
+          :assignee-map="assigneeMap"
+          :show-store-list="showStoreList"
+          @navigate="activeTab = $event"
+        />
 
-      <el-tabs v-model="activeTab" class="module-tabs">
-        <el-tab-pane name="purchase">
-          <template #label>
-            <span>采购订单</span>
-            <el-badge v-if="pendingPurchaseCount" :value="pendingPurchaseCount" class="tab-badge" />
-          </template>
-          <div class="tab-panel">
-            <Alibaba1688PurchasePanel
-              :orders="filteredOrders"
-              :synced-at="syncedAt"
-              :loading="loadingStores"
-              :show-store-column="showStoreColumn"
-              :store-name-map="storeNameMap"
-              @refresh="refreshData"
-              @ship-push="openShipDialog($event, 'push')"
-              @ship-urge="openShipDialog($event, 'urge')"
-            />
-          </div>
-        </el-tab-pane>
+        <el-tabs v-model="activeTab" class="module-tabs">
+          <el-tab-pane name="purchase">
+            <template #label>
+              <span>采购订单</span>
+              <el-badge v-if="pendingPurchaseCount" :value="pendingPurchaseCount" class="tab-badge" />
+            </template>
+            <div class="tab-panel">
+              <Alibaba1688PurchasePanel
+                :orders="filteredOrders"
+                :synced-at="syncedAt"
+                :loading="loadingStores"
+                :show-store-column="showStoreColumn"
+                :store-name-map="storeNameMap"
+                @refresh="refreshData"
+                @ship-push="openShipDialog($event, 'push')"
+                @ship-urge="openShipDialog($event, 'urge')"
+              />
+            </div>
+          </el-tab-pane>
 
-        <el-tab-pane name="supplier">
-          <template #label>
-            <span>供应商跟进</span>
-            <el-badge v-if="openAlertCount" :value="openAlertCount" class="tab-badge" />
-          </template>
-          <div class="tab-panel">
-            <Alibaba1688SupplierPanel
-              :alerts="filteredAlerts"
-              :synced-at="syncedAt"
-              :loading="loadingStores"
-              :show-store-column="showStoreColumn"
-              :store-name-map="storeNameMap"
-              @refresh="refreshData"
-            />
-          </div>
-        </el-tab-pane>
-      </el-tabs>
+          <el-tab-pane name="supplier">
+            <template #label>
+              <span>供应商跟进</span>
+              <el-badge v-if="openAlertCount" :value="openAlertCount" class="tab-badge" />
+            </template>
+            <div class="tab-panel">
+              <Alibaba1688SupplierPanel
+                :alerts="filteredAlerts"
+                :synced-at="syncedAt"
+                :loading="loadingStores"
+                :show-store-column="showStoreColumn"
+                :store-name-map="storeNameMap"
+                @refresh="refreshData"
+              />
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </PageSection>
 
       <PlatformShipPushDialog
         v-model="shipDialogVisible"

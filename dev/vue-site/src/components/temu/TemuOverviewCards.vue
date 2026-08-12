@@ -3,10 +3,16 @@ import { computed } from 'vue'
 import { summarizeTemuProducts } from '@/utils/temuStore'
 import { formatMoneyDecimal } from '@/utils/format'
 import { RESTOCK_CONFIG } from '@/constants/temu'
+import TemuAnalyticsCharts from '@/components/temu/TemuAnalyticsCharts.vue'
 
 const props = defineProps({
   products: { type: Array, required: true },
+  stores: { type: Array, default: () => [] },
+  salesTrend: { type: Object, default: () => ({ labels: [], values: [] }) },
+  storeName: { type: String, default: '' },
 })
+
+const emit = defineEmits(['navigate', 'select-store'])
 
 const summary = computed(() => {
   const overall = summarizeTemuProducts(props.products)
@@ -27,25 +33,51 @@ const summary = computed(() => {
     { label: '待备货 SKU', value: restockUrgent.length, hint: `官方仓覆盖 < 提前期+缓冲（${RESTOCK_CONFIG.leadTimeDays + RESTOCK_CONFIG.safetyBufferDays} 天）`, type: 'info' },
   ]
 })
+
+const accentByType = {
+  primary: 'var(--ch-primary)',
+  danger: 'var(--ch-error)',
+  warning: 'var(--ch-warning)',
+  success: 'var(--ch-success)',
+  info: 'var(--ch-info)',
+}
 </script>
 
 <template>
-  <el-row :gutter="16">
-    <el-col v-for="item in summary" :key="item.label" :xs="24" :sm="12" :lg="8" :xl="4">
-      <el-card shadow="never">
-        <el-statistic :title="item.label" :value="item.value">
-          <template #suffix>
-            <el-tag :type="item.type" size="small" effect="plain">Temu</el-tag>
-          </template>
-        </el-statistic>
-        <el-text size="small" type="info">{{ item.hint }}</el-text>
-      </el-card>
-    </el-col>
-  </el-row>
+  <div class="employee-temu-overview">
+    <div class="ch-kpi-grid">
+      <article
+        v-for="item in summary"
+        :key="item.label"
+        class="ch-kpi-card"
+        :style="{ '--ch-kpi-accent': accentByType[item.type] || accentByType.primary }"
+      >
+        <div class="ch-kpi-card__label">{{ item.label }}</div>
+        <div class="ch-kpi-card__value" :class="`is-${item.type}`">{{ item.value }}</div>
+        <div class="ch-kpi-card__hint">{{ item.hint }}</div>
+      </article>
+    </div>
+
+    <TemuAnalyticsCharts
+      class="employee-charts"
+      compact
+      :products="products"
+      :stores="stores"
+      :sales-trend="salesTrend"
+      :store-name="storeName"
+      @navigate="emit('navigate', $event)"
+      @select-store="emit('select-store', $event)"
+    />
+  </div>
 </template>
 
 <style scoped>
-.el-card :deep(.el-statistic__head) {
-  margin-bottom: 8px;
+.employee-temu-overview {
+  display: grid;
+  gap: 16px;
+}
+
+.employee-charts {
+  margin-top: 0;
 }
 </style>

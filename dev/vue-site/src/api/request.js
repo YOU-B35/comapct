@@ -86,11 +86,15 @@ service.interceptors.response.use(
 )
 
 export async function backendLogin(account, password, portalRole) {
-  const res = await service.post('/api/auth/login', {
+  const body = {
     account,
     password,
-    portal_role: portalRole,
-  })
+  }
+  // portal_role 可选；后端按库内角色自动校准，前端传值仅兼容旧调用
+  if (portalRole) {
+    body.portal_role = portalRole
+  }
+  const res = await service.post('/api/auth/login', body)
   const data = res?.data ?? res
   const token = data?.token
   if (!token) throw new Error('登录失败：未返回 token')

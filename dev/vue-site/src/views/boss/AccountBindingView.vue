@@ -6,6 +6,7 @@ import { deletePlatformStore, fetchAllPlatformStores } from '@/api/platformAccou
 import { formatCaughtError } from '@/utils/appErrorCode'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import BindStoreDialog from '@/components/accounts/BindStoreDialog.vue'
 import ZiniaoImportDialog from '@/components/accounts/ZiniaoImportDialog.vue'
 
@@ -127,6 +128,7 @@ onMounted(loadStores)
     <template #header>
       <PageHeader
         title="账户绑定"
+        eyebrow="配置"
         description="绑定各平台店铺后，对应运营模块将自动读取"
       >
         <template #actions>
@@ -144,7 +146,8 @@ onMounted(loadStores)
       </PageHeader>
     </template>
 
-    <div class="filter-bar">
+    <PageSection title="平台筛选">
+      <div class="filter-bar">
       <button
         type="button"
         class="filter-chip"
@@ -167,8 +170,10 @@ onMounted(loadStores)
           {{ platformCounts[item.value] }}
         </span>
       </button>
-    </div>
+      </div>
+    </PageSection>
 
+    <PageSection title="已绑定店铺">
     <div v-loading="loading" class="store-card">
       <el-table
         v-if="filteredStores.length"
@@ -213,6 +218,7 @@ onMounted(loadStores)
         </el-button>
       </el-empty>
     </div>
+    </PageSection>
 
     <BindStoreDialog
       v-model:visible="bindDialogVisible"

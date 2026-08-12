@@ -1,9 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import { summarizeDtcBySite, summarizeDtcProducts } from '@/utils/dtc'
-import { formatMoneyDecimal } from '@/utils/format'
 import { resolveStoreAssignee } from '@/utils/storeAssignment'
 import AssigneeTag from '@/components/common/AssigneeTag.vue'
+import PlatformAnalyticsCharts from '@/components/charts/PlatformAnalyticsCharts.vue'
 
 const props = defineProps({
   products: { type: Array, required: true },
@@ -30,6 +30,36 @@ const alertItems = computed(() => [
   { label: '爆款', count: overall.value.hotProducts, tab: 'products', type: 'success' },
   { label: '营销活动', count: 0, tab: 'campaigns', type: 'primary', hideCount: true },
 ])
+
+const chartMetrics = computed(() => [
+  { name: '今日订单', value: overall.value.dailyOrders },
+  { name: '今日访客', value: overall.value.dailyViews },
+  { name: '在售 SKU', value: overall.value.skuCount },
+  { name: '健康度', value: overall.value.healthScore },
+])
+
+const chartStructure = computed(() =>
+  alertItems.value
+    .filter((i) => !i.hideCount)
+    .map((i) => ({
+      name: i.label,
+      value: i.count,
+      tab: i.tab,
+      color:
+        i.type === 'danger' ? '#ef4444'
+          : i.type === 'warning' ? '#f59e0b'
+            : i.type === 'success' ? '#10b981'
+              : '#3b82f6',
+    })),
+)
+
+const chartCompare = computed(() =>
+  siteSummaries.value.map((row) => ({
+    id: row.site.id,
+    name: row.site.name,
+    value: row.summary.dailyOrders,
+  })),
+)
 </script>
 
 <template>
@@ -57,6 +87,18 @@ const alertItems = computed(() => [
         <span>{{ item.label }}</span>
       </button>
     </div>
+
+    <PlatformAnalyticsCharts
+      title="独立站数据分析"
+      :metric-items="chartMetrics"
+      metric-title="核心指标"
+      :compare-items="chartCompare"
+      compare-title="站点订单对比"
+      compare-value-label="订单"
+      :structure-items="chartStructure"
+      structure-title="待办结构"
+      @navigate="emit('navigate', $event)"
+    />
 
     <el-table
       v-if="showSiteList && siteSummaries.length"

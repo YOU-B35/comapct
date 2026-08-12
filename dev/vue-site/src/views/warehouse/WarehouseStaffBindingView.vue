@@ -5,6 +5,7 @@ import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import { fetchWarehouseSites } from '@/api/warehouseSites'
 import {
   deleteWarehouseStaff,
@@ -170,6 +171,7 @@ onMounted(loadData)
     <template #header>
       <PageHeader
         title="仓库人员管理"
+        eyebrow="仓储"
         description="由企业管理员维护仓库端口账号与分仓权限（岗位统一为仓库管理员）；仓管人员无权在此新增或绑定账号"
       >
         <template #actions>
@@ -179,6 +181,7 @@ onMounted(loadData)
       </PageHeader>
     </template>
 
+    <PageSection flush>
     <el-table v-loading="loading" :data="staffList" stripe size="small" class="staff-table">
       <el-table-column label="员工" min-width="120">
         <template #default="{ row }">
@@ -213,6 +216,7 @@ onMounted(loadData)
         </template>
       </el-table-column>
     </el-table>
+    </PageSection>
 
     <el-dialog
       v-model="dialogVisible"

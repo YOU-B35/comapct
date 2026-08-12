@@ -4,7 +4,7 @@ import { summarizeTemuByStore, summarizeTemuProducts } from '@/utils/temuStore'
 import { formatMoney } from '@/utils/format'
 import { resolveStoreAssignee } from '@/utils/storeAssignment'
 import AssigneeTag from '@/components/common/AssigneeTag.vue'
-import TemuSalesTrend from '@/components/temu/TemuSalesTrend.vue'
+import TemuAnalyticsCharts from '@/components/temu/TemuAnalyticsCharts.vue'
 
 const props = defineProps({
   products: { type: Array, required: true },
@@ -15,7 +15,7 @@ const props = defineProps({
   salesTrend: { type: Object, default: () => ({ labels: [], values: [] }) },
 })
 
-const emit = defineEmits(['navigate'])
+const emit = defineEmits(['navigate', 'select-store'])
 
 const overall = computed(() => summarizeTemuProducts(props.products))
 
@@ -82,12 +82,13 @@ function storeAlerts(summary) {
       </button>
     </div>
 
-    <TemuSalesTrend
-      v-if="salesTrend.labels?.length"
-      :labels="salesTrend.labels"
-      :values="salesTrend.values"
-      :estimated="salesTrend.estimated || []"
+    <TemuAnalyticsCharts
+      :products="products"
+      :stores="stores"
+      :sales-trend="salesTrend"
       :store-name="storeName"
+      @navigate="emit('navigate', $event)"
+      @select-store="emit('select-store', $event)"
     />
 
     <el-table

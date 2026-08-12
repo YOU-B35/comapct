@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { summarizeTopProducts, summarizeOutboundOrders, acosMeta, summarizeAccountSnapshot, formatAmazonMoney } from '@/utils/amazonBoss'
 import { resolveStoreAssignee } from '@/utils/storeAssignment'
 import AssigneeTag from '@/components/common/AssigneeTag.vue'
+import PlatformAnalyticsCharts from '@/components/charts/PlatformAnalyticsCharts.vue'
 
 const props = defineProps({
   products: { type: Array, default: () => [] },
@@ -102,6 +103,30 @@ const highAcosProducts = computed(() =>
     .filter((p) => ['warning', 'danger'].includes(acosMeta(p.acos).level))
     .slice(0, 5),
 )
+
+const chartMetrics = computed(() => [
+  { name: 'ACOS偏高', value: productSummary.value.highAcosCount },
+  { name: '待发货', value: outboundSummary.value.actionRequired },
+  { name: '待揽收', value: outboundSummary.value.packed },
+  { name: 'TOP SKU', value: productSummary.value.top.length },
+])
+
+const chartStructure = computed(() =>
+  alertItems.value.map((i) => ({
+    name: i.label,
+    value: i.count,
+    tab: i.tab,
+    color: i.type === 'danger' ? '#ef4444' : i.type === 'warning' ? '#f59e0b' : '#3b82f6',
+  })),
+)
+
+const chartCompare = computed(() =>
+  productSummary.value.top.slice(0, 8).map((p) => ({
+    id: p.id,
+    name: p.productName || p.asin || 'SKU',
+    value: Number(p.sales) || Number(p.orderedUnits) || Number(p.acos) || 0,
+  })),
+)
 </script>
 
 <template>
@@ -129,6 +154,18 @@ const highAcosProducts = computed(() =>
         <span>{{ item.label }}</span>
       </button>
     </div>
+
+    <PlatformAnalyticsCharts
+      title="Amazon 数据分析"
+      :metric-items="chartMetrics"
+      metric-title="核心指标"
+      :compare-items="chartCompare"
+      compare-title="TOP 产品对比"
+      compare-value-label="销量/指标"
+      :structure-items="chartStructure"
+      structure-title="待办结构"
+      @navigate="emit('navigate', $event)"
+    />
 
     <div v-if="highAcosProducts.length" class="acos-alert-card">
       <div class="acos-alert-head">
@@ -208,9 +245,9 @@ const highAcosProducts = computed(() =>
 
 .acos-alert-card {
   padding: 14px 16px;
-  border-radius: var(--ch-radius-lg, 12px);
-  border: 1px solid var(--el-color-danger-light-7);
-  background: linear-gradient(135deg, #fef2f2 0%, #fff 70%);
+  border-radius: var(--ch-radius-md);
+  border: 1px solid #f3d0d8;
+  background: linear-gradient(180deg, #fff7f8 0%, #fff 75%);
 }
 
 .acos-alert-head {

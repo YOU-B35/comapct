@@ -1,5 +1,6 @@
 @import './base.css';
 @import './theme.css';
+@import './module-chrome.css';
 @import './auth-panel.css';
 
 #app {

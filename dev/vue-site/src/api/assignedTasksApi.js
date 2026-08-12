@@ -24,6 +24,8 @@ function mapTask(row) {
     lastFeedback: row.lastFeedback || row.last_feedback || '',
     lastFeedbackAt: row.lastFeedbackAt || row.last_feedback_at || '',
     lastFeedbackBy: row.lastFeedbackBy || row.last_feedback_by || '',
+    nudgedAt: row.nudgedAt || row.nudged_at || '',
+    nudgedBy: row.nudgedBy || row.nudged_by || '',
   }
 }
 
@@ -43,6 +45,22 @@ export async function fetchBackendAssignedTask(id) {
 
 export async function createBackendAssignedTask(payload) {
   const res = await service.post('/api/tasks', payload)
+  return mapTask(res?.data)
+}
+
+export async function createBackendAssignedTasksBatch(payload) {
+  const res = await service.post('/api/tasks/batch', payload)
+  const data = res?.data || {}
+  return {
+    created: (data.created || []).map(mapTask),
+    failed: data.failed || [],
+    successCount: data.successCount ?? (data.created || []).length,
+    failCount: data.failCount ?? (data.failed || []).length,
+  }
+}
+
+export async function nudgeBackendAssignedTask(id) {
+  const res = await service.post(`/api/tasks/${id}/nudge`)
   return mapTask(res?.data)
 }
 

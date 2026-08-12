@@ -5,6 +5,7 @@ import { Refresh } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import { fetchTenantFeatures, updateTenantFeatures } from '@/api/tenantFeatures'
 
 const auth = useAuthStore()
@@ -75,6 +76,7 @@ onMounted(loadFeatures)
   <PageScroll>
     <PageHeader
       title="功能开关"
+      eyebrow="租户"
       description="按租户启用或关闭菜单模块。关闭后 Boss 与员工侧栏将不再显示对应入口，直接访问 URL 也会被拦截。"
     >
       <template #actions>
@@ -95,6 +97,7 @@ onMounted(loadFeatures)
       title="核心设置项（运营绑定、账户绑定、工作台等）不可关闭。关闭平台模块时会同步关闭对应员工端入口。"
     />
 
+    <PageSection title="模块权限">
     <div v-loading="loading" class="feature-groups">
       <el-card
         v-for="group in groupedFeatures"
@@ -127,6 +130,7 @@ onMounted(loadFeatures)
         </div>
       </el-card>
     </div>
+    </PageSection>
   </PageScroll>
 </template>
 

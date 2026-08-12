@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowRight, Box, Lock, User, UserFilled } from '@element-plus/icons-vue'
-import { loginBoss, loginEmployee, loginWarehouse } from '@/api/auth'
+import { loginAccount } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { defaultLandingPath } from '@/utils/menuAuth'
 import AuthSplitLayout from '@/components/auth/AuthSplitLayout.vue'
@@ -18,6 +18,7 @@ const loading = ref(false)
 const portalRole = ref('boss')
 const password = ref('')
 const account = ref('')
+const formError = ref('')
 
 const roleLabel = computed(() => {
   if (portalRole.value === 'boss') return '企业管理员'
@@ -30,49 +31,85 @@ onMounted(() => {
   if (typeof q === 'string' && q) {
     account.value = q
     password.value = ''
+  }
+  const portal = route.query.portal
+  if (portal === 'employee' || portal === 'boss' || portal === 'warehouse') {
+    portalRole.value = portal
+  } else if (portal === 'admin') {
+    portalRole.value = 'boss'
+  } else if (typeof q === 'string' && q) {
     portalRole.value = 'employee'
   }
 })
 
+function clearFormError() {
+  if (formError.value) formError.value = ''
+}
+
+function resolveLoginError(err) {
+  const code = String(err?.errorCode || '').trim()
+  const raw = String(err?.message || '').trim()
+  if (
+    code === 'AUTH_BAD_CREDENTIALS'
+    || /账号或密码/.test(raw)
+  ) {
+    return '账号或密码不正确，请重新填写后重试'
+  }
+  if (code === 'AUTH_INACTIVE' || /已停用/.test(raw)) {
+    return '该账号已停用，请联系企业管理员'
+  }
+  if (code === 'AUTH_NO_TENANT' || /未绑定/.test(raw)) {
+    return '账号未绑定企业，请联系企业管理员开通'
+  }
+  if (code === 'AUTH_MULTI_TENANT' || /多个企业/.test(raw)) {
+    return '该账号绑定多个企业，请使用企业专用账号登录'
+  }
+  if (/后端服务未启动|Java API|:18080|不可用|Network Error|timeout/i.test(raw)) {
+    return '登录服务暂时不可用，请稍后重试'
+  }
+  return raw || '登录失败，请检查账号密码后重试'
+}
+
 async function handleLogin() {
+  formError.value = ''
   if (!account.value.trim()) {
-    ElMessage.warning('请填写账号')
+    formError.value = '请填写登录账号'
+    ElMessage.warning(formError.value)
     return
   }
   if (!password.value) {
-    ElMessage.warning('请填写密码')
+    formError.value = '请填写登录密码'
+    ElMessage.warning(formError.value)
     return
   }
 
   loading.value = true
   try {
-    if (portalRole.value === 'boss') {
-      const res = await loginBoss({
-        account: account.value.trim(),
-        password: password.value,
-      })
+    // 卡片选择仅作入口提示；后端按库内角色自动校准 portal / 菜单 / 落地页
+    const res = await loginAccount({
+      account: account.value.trim(),
+      password: password.value,
+      preferredPortal: portalRole.value,
+    })
+    const portal = res.portal || 'employee'
+    if (portal === 'boss') {
       auth.setCompany(res.data)
-      auth.login('boss')
-      router.push(defaultLandingPath(auth))
-    } else if (portalRole.value === 'warehouse') {
-      const res = await loginWarehouse({
-        account: account.value.trim(),
-        password: password.value,
-      })
+    } else if (portal === 'warehouse') {
       auth.setWarehouse(res.data)
-      auth.login('warehouse')
-      router.push(defaultLandingPath(auth))
     } else {
-      const res = await loginEmployee({
-        account: account.value.trim(),
-        password: password.value,
-      })
       auth.setEmployee(res.data)
-      auth.login('employee')
-      router.push(defaultLandingPath(auth))
     }
+    auth.login(portal)
+    if (portal !== portalRole.value) {
+      ElMessage.info(`已按账号权限进入${portal === 'boss' ? '企业管理员' : portal === 'warehouse' ? '仓库端口' : '员工工作台'}`)
+      portalRole.value = portal
+    }
+    const landing = String(res.landingPath || '').trim()
+    router.push(landing || defaultLandingPath(auth))
   } catch (err) {
-    ElMessage.error(err.message || '登录失败')
+    const msg = resolveLoginError(err)
+    formError.value = msg
+    ElMessage.error({ message: msg, duration: 4500, showClose: true })
   } finally {
     loading.value = false
   }
@@ -84,7 +121,7 @@ async function handleLogin() {
     <header class="auth-head">
       <p class="auth-head__eyebrow">Welcome back</p>
       <h2>登录 CrossHub</h2>
-      <p class="auth-head__sub">选择身份，进入对应工作台</p>
+      <p class="auth-head__sub">选择身份入口；系统仍按账号权限自动校准工作台</p>
     </header>
 
     <div class="role-tabs">
@@ -122,10 +159,11 @@ async function handleLogin() {
         <el-input
           v-model="account"
           :prefix-icon="User"
-          placeholder="企业邮箱或登录账号"
+          placeholder="请输入登录账号"
           size="large"
           clearable
           autocomplete="username"
+          @input="clearFormError"
         />
       </el-form-item>
       <el-form-item label="密码">
@@ -139,9 +177,12 @@ async function handleLogin() {
           autocomplete="current-password"
           @focus="onPasswordFocus"
           @blur="onPasswordBlur"
+          @input="clearFormError"
           @keyup.enter="handleLogin"
         />
       </el-form-item>
+
+      <p v-if="formError" class="auth-form-error" role="alert">{{ formError }}</p>
 
       <el-button
         type="primary"
@@ -156,8 +197,21 @@ async function handleLogin() {
     </el-form>
 
     <p class="auth-switch-link">
-      还没有企业账号？
-      <button type="button" class="auth-text-link" @click="router.push('/register')">免费注册</button>
+      还没有账号？
+      <button type="button" class="auth-text-link" @click="router.push('/register')">员工/企业注册</button>
     </p>
   </AuthSplitLayout>
 </template>
+
+<style scoped>
+.auth-form-error {
+  margin: -0.25rem 0 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  border: 1px solid color-mix(in srgb, #dc2626 28%, transparent);
+  color: #b91c1c;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+</style>

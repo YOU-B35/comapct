@@ -1,4 +1,6 @@
 <script setup>
+import PanelHeader from '@/components/common/PanelHeader.vue'
+
 defineProps({
   title: { type: String, required: true },
   description: { type: String, default: '' },
@@ -11,36 +13,14 @@ defineEmits(['action'])
 </script>
 
 <template>
-  <div class="panel-header">
-    <div>
-      <strong>{{ title }}</strong>
-      <el-text v-if="description" size="small" type="info" tag="p">{{ description }}</el-text>
-    </div>
-    <el-space>
-      <el-text v-if="syncedAt" size="small" type="info">同步于 {{ syncedAt }}</el-text>
-      <el-button
-        v-if="actionLabel"
-        type="primary"
-        size="small"
-        :loading="loading"
-        @click="$emit('action')"
-      >
-        {{ actionLabel }}
-      </el-button>
-    </el-space>
-  </div>
+  <PanelHeader
+    :title="title"
+    :description="description"
+    :synced-at="syncedAt"
+    synced-prefix="同步于"
+    :action-label="actionLabel"
+    :loading="loading"
+    :show-action-icon="false"
+    @action="$emit('action')"
+  />
 </template>
-
-<style scoped>
-.panel-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.panel-header p {
-  margin: 4px 0 0;
-}
-</style>

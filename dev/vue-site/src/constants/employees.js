@@ -13,6 +13,12 @@ export { PLATFORM_OPTION_GROUPS }
 /** 员工端仓库下单菜单 code，与后端 sys_menu / menu_codes 一致 */
 export const WAREHOUSE_MENU_CODE = 'employee.warehouse'
 
+/** 员工端自媒体运营菜单 code */
+export const SAU_MENU_CODE = 'employee.sau'
+
+/** 运营绑定「其他角色」单选（非必填） */
+export const OTHER_ROLE_OPTIONS = ['自媒体运营', '其他']
+
 export const DEMO_EMPLOYEES = [
   {
     id: 'demo_emp_1',

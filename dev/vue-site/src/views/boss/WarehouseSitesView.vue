@@ -5,6 +5,7 @@ import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import {
   deleteWarehouseSite,
   fetchWarehouseSites,
@@ -136,6 +137,7 @@ onMounted(loadSites)
     <template #header>
       <PageHeader
         title="仓库设置"
+        eyebrow="仓储"
         description="维护分仓信息；运营下单时需选择目标仓库，仓管仅处理已分配仓库的订单"
       >
         <template #actions>
@@ -145,31 +147,33 @@ onMounted(loadSites)
       </PageHeader>
     </template>
 
-    <el-table v-loading="loading" :data="sites" stripe size="small" class="sites-table">
-      <el-table-column prop="name" label="仓库名称" min-width="140" />
-      <el-table-column prop="code" label="编码" width="120" />
-      <el-table-column prop="address" label="地址" min-width="180" show-overflow-tooltip>
-        <template #default="{ row }">
-          {{ row.address || '—' }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
-      <el-table-column label="状态" width="72" align="center">
-        <template #default="{ row }">
-          <el-switch
-            :model-value="row.status !== false"
-            size="small"
-            @change="(val) => handleStatusChange(row, val)"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="120" align="center" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
-          <el-button link type="danger" :icon="Delete" @click="removeSite(row)" />
-        </template>
-      </el-table-column>
-    </el-table>
+    <PageSection flush>
+      <el-table v-loading="loading" :data="sites" stripe size="small" class="sites-table">
+        <el-table-column prop="name" label="仓库名称" min-width="140" />
+        <el-table-column prop="code" label="编码" width="120" />
+        <el-table-column prop="address" label="地址" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.address || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
+        <el-table-column label="状态" width="72" align="center">
+          <template #default="{ row }">
+            <el-switch
+              :model-value="row.status !== false"
+              size="small"
+              @change="(val) => handleStatusChange(row, val)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" :icon="Delete" @click="removeSite(row)" />
+          </template>
+        </el-table-column>
+      </el-table>
+    </PageSection>
 
     <el-dialog
       v-model="dialogVisible"

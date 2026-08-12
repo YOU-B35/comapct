@@ -1,9 +1,11 @@
 import { hasBackendSession } from './backendSession'
 import {
   createBackendAssignedTask,
+  createBackendAssignedTasksBatch,
   deleteBackendAssignedTask,
   fetchBackendAssignedTask,
   fetchBackendAssignedTasks,
+  nudgeBackendAssignedTask,
   updateBackendAssignedTask,
   updateBackendAssignedTaskStatus,
 } from './assignedTasksApi'
@@ -136,6 +138,34 @@ export async function assignTask(payload, context = {}, auth = null) {
 
 export async function assignTaskToEmployee(payload, employees = [], auth = null) {
   return assignTask(payload, { employees, warehouseStaff: [] }, auth)
+}
+
+/** 批量分配：payload.assignees = [{ assigneeType, assigneeId, assignee }] */
+export async function assignTasksBatch(payload, auth = null) {
+  if (!hasBackendSession(auth)) {
+    throw new Error('批量分配需登录后端账号')
+  }
+  const data = await createBackendAssignedTasksBatch({
+    title: payload.title,
+    description: payload.description,
+    platformKey: payload.platformKey,
+    category: payload.category,
+    priority: payload.priority,
+    due: payload.due,
+    warehouseName: payload.warehouseName,
+    assignedBy: payload.assignedBy,
+    assigneeType: payload.assigneeType || 'employee',
+    assignees: payload.assignees || [],
+  })
+  return { success: true, data }
+}
+
+export async function nudgeAssignedTask(id, auth = null) {
+  if (!hasBackendSession(auth)) {
+    throw new Error('催办需登录后端账号')
+  }
+  const data = await nudgeBackendAssignedTask(id)
+  return { success: true, data }
 }
 
 export async function updateAssignedTask(id, payload, auth = null) {

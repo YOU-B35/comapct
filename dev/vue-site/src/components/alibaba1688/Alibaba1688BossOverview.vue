@@ -7,6 +7,7 @@ import {
 } from '@/utils/alibaba1688'
 import { resolveStoreAssignee } from '@/utils/storeAssignment'
 import AssigneeTag from '@/components/common/AssigneeTag.vue'
+import PlatformAnalyticsCharts from '@/components/charts/PlatformAnalyticsCharts.vue'
 
 const props = defineProps({
   purchaseOrders: { type: Array, default: () => [] },
@@ -64,6 +65,30 @@ function storeAlerts(row) {
   if (row.alerts.open) items.push({ text: `预警 ${row.alerts.open}`, type: 'info' })
   return items
 }
+
+const chartMetrics = computed(() => [
+  { name: '采购单', value: orderSummary.value.total },
+  { name: '待付款', value: orderSummary.value.pendingPayment },
+  { name: '待发货', value: orderSummary.value.pendingShipment },
+  { name: '供应商预警', value: alertSummary.value.open },
+])
+
+const chartStructure = computed(() =>
+  alertItems.value.map((i) => ({
+    name: i.label,
+    value: i.count,
+    tab: i.tab,
+    color: i.type === 'danger' ? '#ef4444' : i.type === 'warning' ? '#f59e0b' : '#3b82f6',
+  })),
+)
+
+const chartCompare = computed(() =>
+  storeSummaries.value.map((row) => ({
+    id: row.store.id,
+    name: row.store.storeName,
+    value: row.orders.total,
+  })),
+)
 </script>
 
 <template>
@@ -89,6 +114,18 @@ function storeAlerts(row) {
         <span>{{ item.label }}</span>
       </button>
     </div>
+
+    <PlatformAnalyticsCharts
+      title="1688 数据分析"
+      :metric-items="chartMetrics"
+      metric-title="核心指标"
+      :compare-items="chartCompare"
+      compare-title="账号采购对比"
+      compare-value-label="采购单"
+      :structure-items="chartStructure"
+      structure-title="待办结构"
+      @navigate="emit('navigate', $event)"
+    />
 
     <el-table
       v-if="showStoreList && storeSummaries.length"

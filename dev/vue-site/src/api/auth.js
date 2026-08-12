@@ -21,6 +21,11 @@ function mapBackendSession(backend) {
     shop_scope: backend.shop_scope || [],
     warehouse_scope: backend.warehouse_scope || [],
     warehouse_scope_names: backend.warehouse_scope_names || [],
+    team_leader: Boolean(backend.team_leader),
+    team_id: backend.team_id || null,
+    team_name: backend.team_name || '',
+    portal_role: backend.portal_role || '',
+    landing_path: backend.landing_path || '',
   }
 }
 
@@ -28,11 +33,85 @@ async function requireBackendLogin(account, password, portalRole) {
   try {
     return await backendLogin(account, password, portalRole)
   } catch (err) {
-    const msg = err?.response?.data?.message
-      || err?.message
-      || '登录失败，请确认 Java API 已启动（:18080）'
-    throw new Error(msg)
+    const msg = err?.message || '登录失败，请检查账号密码后重试'
+    const wrapped = new Error(msg)
+    if (err?.errorCode) wrapped.errorCode = err.errorCode
+    throw wrapped
   }
+}
+
+/**
+ * 统一登录：后端按库内角色自动校准 portal，并返回落地页。
+ * preferredPortal 仅前端展示用，不覆盖后端校准结果。
+ */
+export async function loginAccount({ account, password, preferredPortal }) {
+  const acc = String(account || '').trim()
+  const pwd = String(password || '')
+  void preferredPortal
+
+  if (isTemuBackendEnabled()) {
+    const backend = await requireBackendLogin(acc, pwd)
+    const portal = String(backend.portal_role || '').toLowerCase()
+    const session = mapBackendSession(backend)
+    if (portal === 'boss') {
+      return {
+        success: true,
+        portal: 'boss',
+        landingPath: backend.landing_path || '',
+        data: {
+          company: backend.company || backend.nickname || '企业',
+          account: backend.account || acc,
+          ...session,
+        },
+      }
+    }
+    if (portal === 'warehouse') {
+      return {
+        success: true,
+        portal: 'warehouse',
+        landingPath: backend.landing_path || '',
+        data: {
+          id: String(backend.user_id),
+          name: backend.nickname || backend.account || acc,
+          account: backend.account || acc,
+          role: backend.job_title || '仓库管理员',
+          phone: '',
+          ...session,
+        },
+      }
+    }
+    return {
+      success: true,
+      portal: 'employee',
+      landingPath: backend.landing_path || '',
+      data: {
+        id: backend.user_id,
+        name: backend.nickname || backend.account || acc,
+        account: backend.account || acc,
+        role: backend.job_title || backend.role || '',
+        otherRole: backend.other_role || '',
+        platforms: backend.platforms || [],
+        assignedStoreIds: backend.shop_scope || [],
+        ...session,
+      },
+    }
+  }
+
+  // 本地 mock：仍按账号尝试 boss → warehouse → employee
+  try {
+    const boss = await loginBoss({ account: acc, password: pwd })
+    return { success: true, portal: 'boss', landingPath: '/boss/dashboard', data: boss.data }
+  } catch (_) {
+    /* try next */
+  }
+  try {
+    const wh = await loginWarehouse({ account: acc, password: pwd })
+    return { success: true, portal: 'warehouse', landingPath: '/warehouse/pending-review', data: wh.data }
+  } catch (_) {
+    /* try next */
+  }
+  const emp = await loginEmployee({ account: acc, password: pwd })
+  return { success: true, portal: 'employee', landingPath: '/employee/dashboard', data: emp.data }
 }
 
 export async function registerCompany(payload) {
@@ -54,6 +133,35 @@ export async function registerCompany(payload) {
   }
 
   const result = registerLocalUser({ company, account, password })
+  if (result.error) throw new Error(result.error)
+  return result
+}
+
+/** 员工自助注册：加入已有企业（企业名称或邀请码） */
+export async function registerEmployee(payload) {
+  const company = String(payload.company || '').trim()
+  const tenantCode = String(payload.tenantCode || payload.tenant_code || '').trim()
+  const account = String(payload.account || '').trim()
+  const password = String(payload.password || '')
+  const name = String(payload.name || '').trim() || account
+
+  if (isTemuBackendEnabled()) {
+    const res = await service.post('/api/auth/register-employee', {
+      company,
+      tenant_code: tenantCode,
+      account,
+      password,
+      name,
+    })
+    const data = res?.data ?? res
+    if (!data?.tenant_id && !data?.user_id) {
+      throw new Error('注册失败：未返回用户信息')
+    }
+    return { success: true, data }
+  }
+
+  const { registerLocalEmployee } = await import('./authLocal')
+  const result = registerLocalEmployee({ company, tenantCode, account, password, name })
   if (result.error) throw new Error(result.error)
   return result
 }
@@ -102,15 +210,10 @@ export async function loginEmployee({ account, password }) {
         name: backend.nickname || backend.account || account,
         account: backend.account || account,
         role: backend.job_title || backend.role || '',
+        otherRole: backend.other_role || '',
         platforms: backend.platforms || [],
         assignedStoreIds: backend.shop_scope || [],
-        backendLinked: true,
-        backendUserId: backend.user_id || null,
-        backendRole: backend.role || '',
-        tenant_id: backend.tenant_id || null,
-        menus: backend.menus || [],
-        shop_scope: backend.shop_scope || [],
-        warehouse_scope: backend.warehouse_scope || [],
+        ...mapBackendSession(backend),
       },
     }
   }
@@ -134,6 +237,7 @@ export async function loginEmployee({ account, password }) {
       name: employee.name,
       account: employee.account,
       role: employee.role,
+      otherRole: employee.otherRole || '',
       platforms: employee.platforms,
       assignedStoreIds: employee.assignedStoreIds || [],
       menuCodes: employee.menuCodes || [],

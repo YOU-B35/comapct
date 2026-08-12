@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -16,6 +16,7 @@ import { enrichListingIssue } from '@/utils/walmart'
 import { isPlatformOperationalDemoOnly, platformOperationalHint } from '@/utils/platformOperationalMode'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import WalmartBossOverview from '@/components/walmart/WalmartBossOverview.vue'
 import WalmartOrdersPanel from '@/components/walmart/WalmartOrdersPanel.vue'
 import WalmartListingsPanel from '@/components/walmart/WalmartListingsPanel.vue'
@@ -201,38 +202,43 @@ onActivated(loadWalmartModule)
 <template>
   <PageScroll>
     <template #header>
-      <div v-if="walmartStores.length" class="page-toolbar">
-        <el-radio-group v-model="selectedStoreId" size="small">
-          <el-radio-button value="all">全部店铺</el-radio-button>
-          <el-radio-button
-            v-for="store in walmartStores"
-            :key="store.id"
-            :value="store.id"
-          >
-            {{ store.storeName }}
-          </el-radio-button>
-        </el-radio-group>
-      </div>
-
       <PageHeader
-        v-else-if="!walmartStores.length && !auth.isBoss"
         title="Walmart 运营"
-        :description="`${auth.employee.name} · 订单处理与 Listing 跟进`"
+        eyebrow="平台"
+        :description="
+          auth.isBoss
+            ? '订单处理与 Listing 跟进'
+            : `${auth.employee.name} · 订单处理与 Listing 跟进`
+        "
       />
     </template>
 
-    <el-empty
-      v-if="!loadingStores && !walmartStores.length"
-      description="暂无可见的 Walmart 店铺"
-      :image-size="96"
-    >
-      <el-text type="info" size="small">
-        {{ auth.isBoss ? '请先在「账户绑定」中绑定 Walmart 店铺' : '请联系企业管理员在运营绑定中分配负责店铺' }}
-      </el-text>
-      <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
-        前往账户绑定
-      </el-button>
-    </el-empty>
+    <PageSection v-if="walmartStores.length" tone="toolbar" title="店铺">
+      <el-radio-group v-model="selectedStoreId" size="small">
+        <el-radio-button value="all">全部店铺</el-radio-button>
+        <el-radio-button
+          v-for="store in walmartStores"
+          :key="store.id"
+          :value="store.id"
+        >
+          {{ store.storeName }}
+        </el-radio-button>
+      </el-radio-group>
+    </PageSection>
+
+    <PageSection v-if="!loadingStores && !walmartStores.length" flush>
+      <el-empty
+        description="暂无可见的 Walmart 店铺"
+        :image-size="96"
+      >
+        <el-text type="info" size="small">
+          {{ auth.isBoss ? '请先在「账户绑定」中绑定 Walmart 店铺' : '请联系企业管理员在运营绑定中分配负责店铺' }}
+        </el-text>
+        <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
+          前往账户绑定
+        </el-button>
+      </el-empty>
+    </PageSection>
 
     <template v-else-if="walmartStores.length">
       <el-alert
@@ -244,6 +250,7 @@ onActivated(loadWalmartModule)
         class="operational-hint"
       />
 
+      <PageSection title="经营概览与明细">
       <WalmartBossOverview
         v-if="auth.isBoss"
         :orders="filteredOrders"
@@ -292,21 +299,18 @@ onActivated(loadWalmartModule)
           </div>
         </el-tab-pane>
       </el-tabs>
+      </PageSection>
     </template>
   </PageScroll>
 </template>
 
 <style scoped>
-.page-toolbar {
-  margin-bottom: 16px;
-}
-
 .module-tabs {
-  margin-top: 20px;
+  margin-top: 12px;
 }
 
 .tab-panel {
-  padding: 16px 0 4px;
+  padding: 12px 0 4px;
 }
 
 .tab-badge {
