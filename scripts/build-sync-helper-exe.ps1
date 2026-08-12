@@ -107,9 +107,17 @@ CrossHub Sync Helper（运维机专用）
    powershell -File scripts\install-sync-helper-autostart.ps1 -StartNow
    详见 docs/superpowers/specs/attachments/2026-07-29-rc-auto-checklist.md
 
+6. 首次安装后运行 register-protocol.ps1（或直接运行一次 exe）以注册「连接助手」协议。
+7. 网站点「连接助手」会通过 crosshub-sync-helper://start 拉起本程序。
+
 不要把本程序的下载入口放到运营人员使用的网页上。
+
+协议注册（若未自动注册）：
+  powershell -ExecutionPolicy Bypass -File .\register-protocol.ps1 -ExePath .\CrossHub-Sync-Helper.exe
 "@
 Set-Content -Path (Join-Path $AppDir "README.txt") -Value $readme -Encoding UTF8
+
+Copy-Item -Force (Join-Path $Root "scripts\packaging\sync-helper\register-protocol.ps1") (Join-Path $AppDir "register-protocol.ps1")
 
 Write-Host "==> done: $AppDir" -ForegroundColor Green
 Write-Host "    Edit config.json (agent_token) then run CrossHub-Sync-Helper.exe" -ForegroundColor Green

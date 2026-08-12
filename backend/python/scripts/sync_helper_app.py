@@ -326,6 +326,28 @@ def main() -> int:
     print(f"==> {APP_NAME}")
     print(f"==> 目录: {app_dir()}")
     ensure_pythonpath()
+    from agent.protocol_launch import (
+        is_protocol_start_argv,
+        ports_already_serving,
+        register_protocol_hkcu,
+    )
+
+    # Always try to keep protocol registration current for frozen builds
+    try:
+        exe = sys.executable if getattr(sys, "frozen", False) else str(Path(__file__).resolve())
+        if getattr(sys, "frozen", False):
+            register_protocol_hkcu(exe)
+    except Exception as exc:
+        print(f"==> [WARN] protocol register skipped: {exc}", file=sys.stderr)
+
+    if ports_already_serving():
+        if is_protocol_start_argv():
+            print("==> Sync Helper 已在运行（协议唤起），跳过重复启动。")
+            return 0
+        # Non-protocol second start: still prefer single instance
+        print("==> Sync Helper 端口已被占用，跳过重复启动。")
+        return 0
+
     cfg = load_config()
     if not cfg:
         input("按回车退出...")
