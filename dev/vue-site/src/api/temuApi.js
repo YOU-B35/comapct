@@ -298,6 +298,12 @@ export async function fetchTemuCrawlJob(jobId) {
   return res?.data ?? res
 }
 
+export async function fetchTemuSyncJobs({ limit = 20 } = {}) {
+  const res = await service.get('/api/temu/jobs', { params: { limit }, skipGlobalErrorToast: true })
+  const body = res?.data || res || {}
+  return Array.isArray(body.jobs) ? body.jobs : []
+}
+
 /** 全平台日批计划 + 各平台最近同步结果/错误（打开应用时展示） */
 export async function fetchPlatformSyncStatus() {
   const res = await service.get('/api/platform/sync-status', { skipGlobalErrorToast: true })

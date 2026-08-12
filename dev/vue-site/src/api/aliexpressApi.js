@@ -79,6 +79,12 @@ export async function fetchAliExpressCrawlJob(jobId) {
   return res?.data ?? res
 }
 
+export async function fetchAliExpressSyncJobs({ limit = 20 } = {}) {
+  const res = await service.get('/api/aliexpress/jobs', { params: { limit }, skipGlobalErrorToast: true })
+  const body = res?.data || res || {}
+  return Array.isArray(body.jobs) ? body.jobs : []
+}
+
 export async function refreshAliExpressDataWithCrawl(options = {}) {
   const crawlOpts = normalizeCrawlOptions(options)
 
