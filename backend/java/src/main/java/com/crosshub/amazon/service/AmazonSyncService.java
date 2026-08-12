@@ -21,6 +21,6 @@ public interface AmazonSyncService {
     /** 打开应用展示用：最近一次 Amazon 任务摘要 */
     Map<String, Object> buildSyncStatus(Long tenantId);
 
-    /** Helper 运维日志：列出租户最近 Amazon 同步任务 */
-    Map<String, Object> listRecentJobsForTenant(Long tenantId);
+    /** Helper 运维日志：列出租户最近 Amazon 同步任务（limit 经 JobListLimits.clamp，默认 20，最大 60） */
+    Map<String, Object> listRecentJobsForTenant(Long tenantId, Integer limit);
 }

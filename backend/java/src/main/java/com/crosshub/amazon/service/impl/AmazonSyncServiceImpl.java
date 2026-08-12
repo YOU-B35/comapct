@@ -8,6 +8,7 @@ import com.crosshub.amazon.service.AmazonOperationalPersistenceService;
 import com.crosshub.amazon.service.AmazonSyncConflictException;
 import com.crosshub.amazon.service.AmazonSyncService;
 import com.crosshub.common.AppErrorCode;
+import com.crosshub.common.JobListLimits;
 import com.crosshub.platform.entity.PlatformAccount;
 import com.crosshub.platform.repository.PlatformAccountRepository;
 import com.crosshub.common.TenantCrawlCooldownService;
@@ -217,7 +218,8 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
     }
 
     @Override
-    public Map<String, Object> listRecentJobsForTenant(Long tenantId) {
+    public Map<String, Object> listRecentJobsForTenant(Long tenantId, Integer limit) {
+        int n = JobListLimits.clamp(limit);
         List<AmazonSyncJob> jobs = syncJobRepository.findTop60ByTenantIdOrderByCreatedAtDesc(tenantId);
         List<Map<String, Object>> items = new ArrayList<>();
         int unread = 0;
@@ -248,8 +250,21 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
             item.put("failed_at", defaultText(String.valueOf(summary.getOrDefault("last_failed_at", "")), defaultText(job.getFinishedAt(), "")));
             item.put("failure_code", defaultText(String.valueOf(summary.getOrDefault("last_error_code", "")), defaultText(job.getErrorCode(), "")));
             item.put("failure_reason", defaultText(String.valueOf(summary.getOrDefault("last_error_message", "")), defaultText(job.getErrorMessage(), "")));
+            if (summary.containsKey("products_count") || summary.containsKey("product_count")) {
+                item.put("products_count", readInt(summary.getOrDefault("products_count", summary.get("product_count")), 0));
+            }
+            if (summary.containsKey("item_count") || summary.containsKey("items_count")) {
+                item.put("item_count", readInt(summary.getOrDefault("item_count", summary.get("items_count")), 0));
+            }
+            if (summary.containsKey("metric_count")) {
+                item.put("metric_count", readInt(summary.get("metric_count"), 0));
+            }
+            if (summary.containsKey("trigger")) {
+                item.put("trigger", String.valueOf(summary.get("trigger")));
+            }
             items.add(item);
         }
+        items = items.subList(0, Math.min(n, items.size()));
         return Map.of("items", items, "unread", unread);
     }
 

@@ -232,12 +232,15 @@ public class AgentController {
     }
 
     @GetMapping("/amazon/sync-jobs")
-    public Map<String, Object> listAmazonSyncJobs(@RequestParam(value = "tenant_id", required = false) Long tenantId) {
+    public Map<String, Object> listAmazonSyncJobs(
+            @RequestParam(value = "tenant_id", required = false) Long tenantId,
+            @RequestParam(value = "limit", required = false) Integer limit
+    ) {
         Long resolvedTenantId = tenantId != null ? tenantId : agentContext.tenantId();
         if (resolvedTenantId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少 tenant_id");
         }
-        return Map.of("success", true, "data", amazonSyncService.listRecentJobsForTenant(resolvedTenantId));
+        return Map.of("success", true, "data", amazonSyncService.listRecentJobsForTenant(resolvedTenantId, limit));
     }
 
     private Map<String, Object> toJobDto(AmazonSyncJob job) {
