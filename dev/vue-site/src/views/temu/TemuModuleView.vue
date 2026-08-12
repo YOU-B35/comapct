@@ -8,15 +8,20 @@ import { resolveAppError } from '@/utils/appErrorCode'
 import { enqueueAndPollTemuSync } from '@/api/agentHelper'
 import {
   canUseTemuBackend,
+  fetchPlatformSyncStatus,
   fetchTemuSalesTrend,
   fetchTemuStores,
+  fetchTemuSyncJobs,
   loadTemuModuleData,
 } from '@/api/temuApi'
 import { scopeStoreIds } from '@/utils/scope'
+import { buildSyncSummaryText } from '@/utils/syncHistory'
 import { useStoreAssignees } from '@/composables/useStoreAssignees'
 import { bootstrapHotBroadcasts, loadHotBroadcasts } from '@/api/temuHotBroadcast'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import SyncSummaryLine from '@/components/common/SyncSummaryLine.vue'
+import SyncHistoryDrawer from '@/components/common/SyncHistoryDrawer.vue'
 import TemuOverviewCards from '@/components/temu/TemuOverviewCards.vue'
 import TemuBossOverview from '@/components/temu/TemuBossOverview.vue'
 import PriceLossTable from '@/components/temu/PriceLossTable.vue'
@@ -42,6 +47,9 @@ const syncError = ref(null)
 const dataLoadError = ref('')
 const hotBroadcasts = ref([])
 const salesTrend = ref({ labels: [], values: [] })
+const syncHistoryOpen = ref(false)
+const lastSyncJob = ref(null)
+const syncSummaryText = computed(() => buildSyncSummaryText(lastSyncJob.value, 'temu'))
 
 const useBackendData = computed(() => canUseTemuBackend(auth))
 /** 用户本机 Helper：后端会话即可手动同步 / 登录（离线时按钮禁用） */
@@ -163,7 +171,7 @@ async function loadProducts() {
         status: 'success',
         message: scopeLabel,
         rowCount: result.products.length,
-        syncedAt: result.meta?.reportTime || '',
+        reportDay: result.meta?.reportTime || '',
       })
     }
     if (auth.isBoss) {
@@ -186,25 +194,36 @@ function onBroadcastsUpdate(list) {
   hotBroadcasts.value = list
 }
 
-function markSidebarTemuSync({ status, message, rowCount = 0, syncedAt = '' }) {
+function markSidebarTemuSync({ status, message, rowCount = 0, syncedAt = '', reportDay = '' }) {
   // 刷新会拉全账号店铺，侧栏按店分别更新；当前页指标仍只展示选中店
+  // syncedAt = 墙钟完成时间；reportDay = 数据日（report_time），二者勿混用
   const stores = temuStores.value.length
     ? temuStores.value
     : []
 
   for (const store of stores) {
     const isCurrent = selectedStoreId.value === 'all' || store.id === selectedStoreId.value
+    const dayHint = reportDay ? ` · 数据日 ${reportDay}` : ''
+    const baseMsg = isCurrent ? message : (status === 'success' ? '账号已同步，请切换店铺查看' : message)
     syncStore.updateStoreStatus({
       platform: 'temu',
       storeId: store.accountId || store.id,
       storeName: store.storeName,
       externalShopId: store.externalShopId || store.id,
       status,
-      message: isCurrent ? message : (status === 'success' ? '账号已同步，请切换店铺查看' : message),
+      message: isCurrent && dayHint ? `${baseMsg}${dayHint}` : baseMsg,
       rowCount: selectedStoreId.value === 'all' ? rowCount : (isCurrent ? rowCount : 0),
       syncedAt,
     })
   }
+}
+
+async function hydrateTemuLastSync() {
+  try {
+    const status = await fetchPlatformSyncStatus()
+    const job = status?.platforms?.temu?.last_job || null
+    if (job) lastSyncJob.value = job
+  } catch (_) { /* ignore */ }
 }
 
 async function handleRefreshData() {
@@ -226,16 +245,19 @@ async function handleRefreshData() {
       },
     })
     syncError.value = null
+    if (res.job) lastSyncJob.value = res.job
     await loadTemuStores()
     await loadProducts()
     await helperStatusBarRef.value?.reload?.()
     const rows = res.job?.rows_count ?? res.job?.shops?.rows_count
-    const reportTime = res.job?.report_time || ''
+    const reportDay = res.job?.report_time || ''
+    const finishedAt = res.job?.finished_at || res.job?.started_at || ''
     markSidebarTemuSync({
       status: 'success',
       message: rows != null ? `已同步 ${rows} 条销售数据` : '已刷新 Temu 数据',
       rowCount: productsRaw.value.length,
-      syncedAt: reportTime,
+      syncedAt: finishedAt,
+      reportDay,
     })
     ElMessage.success(
       res.partial
@@ -247,6 +269,7 @@ async function handleRefreshData() {
       { errorCode: err.errorCode, message: err.message },
       auth.tenantId,
     )
+    if (err.job) lastSyncJob.value = err.job
     markSidebarTemuSync({
       status: 'failed',
       message: syncError.value.title || err.message || 'Temu 同步失败',
@@ -263,6 +286,7 @@ onMounted(async () => {
   await loadAssignees()
   await loadTemuStores()
   await loadHotBroadcastFeed()
+  await hydrateTemuLastSync()
   if (selectedStoreId.value) {
     await loadProducts()
   }
@@ -314,6 +338,11 @@ watch(selectedStoreId, (id, prev) => {
           >
             刷新数据
           </el-button>
+          <SyncSummaryLine
+            v-if="showManualSyncControls || lastSyncJob"
+            :summary-text="syncSummaryText"
+            @open-history="syncHistoryOpen = true"
+          />
           <el-tag v-if="showManualSyncControls && !helperOnline" type="warning" size="small" effect="plain">
             助手离线
           </el-tag>
@@ -326,6 +355,12 @@ watch(selectedStoreId, (id, prev) => {
         :description="`${auth.employee.name} · 日常运营与库存管理`"
       />
     </template>
+
+    <SyncHistoryDrawer
+      v-model="syncHistoryOpen"
+      platform="temu"
+      :fetcher="() => fetchTemuSyncJobs({ limit: 20 })"
+    />
 
     <el-alert
       v-if="syncError"
