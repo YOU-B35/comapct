@@ -6,11 +6,13 @@ import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 const props = defineProps({
   news: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
 })
 
+defineEmits(['open-history'])
 
 const summary = computed(() => summarizeSellerNews(props.news))
 
@@ -29,6 +31,8 @@ const sorted = computed(() =>
       title="卖家新闻"
       description="平台通知已自动归纳，用最直白的话告诉你今天该注意什么"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

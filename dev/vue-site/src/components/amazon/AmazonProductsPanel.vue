@@ -9,6 +9,7 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   products: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   syncIssue: { type: Object, default: null },
   dataQuality: { type: Object, default: null },
   loading: { type: Boolean, default: false },
@@ -18,7 +19,7 @@ const props = defineProps({
   initialFilter: { type: String, default: 'all' },
 })
 
-defineEmits(['refresh', 'refreshReports'])
+defineEmits(['refresh', 'refreshReports', 'open-history'])
 
 const dataQualityAlert = computed(() => {
   const q = props.dataQuality
@@ -102,12 +103,14 @@ watch(
       :title="`产品 TOP20${summary.total ? ` · 共 ${summary.total} SKU` : ''}`"
       description="按近 7 日销售额排序展示 TOP20，关注 ACOS、转化与 FBA 库存；完整 SKU 数以标题为准"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
       secondary-action-label="Business Report 刷新"
       action-label="刷新数据"
       :secondary-loading="reportsLoading"
       :loading="loading"
       @secondary-action="$emit('refreshReports')"
       @action="$emit('refresh')"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

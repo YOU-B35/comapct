@@ -19,6 +19,9 @@ import {
 } from '@/api/amazon'
 import { fetchAmazonStores } from '@/api/platformAccounts'
 import { scopeStores } from '@/utils/scope'
+import { buildSyncSummaryText } from '@/utils/syncHistory'
+import { fetchPlatformSyncStatus } from '@/api/temuApi'
+import { fetchAmazonSyncJobs } from '@/api/agentApi'
 import { useStoreAssignees } from '@/composables/useStoreAssignees'
 import { buildAmazonDailyChecklist } from '@/utils/amazon'
 import { summarizeTopProducts, summarizeOutboundOrders, isValidAmazonProduct } from '@/utils/amazonBoss'
@@ -26,6 +29,8 @@ import { resolveAmazonProductEmptyHint } from '@/utils/amazonProductHint'
 import { isPlatformOperationalDemoOnly, platformOperationalHint } from '@/utils/platformOperationalMode'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import SyncSummaryLine from '@/components/common/SyncSummaryLine.vue'
+import SyncHistoryDrawer from '@/components/common/SyncHistoryDrawer.vue'
 import AmazonDailyOverview from '@/components/amazon/AmazonDailyOverview.vue'
 import AmazonBossOverview from '@/components/amazon/AmazonBossOverview.vue'
 import AmazonProductsPanel from '@/components/amazon/AmazonProductsPanel.vue'
@@ -77,6 +82,9 @@ const showIntegrationGuide = computed(
   () => false,
 )
 const helperOnline = ref(false)
+const syncHistoryOpen = ref(false)
+const lastSyncJob = ref(null)
+const syncSummaryText = computed(() => buildSyncSummaryText(lastSyncJob.value, 'amazon'))
 
 function onHelperOnline(online) {
   helperOnline.value = Boolean(online)
@@ -229,6 +237,19 @@ async function ensurePlatformSyncSeeded() {
   }
 }
 
+
+async function hydrateAmazonLastSync() {
+  try {
+    const status = await fetchPlatformSyncStatus()
+    let job = status?.platforms?.amazon?.last_job || null
+    if (!job) {
+      const jobs = await fetchAmazonSyncJobs({ limit: 1 })
+      job = Array.isArray(jobs) && jobs.length ? jobs[0] : null
+    }
+    if (job) lastSyncJob.value = job
+  } catch (_) { /* ignore */ }
+}
+
 function markAmazonSidebarSync({ status = 'success', message = '' } = {}) {
   if (operationalDemoOnly.value || !amazonStores.value.length) return
   const productCount = bossProducts.value.filter(isValidAmazonProduct).length
@@ -275,6 +296,7 @@ async function syncBossInsights(refresh = false) {
       : await loadAmazonBossInsights(amazonStores.value)
     applyBossData(res.data)
     if (refresh) {
+      await hydrateAmazonLastSync()
       notifySyncResult(res, '已刷新产品数据')
     }
   } catch (err) {
@@ -294,7 +316,10 @@ async function syncBossReports(refresh = false) {
       ? await refreshAmazonBossInsights(amazonStores.value, { refresh: true, scope: 'reports' })
       : await loadAmazonBossInsights(amazonStores.value)
     applyBossData(res.data)
-    if (refresh) notifySyncResult(res, '已刷新 Business Report 产品数据')
+    if (refresh) {
+      await hydrateAmazonLastSync()
+      notifySyncResult(res, '已刷新 Business Report 产品数据')
+    }
   } catch (err) {
     notifySyncError(err)
   } finally {
@@ -314,6 +339,7 @@ async function syncWorkflow(refresh = false) {
       : await loadAmazonDailyWorkflow(amazonStores.value)
     applyWorkflowData(res.data)
     if (refresh) {
+      await hydrateAmazonLastSync()
       notifySyncResult(res, '已刷新今日运营数据')
     }
   } catch (err) {
@@ -333,7 +359,10 @@ async function syncAccountHealth(refresh = false) {
       ? await refreshAmazonAccountHealth(amazonStores.value, { refresh: true })
       : await loadAmazonDailyWorkflow(amazonStores.value)
     applyWorkflowData({ ...workflow.value, accountMetrics: res.data.accountMetrics || [], syncedAt: res.data.syncedAt })
-    if (refresh) ElMessage.success(res.message || '已刷新账户状况')
+    if (refresh) {
+      await hydrateAmazonLastSync()
+      ElMessage.success(res.message || '已刷新账户状况')
+    }
   } catch (err) {
     ElMessage.error(err.message || '账户状况加载失败')
   } finally {
@@ -361,6 +390,7 @@ async function syncAllAmazon() {
       applyWorkflowData(dailyRes.data)
       applyBossData(insightsRes.data)
     }
+    await hydrateAmazonLastSync()
     notifySyncResult(res, '已刷新 Amazon 全部数据（运营 + 产品 + 广告）')
   } catch (err) {
     notifySyncError(err)
@@ -482,6 +512,7 @@ watch(amazonStores, (stores) => {
 onMounted(async () => {
   await loadAssignees()
   await loadModule()
+  await hydrateAmazonLastSync()
 })
 onActivated(loadModule)
 </script>
@@ -504,6 +535,12 @@ onActivated(loadModule)
         :description="`${auth.employee.name} · 一日运营工作流`"
       />
     </template>
+
+    <SyncHistoryDrawer
+      v-model="syncHistoryOpen"
+      platform="amazon"
+      :fetcher="() => fetchAmazonSyncJobs({ limit: 20 })"
+    />
 
     <HelperStatusBar
       v-if="showManualSyncControls"
@@ -540,6 +577,10 @@ onActivated(loadModule)
         >
           一键刷新全部数据
         </el-button>
+        <SyncSummaryLine
+          :summary-text="syncSummaryText"
+          @open-history="syncHistoryOpen = true"
+        />
         <el-text size="small" type="info">
           依次同步今日运营、Business Report 产品与广告（约 3–8 分钟，需本机 Sync Helper 与紫鸟在线）
         </el-text>
@@ -576,6 +617,7 @@ onActivated(loadModule)
               ref="productsPanel"
               :products="filteredProducts"
               :synced-at="bossSyncedAt"
+              :summary-text="syncSummaryText"
               :sync-issue="productSyncIssue"
               :data-quality="productDataQuality"
               :loading="loadingBoss"
@@ -585,6 +627,7 @@ onActivated(loadModule)
               :initial-filter="productsFilter"
               @refresh="syncBossInsights(true)"
               @refresh-reports="syncBossReports(true)"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -599,12 +642,14 @@ onActivated(loadModule)
               ref="outboundPanel"
               :orders="filteredOutbound"
               :synced-at="bossSyncedAt"
+              :summary-text="syncSummaryText"
               :loading="loadingBoss"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               :initial-filter="outboundFilter"
               @refresh="syncBossInsights(true)"
               @ship="onShipOutbound"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -634,10 +679,12 @@ onActivated(loadModule)
               ref="messagesPanel"
               :messages="filtered.buyerMessages"
               :synced-at="syncedAt"
+              :summary-text="syncSummaryText"
               :loading="loading"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               @reply="onReplyMessage"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -651,10 +698,12 @@ onActivated(loadModule)
             <AmazonAccountHealthPanel
               :metrics="filtered.accountMetrics"
               :synced-at="syncedAt"
+              :summary-text="syncSummaryText"
               :loading="loading"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               @refresh="syncAccountHealth(true)"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -669,10 +718,12 @@ onActivated(loadModule)
               ref="reviewsPanel"
               :reviews="filtered.reviews"
               :synced-at="syncedAt"
+              :summary-text="syncSummaryText"
               :loading="loading"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               @handle="onHandleReview"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -686,10 +737,12 @@ onActivated(loadModule)
             <AmazonCouponsPanel
               :coupons="filtered.coupons"
               :synced-at="syncedAt"
+              :summary-text="syncSummaryText"
               :loading="loading"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               @refresh="syncWorkflow(true)"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -703,9 +756,11 @@ onActivated(loadModule)
             <AmazonSellerNewsPanel
               :news="filtered.sellerNews"
               :synced-at="syncedAt"
+              :summary-text="syncSummaryText"
               :loading="loading"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -719,10 +774,12 @@ onActivated(loadModule)
             <AmazonShipmentsPanel
               :shipments="filtered.shipments"
               :synced-at="syncedAt"
+              :summary-text="syncSummaryText"
               :loading="loading"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               @refresh="syncWorkflow(true)"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -737,10 +794,12 @@ onActivated(loadModule)
               ref="casesPanel"
               :cases="filtered.cases"
               :synced-at="syncedAt"
+              :summary-text="syncSummaryText"
               :loading="loading"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               @acknowledge="onAcknowledgeCase"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>

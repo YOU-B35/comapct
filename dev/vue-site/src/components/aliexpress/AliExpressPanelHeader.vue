@@ -1,15 +1,17 @@
 <script setup>
 import { Refresh } from '@element-plus/icons-vue'
+import SyncSummaryLine from '@/components/common/SyncSummaryLine.vue'
 
 defineProps({
   title: { type: String, required: true },
   description: { type: String, default: '' },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   actionLabel: { type: String, default: '刷新' },
   loading: { type: Boolean, default: false },
 })
 
-defineEmits(['action'])
+defineEmits(['action', 'open-history'])
 </script>
 
 <template>
@@ -19,7 +21,12 @@ defineEmits(['action'])
       <div v-if="description" class="panel-header__desc">{{ description }}</div>
     </div>
     <div class="panel-header__actions">
-      <el-text v-if="syncedAt" size="small" type="info">最近同步 {{ syncedAt }}</el-text>
+      <SyncSummaryLine
+        v-if="summaryText"
+        :summary-text="summaryText"
+        @open-history="$emit('open-history')"
+      />
+      <el-text v-else-if="syncedAt" size="small" type="info">最近同步 {{ syncedAt }}</el-text>
       <el-button type="primary" :icon="Refresh" :loading="loading" @click="$emit('action')">
         {{ actionLabel }}
       </el-button>

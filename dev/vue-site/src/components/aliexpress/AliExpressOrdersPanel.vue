@@ -12,12 +12,13 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   orders: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
 })
 
-defineEmits(['refresh'])
+defineEmits(['refresh', 'open-history'])
 
 const orderType = ref('jit')
 
@@ -52,9 +53,11 @@ function statusType(order) {
       title="今日订单"
       description="JIT 与仓发订单，按履约类型分开展示"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
       action-label="抓取今日订单"
       :loading="loading"
       @action="$emit('refresh')"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

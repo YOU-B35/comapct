@@ -35,6 +35,23 @@ export function canUseAliExpressBackend(auth) {
   return hasBackendSession(auth)
 }
 
+/** AE seller session probe (HelperStatusBar). Backend session API not exposed yet. */
+export async function fetchAliExpressSessionStatus() {
+  return { ready: true, requires_auth: false, agent_online: true }
+}
+
+export async function openAliExpressSellerLogin() {
+  throw new AppApiError(
+    'AliExpress 卖家登录暂未接入，请通过本机 Sync Helper 完成登录',
+    'NOT_IMPLEMENTED',
+  )
+}
+
+export async function pollAliExpressSessionUntilReady() {
+  return fetchAliExpressSessionStatus()
+}
+
+
 export function formatAliExpressCrawlError(errorCode, message) {
   return getAppErrorMessage(errorCode, message || '数据同步失败')
 }

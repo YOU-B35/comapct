@@ -16,11 +16,16 @@ import {
 import { bootstrapAliExpressHotBroadcasts } from '@/api/aliexpressHotBroadcast'
 import { fetchAliExpressStores } from '@/api/platformAccounts'
 import { scopeStores } from '@/utils/scope'
+import { buildSyncSummaryText } from '@/utils/syncHistory'
+import { fetchPlatformSyncStatus } from '@/api/temuApi'
+import { fetchAliExpressSyncJobs } from '@/api/aliexpressApi'
 import { useStoreAssignees } from '@/composables/useStoreAssignees'
 import { enrichAllProducts } from '@/utils/temu'
 import { isPlatformOperationalDemoOnly, platformOperationalHint } from '@/utils/platformOperationalMode'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import SyncSummaryLine from '@/components/common/SyncSummaryLine.vue'
+import SyncHistoryDrawer from '@/components/common/SyncHistoryDrawer.vue'
 import AliExpressBossOverview from '@/components/aliexpress/AliExpressBossOverview.vue'
 import AliExpressOrdersPanel from '@/components/aliexpress/AliExpressOrdersPanel.vue'
 import AliExpressViolationsPanel from '@/components/aliexpress/AliExpressViolationsPanel.vue'
@@ -47,6 +52,9 @@ const loadingViolations = ref(false)
 const violationsPanel = ref(null)
 const violationsFilter = ref('all')
 const helperOnline = ref(false)
+const syncHistoryOpen = ref(false)
+const lastSyncJob = ref(null)
+const syncSummaryText = computed(() => buildSyncSummaryText(lastSyncJob.value, 'aliexpress'))
 
 const showHelperBar = computed(() => canUsePlatformUserHelper(auth))
 
@@ -87,6 +95,15 @@ async function ensurePlatformSyncSeeded() {
   } catch {
     // best effort
   }
+}
+
+
+async function hydrateAliExpressLastSync() {
+  try {
+    const status = await fetchPlatformSyncStatus()
+    const job = status?.platforms?.aliexpress?.last_job || null
+    if (job) lastSyncJob.value = job
+  } catch (_) { /* ignore */ }
 }
 
 function markSidebarAliExpressSync({ status = 'success', message = '' } = {}) {
@@ -177,6 +194,7 @@ async function syncTodayOrders(refresh = false) {
     todayOrders.value = res.data.orders
     ordersSyncedAt.value = res.data.syncedAt
     if (refresh) {
+      await hydrateAliExpressLastSync()
       ElMessage.success(res.message || '已刷新当日订单')
     }
   } catch (err) {
@@ -201,6 +219,7 @@ async function syncViolations(refresh = false) {
     violations.value = res.data.violations
     violationsSyncedAt.value = res.data.syncedAt
     if (refresh) {
+      await hydrateAliExpressLastSync()
       ElMessage.success(res.message || '已刷新违规信息')
     }
   } catch (err) {
@@ -283,6 +302,7 @@ async function handleRefreshAll() {
     const violationRes = await loadAliExpressViolations(aliexpressStores.value, auth)
     violations.value = violationRes.data.violations
     violationsSyncedAt.value = violationRes.data.syncedAt
+    await hydrateAliExpressLastSync()
     ElMessage.success(
       orderRes.message
         || `已同步 ${todayOrders.value.length} 笔订单、${violations.value.length} 条违规`,
@@ -326,6 +346,7 @@ onMounted(async () => {
   await ensurePlatformSyncSeeded()
   await loadAssignees()
   await loadAliExpressModule()
+  await hydrateAliExpressLastSync()
 })
 onActivated(loadAliExpressModule)
 </script>
@@ -355,9 +376,11 @@ onActivated(loadAliExpressModule)
           >
             同步数据
           </el-button>
-          <el-text v-if="ordersSyncedAt" size="small" type="info">
-            订单 {{ ordersSyncedAt }}
-          </el-text>
+          <SyncSummaryLine
+            v-if="lastSyncJob || ordersSyncedAt || violationsSyncedAt"
+            :summary-text="syncSummaryText"
+            @open-history="syncHistoryOpen = true"
+          />
         </el-space>
       </div>
 
@@ -367,6 +390,12 @@ onActivated(loadAliExpressModule)
         :description="`${auth.employee.name} · 订单处理与爆款跟进`"
       />
     </template>
+
+    <SyncHistoryDrawer
+      v-model="syncHistoryOpen"
+      platform="aliexpress"
+      :fetcher="() => fetchAliExpressSyncJobs({ limit: 20 })"
+    />
 
     <HelperStatusBar
       v-if="showHelperBar"
@@ -422,10 +451,12 @@ onActivated(loadAliExpressModule)
             <AliExpressOrdersPanel
               :orders="filteredOrders"
               :synced-at="ordersSyncedAt"
+              :summary-text="syncSummaryText"
               :loading="loadingOrders"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               @refresh="syncTodayOrders(true)"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>
@@ -440,12 +471,14 @@ onActivated(loadAliExpressModule)
               ref="violationsPanel"
               :violations="filteredViolations"
               :synced-at="violationsSyncedAt"
+              :summary-text="syncSummaryText"
               :loading="loadingViolations"
               :show-store-column="showStoreColumn"
               :store-name-map="storeNameMap"
               :initial-filter="violationsFilter"
               @refresh="syncViolations(true)"
               @confirm="handleConfirmViolation"
+              @open-history="syncHistoryOpen = true"
             />
           </div>
         </el-tab-pane>

@@ -9,13 +9,14 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   orders: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
   initialFilter: { type: String, default: 'pending' },
 })
 
-const emit = defineEmits(['refresh', 'ship'])
+const emit = defineEmits(['refresh', 'ship', 'open-history'])
 
 const filter = ref(props.initialFilter)
 const shippingId = ref('')
@@ -96,9 +97,11 @@ defineExpose({ finishShip })
       title="订单发货"
       description="FBA 与自发货（FBM）待处理订单，优先处理临近截止时间的订单"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
       action-label="刷新订单"
       :loading="loading"
       @action="$emit('refresh')"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

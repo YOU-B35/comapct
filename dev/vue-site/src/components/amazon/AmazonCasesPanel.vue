@@ -7,12 +7,13 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   cases: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['acknowledge'])
+const emit = defineEmits(['acknowledge', 'open-history'])
 
 const filter = ref('new')
 const acknowledgingId = ref('')
@@ -54,6 +55,8 @@ defineExpose({ finishAcknowledge })
       title="Case 跟进"
       description="平台 Case 有新回复时单独提醒，避免遗漏影响索赔或申诉"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

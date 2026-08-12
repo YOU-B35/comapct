@@ -1,15 +1,18 @@
 <script setup>
+import SyncSummaryLine from '@/components/common/SyncSummaryLine.vue'
+
 defineProps({
   title: { type: String, required: true },
   description: { type: String, default: '' },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   actionLabel: { type: String, default: '' },
   secondaryActionLabel: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   secondaryLoading: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['action', 'secondaryAction'])
+const emit = defineEmits(['action', 'secondaryAction', 'open-history'])
 </script>
 
 <template>
@@ -38,7 +41,12 @@ const emit = defineEmits(['action', 'secondaryAction'])
           {{ actionLabel }}
         </el-button>
       </slot>
-      <el-text v-if="syncedAt" size="small" type="info">最近同步 {{ syncedAt }}</el-text>
+      <SyncSummaryLine
+        v-if="summaryText"
+        :summary-text="summaryText"
+        @open-history="emit('open-history')"
+      />
+      <el-text v-else-if="syncedAt" size="small" type="info">最近同步 {{ syncedAt }}</el-text>
     </div>
   </div>
 </template>

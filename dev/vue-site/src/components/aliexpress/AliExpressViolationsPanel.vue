@@ -15,13 +15,14 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   violations: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
   initialFilter: { type: String, default: 'all' },
 })
 
-const emit = defineEmits(['refresh', 'confirm'])
+const emit = defineEmits(['refresh', 'confirm', 'open-history'])
 
 const filterStatus = ref(props.initialFilter)
 const confirming = ref(false)
@@ -141,9 +142,11 @@ defineExpose({ finishConfirm, setFilter })
       title="违规处理"
       description="确认申诉状态，平台审核结果通过抓取同步"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
       action-label="抓取违规信息"
       :loading="loading"
       @action="$emit('refresh')"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

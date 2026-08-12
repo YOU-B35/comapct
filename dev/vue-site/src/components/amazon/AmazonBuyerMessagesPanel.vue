@@ -9,12 +9,13 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   messages: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['reply'])
+const emit = defineEmits(['reply', 'open-history'])
 
 const filter = ref('pending')
 const dialogVisible = ref(false)
@@ -96,6 +97,8 @@ defineExpose({ finishReply })
       title="买家消息"
       description="24 小时内回复，避免迟复扣绩效；可套用统一模板快速回复"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

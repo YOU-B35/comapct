@@ -8,12 +8,13 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   shipments: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['refresh'])
+const emit = defineEmits(['refresh', 'open-history'])
 
 const filter = ref('alert')
 const summary = computed(() => summarizeShipments(props.shipments))
@@ -39,9 +40,11 @@ function statusMeta(row) {
       title="货件到货"
       description="跟踪 FBA 货件：送达、缺件、显示完成但无库存等情况均需预警"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
       action-label="刷新今日数据"
       :loading="loading"
       @action="emit('refresh')"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

@@ -8,12 +8,13 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   coupons: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['refresh'])
+const emit = defineEmits(['refresh', 'open-history'])
 
 const filter = ref('alert')
 const summary = computed(() => summarizeCoupons(props.coupons))
@@ -37,9 +38,11 @@ function statusMeta(row) {
       title="优惠券监控"
       description="检查优惠券是否异常；过期或配置错误需及时下架或续期"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
       action-label="刷新今日数据"
       :loading="loading"
       @action="emit('refresh')"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

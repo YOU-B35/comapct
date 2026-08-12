@@ -7,12 +7,13 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   reviews: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['handle'])
+const emit = defineEmits(['handle', 'open-history'])
 
 const filter = ref('pending')
 const handleNote = ref('')
@@ -62,6 +63,8 @@ defineExpose({ finishHandle })
       title="差评预警"
       description="1-3 星评价需及时联系买家或申诉，降低 ODR 与账户风险"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
+      @open-history="$emit('open-history')"
     />
 
     <div class="mini-stats">

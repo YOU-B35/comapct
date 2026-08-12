@@ -8,12 +8,13 @@ import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 const props = defineProps({
   metrics: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
+  summaryText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
   storeNameMap: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['refresh'])
+const emit = defineEmits(['refresh', 'open-history'])
 
 
 const filter = ref('alert')
@@ -51,6 +52,8 @@ function trendIcon(trend) {
       title="账户状况"
       description="每日反映账户健康；爆红指标需优先处理，避免限流或封号风险"
       :synced-at="syncedAt"
+      :summary-text="summaryText"
+      @open-history="$emit('open-history')"
     >
       <template #actions>
         <el-button size="small" :loading="loading" @click="emit('refresh')">刷新数据</el-button>
