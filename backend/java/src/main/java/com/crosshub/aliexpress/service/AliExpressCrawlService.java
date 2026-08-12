@@ -3,6 +3,7 @@ package com.crosshub.aliexpress.service;
 import com.crosshub.aliexpress.dto.AliExpressCrawlRequest;
 import com.crosshub.aliexpress.entity.AliExpressCrawlJob;
 
+import java.util.List;
 import java.util.Map;
 
 public interface AliExpressCrawlService {
@@ -11,6 +12,8 @@ public interface AliExpressCrawlService {
     AliExpressCrawlJob triggerViolationSync(boolean force);
     AliExpressCrawlJob triggerViolationSync(boolean force, boolean recordCooldown);
     AliExpressCrawlJob getJob(String jobId);
+
+    List<AliExpressCrawlJob> listRecentJobs(int limit);
 
     /** 系统日批：按租户入队（不依赖登录态） */
     Map<String, Object> enqueueDailyCrawl(Long tenantId);

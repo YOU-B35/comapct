@@ -16,7 +16,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -57,6 +59,18 @@ public class AliExpressController {
     @GetMapping("/crawl/{jobId}")
     public Map<String, Object> status(@PathVariable String jobId) {
         return ApiResult.ok(toJobDto(crawlService.getJob(jobId)));
+    }
+
+    @GetMapping("/jobs")
+    public Map<String, Object> listJobs(@RequestParam(value = "limit", required = false) Integer limit) {
+        List<AliExpressCrawlJob> jobs = crawlService.listRecentJobs(limit == null ? 20 : limit);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (AliExpressCrawlJob job : jobs) {
+            Map<String, Object> dto = toJobDto(job);
+            dto.put("triggered_by", job.getTriggeredBy());
+            rows.add(dto);
+        }
+        return ApiResult.ok(Map.of("jobs", rows));
     }
 
     @PostMapping("/violations/sync")

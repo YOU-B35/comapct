@@ -6,6 +6,7 @@ import com.crosshub.aliexpress.repository.AliExpressCrawlJobRepository;
 import com.crosshub.aliexpress.service.AliExpressCrawlConflictException;
 import com.crosshub.aliexpress.service.AliExpressCrawlService;
 import com.crosshub.common.AppErrorCode;
+import com.crosshub.common.JobListLimits;
 import com.crosshub.common.SqliteRetry;
 import com.crosshub.config.CrawlerProperties;
 import com.crosshub.security.AuthContext;
@@ -111,6 +112,21 @@ public class AliExpressCrawlServiceImpl implements AliExpressCrawlService {
         AliExpressCrawlJob job = jobRepository.findByIdAndTenantId(jobId, tenantId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, AppErrorCode.CRAWL_JOB_NOT_FOUND.getUserMessage()));
         return reconcileStaleJob(job);
+    }
+
+    public static int clampJobListLimit(Integer limit) {
+        return JobListLimits.clamp(limit);
+    }
+
+    @Override
+    public List<AliExpressCrawlJob> listRecentJobs(int limit) {
+        Long tenantId = dataScopeService.requireTenantId();
+        int n = clampJobListLimit(limit);
+        List<AliExpressCrawlJob> all = jobRepository.findTop60ByTenantIdOrderByCreatedAtDesc(tenantId);
+        if (all.size() <= n) {
+            return all;
+        }
+        return all.subList(0, n);
     }
 
     private AliExpressCrawlJob createJob(String reportTime, String scope, boolean force, boolean recordCooldown) {
