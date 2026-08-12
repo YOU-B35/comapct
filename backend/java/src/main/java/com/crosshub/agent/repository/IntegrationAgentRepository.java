@@ -16,4 +16,16 @@ public interface IntegrationAgentRepository extends JpaRepository<IntegrationAge
     List<IntegrationAgent> findByBoundUserIdOrderByLastHeartbeatAtDesc(Long userId);
 
     Optional<IntegrationAgent> findByBoundUserIdAndMachineFingerprint(Long userId, String fingerprint);
+
+    Optional<IntegrationAgent> findFirstByTenantIdAndMachineFingerprintAndStatusIgnoreCase(
+            Long tenantId, String fingerprint, String status);
+
+    /**
+     * Canonical machine agent for a tenant: active row only (retired siblings may share fingerprint).
+     */
+    default Optional<IntegrationAgent> findByTenantIdAndMachineFingerprint(Long tenantId, String fingerprint) {
+        return findFirstByTenantIdAndMachineFingerprintAndStatusIgnoreCase(tenantId, fingerprint, "active");
+    }
+
+    List<IntegrationAgent> findByTenantIdOrderByLastHeartbeatAtDesc(Long tenantId);
 }

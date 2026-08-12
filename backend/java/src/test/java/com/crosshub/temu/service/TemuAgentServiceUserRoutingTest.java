@@ -31,6 +31,9 @@ import static org.mockito.Mockito.when;
 
 class TemuAgentServiceUserRoutingTest {
 
+    private static final String OFFLINE_MSG =
+            "本机同步助手未在线，请启动并绑定 Sync Helper（同一公司一台电脑绑定一次即可）";
+
     private AgentPresenceService agentPresenceService;
     private TemuAgentService service;
     private TemuSellerSessionService sellerSessionService;
@@ -63,8 +66,8 @@ class TemuAgentServiceUserRoutingTest {
     }
 
     @Test
-    void enqueueLoginOpenRequiresUserOnlineHelper() {
-        when(agentPresenceService.findLatestOnlineAgentForUser(42L)).thenReturn(null);
+    void enqueueLoginOpenRequiresTenantOnlineHelper() {
+        when(agentPresenceService.findLatestOnlineAgentForTenant(5L)).thenReturn(null);
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
@@ -72,7 +75,7 @@ class TemuAgentServiceUserRoutingTest {
         );
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatusCode());
-        assertEquals("本机同步助手未在线，请先安装并绑定", ex.getReason());
+        assertEquals(OFFLINE_MSG, ex.getReason());
     }
 
     @Test
@@ -82,7 +85,7 @@ class TemuAgentServiceUserRoutingTest {
         job.setTenantId(5L);
         job.setTriggeredBy(42L);
         job.setMode("full");
-        when(agentPresenceService.findLatestOnlineAgentForUser(42L)).thenReturn(null);
+        when(agentPresenceService.findLatestOnlineAgentForTenant(5L)).thenReturn(null);
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
@@ -90,12 +93,12 @@ class TemuAgentServiceUserRoutingTest {
         );
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatusCode());
-        assertEquals("本机同步助手未在线，请先安装并绑定", ex.getReason());
+        assertEquals(OFFLINE_MSG, ex.getReason());
         verify(jdbc, never()).update(anyString(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
-    void enqueueCrawlJobInsertsBoundAgentIdWhenUserHelperOnline() {
+    void enqueueCrawlJobInsertsTenantAgentIdWhenHelperOnline() {
         TemuCrawlJob job = new TemuCrawlJob();
         job.setId("job-2");
         job.setTenantId(5L);
@@ -103,8 +106,8 @@ class TemuAgentServiceUserRoutingTest {
         job.setMode("full");
 
         IntegrationAgent agent = new IntegrationAgent();
-        agent.setId("agt-user-42");
-        when(agentPresenceService.findLatestOnlineAgentForUser(42L)).thenReturn(agent);
+        agent.setId("agt-tenant-5");
+        when(agentPresenceService.findLatestOnlineAgentForTenant(5L)).thenReturn(agent);
 
         service.enqueueCrawlJob(job);
 
@@ -124,7 +127,7 @@ class TemuAgentServiceUserRoutingTest {
                 any(),
                 any()
         );
-        assertEquals("agt-user-42", agentIdCaptor.getValue());
+        assertEquals("agt-tenant-5", agentIdCaptor.getValue());
         assertTrue(job.getAgentTaskId() != null && !job.getAgentTaskId().isBlank());
     }
 }

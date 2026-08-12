@@ -28,8 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Daily 09:30 enqueues one crawl per user with an online bound helper (scoped shops);
- * users without an online helper are skipped — no failed-job spam.
+ * Daily 09:30 enqueues crawls for users in a tenant when the tenant machine helper is online.
  */
 class TemuDailySyncEnqueueTest {
     private CrawlerProperties crawlerProperties;
@@ -69,12 +68,11 @@ class TemuDailySyncEnqueueTest {
     }
 
     @Test
-    void enqueuesOnlyForUsersWithOnlineHelper() {
-        AppUser online = user(101L, 5L, "admin");
-        AppUser offline = user(102L, 5L, "user");
-        when(userRepository.findByTenantIdOrderByIdAsc(5L)).thenReturn(List.of(online, offline));
-        when(agentPresenceService.isAgentOnlineForUser(101L)).thenReturn(true);
-        when(agentPresenceService.isAgentOnlineForUser(102L)).thenReturn(false);
+    void enqueuesUsersWhenTenantHelperOnline() {
+        AppUser boss = user(101L, 5L, "admin");
+        AppUser member = user(102L, 5L, "user");
+        when(userRepository.findByTenantIdOrderByIdAsc(5L)).thenReturn(List.of(boss, member));
+        when(agentPresenceService.isAgentOnlineForTenant(5L)).thenReturn(true);
         when(dataScopeService.resolveScopeForLogin(eq(5L), eq(101L), eq(true))).thenReturn(List.of());
         when(dataScopeService.resolveScopeForLogin(eq(5L), eq(102L), eq(false)))
                 .thenReturn(List.of("shop-a"));
@@ -82,27 +80,20 @@ class TemuDailySyncEnqueueTest {
         Map<String, Object> out = service.enqueueDailyCrawl(5L, true);
 
         assertEquals("enqueued_users", out.get("action"));
-        assertEquals(1, out.get("enqueued_count"));
-        assertEquals(1, out.get("skipped_offline"));
+        assertEquals(2, out.get("enqueued_count"));
+        assertEquals(0, out.get("skipped_offline"));
 
-        ArgumentCaptor<TemuCrawlJob> jobCaptor = ArgumentCaptor.forClass(TemuCrawlJob.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<String>> shopsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(temuAgentService, times(1)).enqueueCrawlJob(jobCaptor.capture(), shopsCaptor.capture());
-        assertEquals(101L, jobCaptor.getValue().getTriggeredBy());
-        assertEquals("pending", jobCaptor.getValue().getStatus());
-        assertTrue(jobCaptor.getValue().getId() != null && !jobCaptor.getValue().getId().isBlank());
-
-        verify(jobRepository, times(1)).save(any(TemuCrawlJob.class));
-        verify(agentPresenceService, never()).isAgentOnline(anyLong());
+        verify(temuAgentService, times(2)).enqueueCrawlJob(any(TemuCrawlJob.class), any());
+        verify(jobRepository, times(2)).save(any(TemuCrawlJob.class));
+        verify(agentPresenceService).isAgentOnlineForTenant(5L);
     }
 
     @Test
-    void skipsAllOfflineUsersWithoutCreatingJobs() {
+    void skipsAllWhenTenantHelperOffline() {
         AppUser a = user(201L, 5L, "user");
         AppUser b = user(202L, 5L, "user");
         when(userRepository.findByTenantIdOrderByIdAsc(5L)).thenReturn(List.of(a, b));
-        when(agentPresenceService.isAgentOnlineForUser(anyLong())).thenReturn(false);
+        when(agentPresenceService.isAgentOnlineForTenant(5L)).thenReturn(false);
 
         Map<String, Object> out = service.enqueueDailyCrawl(5L, true);
 

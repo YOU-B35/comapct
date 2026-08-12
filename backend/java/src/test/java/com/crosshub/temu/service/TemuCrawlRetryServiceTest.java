@@ -6,7 +6,6 @@ import com.crosshub.temu.entity.TemuCrawlJob;
 import com.crosshub.temu.repository.TemuCrawlJobRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -48,13 +47,12 @@ class TemuCrawlRetryServiceTest {
     void humanChallengeIsNotAutoRetried() {
         assertFalse(TemuCrawlRetryService.isAutoRetryable("CRAWL_HUMAN_CHALLENGE"));
         assertTrue(TemuCrawlRetryService.isAutoRetryable(AppErrorCode.TEMU_AGENT_OFFLINE.getCode()));
-        // Cookie/HTTP auth failures need human re-login — do not burn the daily retry budget.
         assertFalse(TemuCrawlRetryService.isAutoRetryable(AppErrorCode.CRAWL_NOT_LOGGED_IN.getCode()));
         assertFalse(TemuCrawlRetryService.isAutoRetryable("TEMU_REGION_NO_PERMISSION"));
     }
 
     @Test
-    void resumeJobDefersWhenUserHelperOfflineEvenIfOtherTenantAgentOnline() {
+    void resumeJobDefersWhenTenantHelperOffline() {
         TemuCrawlJob job = new TemuCrawlJob();
         job.setId("job-user-1");
         job.setTenantId(5L);
@@ -64,8 +62,7 @@ class TemuCrawlRetryServiceTest {
         job.setMaxRetryCount(8);
         job.setNextRetryAt("2020-01-01 00:00:00");
 
-        when(agentPresenceService.isAgentOnline(5L)).thenReturn(true);
-        when(agentPresenceService.isAgentOnlineForUser(42L)).thenReturn(false);
+        when(agentPresenceService.isAgentOnlineForTenant(5L)).thenReturn(false);
 
         service.resumeJob(job);
 
@@ -75,7 +72,6 @@ class TemuCrawlRetryServiceTest {
         assertFalse(job.getNextRetryAt().isBlank());
         verify(temuAgentService, never()).enqueueCrawlJob(any());
         verify(temuAgentService, never()).enqueueCrawlJob(any(), any());
-        verify(agentPresenceService).isAgentOnlineForUser(42L);
-        verify(agentPresenceService, never()).isAgentOnline(any());
+        verify(agentPresenceService).isAgentOnlineForTenant(5L);
     }
 }

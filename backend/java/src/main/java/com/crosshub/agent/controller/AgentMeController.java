@@ -38,8 +38,8 @@ public class AgentMeController {
 
     @GetMapping("/me/status")
     public Map<String, Object> meStatus() {
-        Long userId = requireUserId();
-        return Map.of("success", true, "data", bindCodeService.statusForUser(userId));
+        Long tenantId = requireTenantId();
+        return Map.of("success", true, "data", bindCodeService.statusForTenant(tenantId));
     }
 
     @PostMapping("/me/bind-code")

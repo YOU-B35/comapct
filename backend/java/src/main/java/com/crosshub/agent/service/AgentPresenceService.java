@@ -26,11 +26,22 @@ public class AgentPresenceService {
         return findLatestOnlineAgent(tenantId) != null;
     }
 
+    public IntegrationAgent findLatestOnlineAgentForTenant(Long tenantId) {
+        return findLatestOnlineAgent(tenantId);
+    }
+
+    public boolean isAgentOnlineForTenant(Long tenantId) {
+        return findLatestOnlineAgentForTenant(tenantId) != null;
+    }
+
     public IntegrationAgent findLatestOnlineAgent(Long tenantId) {
         if (tenantId == null) {
             return null;
         }
-        List<IntegrationAgent> agents = agentRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
+        List<IntegrationAgent> agents = agentRepository.findByTenantIdOrderByLastHeartbeatAtDesc(tenantId);
+        if (agents == null || agents.isEmpty()) {
+            agents = agentRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
+        }
         for (IntegrationAgent agent : agents) {
             if (isHeartbeatFresh(agent)) {
                 return agent;

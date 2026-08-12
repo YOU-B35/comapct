@@ -52,15 +52,32 @@ def resolve_platform_profile_dir(
     *,
     root: Path | None = None,
 ) -> Path:
-    """解析平台 Profile 目录：tenant-{id}/account-{key}，兼容旧扁平 tenant-{id}。"""
+    """解析平台 Profile 目录：tenant-{id}/account-{key}。
+
+    兼容：
+    - 旧扁平 tenant-{id}（仅 default 且新目录不存在）
+    - 旧 user-*/tenant-{id}/account-{key}（只读回退，新写入仍用无 user 段路径）
+    """
     key = normalize_session_key(session_key)
     if root is None:
         raise ValueError("root is required")
     nested = root / f"tenant-{tenant_id}" / f"account-{key}"
+    if nested.is_dir():
+        return nested
     if key == DEFAULT_SESSION_KEY:
         legacy = root / f"tenant-{tenant_id}"
-        if legacy.is_dir() and not nested.is_dir():
+        if legacy.is_dir():
             return legacy
+    if root.is_dir():
+        for child in sorted(root.iterdir()):
+            if child.is_dir() and child.name.startswith("user-"):
+                candidate = child / f"tenant-{tenant_id}" / f"account-{key}"
+                if candidate.is_dir():
+                    return candidate
+                if key == DEFAULT_SESSION_KEY:
+                    flat = child / f"tenant-{tenant_id}"
+                    if flat.is_dir():
+                        return flat
     return nested
 
 

@@ -85,25 +85,24 @@ public class TemuAgentService {
         }
     }
 
-    public void assertAgentOnlineForUser(Long userId) {
-        requireOnlineAgentForUser(userId);
+    public void assertAgentOnlineForTenant(Long tenantId) {
+        requireOnlineAgentForTenant(tenantId);
     }
 
     /**
-     * Resolve the caller's online bound helper once. Fail-closed for user-scoped work:
-     * never return a blank agent id when {@code userId > 0}.
+     * Resolve the tenant's online machine helper. Fail-closed for interactive work.
      */
-    public IntegrationAgent requireOnlineAgentForUser(Long userId) {
+    public IntegrationAgent requireOnlineAgentForTenant(Long tenantId) {
         if (!useAgentMode()) {
             return null;
         }
-        if (userId == null || userId <= 0) {
+        if (tenantId == null || tenantId <= 0) {
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     AppErrorCode.TEMU_USER_HELPER_OFFLINE.getUserMessage()
             );
         }
-        IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForUser(userId);
+        IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForTenant(tenantId);
         if (agent == null || agent.getId() == null || agent.getId().isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
@@ -152,7 +151,7 @@ public class TemuAgentService {
         if (shopIds != null && !shopIds.isEmpty()) {
             payload.put("shop_ids", List.copyOf(shopIds));
         }
-        String agentId = resolveAgentIdForCrawlOrFailClosed(job.getTriggeredBy());
+        String agentId = resolveAgentIdForCrawlOrFailClosed(job.getTenantId(), job.getTriggeredBy());
         insertAgentTask(job.getTenantId(), taskId, TemuAgentTasks.CRAWL, payload, agentId);
     }
 
@@ -164,7 +163,7 @@ public class TemuAgentService {
 
     @Transactional
     public Map<String, Object> enqueueLoginOpenForUser(Long tenantId, Long userId, String platformAccountId) {
-        IntegrationAgent agent = requireOnlineAgentForUser(userId);
+        IntegrationAgent agent = requireOnlineAgentForTenant(tenantId);
         String agentId = agent == null ? "" : defaultText(agent.getId(), "");
         return enqueueLoginOpenInternal(tenantId, platformAccountId, agentId);
     }
@@ -201,7 +200,7 @@ public class TemuAgentService {
 
     @Transactional
     public Map<String, Object> enqueueFrontendLoginOpenForUser(Long tenantId, Long userId, String url) {
-        IntegrationAgent agent = requireOnlineAgentForUser(userId);
+        IntegrationAgent agent = requireOnlineAgentForTenant(tenantId);
         String agentId = agent == null ? "" : defaultText(agent.getId(), "");
         return enqueueFrontendLoginOpenInternal(tenantId, url, agentId);
     }
@@ -357,7 +356,7 @@ public class TemuAgentService {
         }
         String agentId = "";
         if (userId != null && userId > 0) {
-            IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForUser(userId);
+            IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForTenant(tenantId);
             if (agent == null) {
                 return;
             }
@@ -740,15 +739,15 @@ public class TemuAgentService {
     }
 
     /**
-     * User-triggered crawls ({@code triggeredBy > 0}) must target a bound online helper.
+     * Interactive crawls ({@code triggeredBy > 0}) must target the tenant's online machine helper.
      * Never insert a blank {@code agent_id} for those jobs (claimable by any tenant agent).
      * Legacy/system jobs ({@code triggeredBy <= 0}) keep blank agent_id for tenant poll.
      */
-    private String resolveAgentIdForCrawlOrFailClosed(Long userId) {
-        if (userId == null || userId <= 0) {
+    private String resolveAgentIdForCrawlOrFailClosed(Long tenantId, Long triggeredBy) {
+        if (triggeredBy == null || triggeredBy <= 0) {
             return "";
         }
-        IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForUser(userId);
+        IntegrationAgent agent = agentPresenceService.findLatestOnlineAgentForTenant(tenantId);
         if (agent == null || agent.getId() == null || agent.getId().isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,

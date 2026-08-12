@@ -117,7 +117,7 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         }
 
         assertProfileAvailable(tenantId);
-        temuAgentService.assertAgentOnlineForUser(userId);
+        temuAgentService.assertAgentOnlineForTenant(tenantId);
         assertSessionReady();
 
         Optional<TemuCrawlJob> active = jobRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(
@@ -147,7 +147,7 @@ public class TemuCrawlServiceImpl implements TemuCrawlService {
         }
 
         assertProfileAvailable(tenantId);
-        temuAgentService.assertAgentOnlineForUser(userId);
+        temuAgentService.assertAgentOnlineForTenant(tenantId);
         assertSessionReady();
 
         return createAndEnqueueJob(tenantId, userId, reportTime, seed, recordCooldown);

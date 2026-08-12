@@ -116,15 +116,27 @@ const offlineErrorCode = computed(() => {
   return 'TEMU_USER_HELPER_OFFLINE'
 })
 
-const boundUserLabel = computed(() => {
-  const uid = localBind.value.user_id
-  if (uid == null || Number.isNaN(Number(uid))) return ''
-  const acct = localBind.value.bound_account
-  return acct ? `用户 #${uid}（${acct}）` : `用户 #${uid}`
+const currentTenantId = computed(() => {
+  const tid = auth.tenantId ?? auth.tenant_id
+  return tid != null && !Number.isNaN(Number(tid)) ? Number(tid) : null
+})
+
+const localTenantMismatch = computed(() => {
+  const localTid = localBind.value.tenant_id
+  const currentTid = currentTenantId.value
+  return (
+    localBind.value.bound
+    && localTid != null
+    && currentTid != null
+    && Number(localTid) !== Number(currentTid)
+  )
 })
 
 const barTitle = computed(() => {
-  if (barMode.value === 'rebind') return '本机助手已运行，但未绑定当前账号'
+  if (barMode.value === 'rebind') {
+    if (localTenantMismatch.value) return '本机助手已运行，但绑定的是其他企业'
+    return '本机助手已运行，但当前企业尚未完成绑定/心跳'
+  }
   if (barMode.value === 'offline') return '本机同步助手未在线'
   if (barMode.value === 'need-login') return `助手在线，待登录 ${platformLabel.value}`
   const name = recommendedAgent.value?.name
@@ -133,11 +145,10 @@ const barTitle = computed(() => {
 
 const barMeta = computed(() => {
   if (barMode.value === 'rebind') {
-    const current = auth.backendUserId ? `当前登录用户 #${auth.backendUserId}` : '当前登录账号'
-    if (localBind.value.bound && boundUserLabel.value) {
-      return `助手绑定的是${boundUserLabel.value}，与${current}不一致。无需重新下载：清除绑定后生成新绑定码即可`
+    if (localTenantMismatch.value) {
+      return `助手当前租户 #${localBind.value.tenant_id}，与登录企业 #${currentTenantId.value} 不一致。请清除绑定后用本企业账号重新填入绑定码（同企业多账号共享，无需每人各绑一次）`
     }
-    return `${current}尚未绑定本机助手。无需重新下载：生成绑定码后在助手中填入即可`
+    return '同企业任意账号生成绑定码填入助手即可；绑定后本机同企业账号共享在线状态。若已绑定仍提示，请点「连接助手」或刷新状态'
   }
   if (barMode.value === 'need-login' && sessionHint.value?.summary) {
     return sessionHint.value.summary

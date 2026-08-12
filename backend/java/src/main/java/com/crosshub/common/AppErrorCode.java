@@ -71,7 +71,7 @@ public enum AppErrorCode {
 
     AMAZON_AGENT_OFFLINE("AMAZON_AGENT_OFFLINE", "本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe"),
     TEMU_AGENT_OFFLINE("TEMU_AGENT_OFFLINE", "本机同步程序未运行，请联系运维启动 CrossHub-Sync-Helper.exe"),
-    TEMU_USER_HELPER_OFFLINE("TEMU_USER_HELPER_OFFLINE", "本机同步助手未在线，请先安装并绑定"),
+    TEMU_USER_HELPER_OFFLINE("TEMU_USER_HELPER_OFFLINE", "本机同步助手未在线，请启动并绑定 Sync Helper（同一公司一台电脑绑定一次即可）"),
     AMAZON_ZINIAO_OFFLINE("AMAZON_ZINIAO_OFFLINE", "紫鸟 WebDriver 未就绪，请确认开发者模式已启动"),
     AMAZON_SYNC_IN_PROGRESS("AMAZON_SYNC_IN_PROGRESS", "已有 Amazon 同步任务进行中，请稍后再试"),
     AMAZON_SYNC_JOB_NOT_FOUND("AMAZON_SYNC_JOB_NOT_FOUND", "Amazon 同步任务不存在"),

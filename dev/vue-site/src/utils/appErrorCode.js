@@ -20,6 +20,7 @@ export const APP_ERROR_MESSAGES = {
   CRAWL_INTERRUPTED: '同步任务已中断，请等待下次定时同步或联系运维',
   CRAWL_COOLDOWN: '同步冷却中，请稍后再查看；日常数据由运维机定时同步',
   TEMU_AGENT_OFFLINE: '运维同步节点未在线，请联系运维启动 CrossHub-Sync-Helper.exe',
+  TEMU_USER_HELPER_OFFLINE: '本机同步助手未在线，请启动并绑定 Sync Helper（同一公司一台电脑绑定一次即可）',
   TEMU_REGION_NO_PERMISSION: 'Temu 页面提示「该区暂无权限」：请留在全球商家中心，打开侧栏「销售管理」（全托管），不要进美区/欧区',
 
   COMPETITOR_LOGIN_REQUIRED: 'Temu 前台需要登录或验证，已打开登录窗口，请完成后关闭窗口再重试',

@@ -77,7 +77,7 @@ public class AgentBindCodeService {
         String now = LocalDateTime.now(clock).format(TS);
 
         IntegrationAgent agent = agentRepository
-                .findByBoundUserIdAndMachineFingerprint(entry.userId(), fingerprint)
+                .findByTenantIdAndMachineFingerprint(entry.tenantId(), fingerprint)
                 .orElseGet(IntegrationAgent::new);
 
         boolean isNew = agent.getId() == null || agent.getId().isBlank();
@@ -98,11 +98,11 @@ public class AgentBindCodeService {
         return new ConsumeResult(token, entry.tenantId(), entry.userId());
     }
 
-    public Map<String, Object> statusForUser(Long userId) {
-        if (userId == null) {
+    public Map<String, Object> statusForTenant(Long tenantId) {
+        if (tenantId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
         }
-        List<IntegrationAgent> agents = agentRepository.findByBoundUserIdOrderByLastHeartbeatAtDesc(userId);
+        List<IntegrationAgent> agents = agentRepository.findByTenantIdOrderByLastHeartbeatAtDesc(tenantId);
         List<Map<String, Object>> rows = new ArrayList<>();
         String recommendedId = null;
         boolean anyOnline = false;
@@ -126,6 +126,28 @@ public class AgentBindCodeService {
         out.put("online", anyOnline);
         out.put("agents", rows);
         out.put("recommended_agent_id", recommendedId == null ? "" : recommendedId);
+        return out;
+    }
+
+    /** @deprecated use {@link #statusForTenant(Long)}; kept for transitional callers. */
+    @Deprecated
+    public Map<String, Object> statusForUser(Long userId) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        List<IntegrationAgent> agents = agentRepository.findByBoundUserIdOrderByLastHeartbeatAtDesc(userId);
+        Long tenantId = agents.stream()
+                .map(IntegrationAgent::getTenantId)
+                .filter(id -> id != null)
+                .findFirst()
+                .orElse(null);
+        if (tenantId != null) {
+            return statusForTenant(tenantId);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("online", false);
+        out.put("agents", List.of());
+        out.put("recommended_agent_id", "");
         return out;
     }
 
