@@ -1,4 +1,4 @@
-# Build CrossHub-Sync-Helper.exe (运维机安装；不对运营前端暴露)
+# Build CrossHub-Sync-Helper.exe (user-local Sync Helper package)
 # Usage:
 #   powershell -File scripts/build-sync-helper-exe.ps1
 # Optional:
@@ -90,27 +90,21 @@ if (-not (Test-Path $cfgLive)) {
 }
 
 $readme = @"
-CrossHub Sync Helper（运维机专用）
+CrossHub Sync Helper（用户本机）
 ================================
 
-1. 编辑本目录 config.json：
-   - agent_token：由 Java /api/agent/setup 生成（运维内部完成，不在运营前端下载）
-   - java_api_url：API 根地址（默认已写入）
+1. 双击 CrossHub-Sync-Helper.exe，保持程序运行（可最小化到托盘）。
 
-2. 双击 CrossHub-Sync-Helper.exe，保持窗口打开。
+2. 本机面板：http://127.0.0.1:18766
 
-3. 服务端每天 09:30 下发全平台日批；本程序在本机开浏览器执行 Temu/Amazon 等任务。
+3. 在网站生成绑定码，于面板完成绑定。
 
-4. 需要本机已安装 Google Chrome；Amazon 另需紫鸟（可选自动拉起）。
+4. java_api_url 默认 https://www.yoto.work（一般无需修改）。
 
-5. 开机自启（推荐）：在仓库根目录执行
-   powershell -File scripts\install-sync-helper-autostart.ps1 -StartNow
-   详见 docs/superpowers/specs/attachments/2026-07-29-rc-auto-checklist.md
+5. 需要本机已安装 Google Chrome。
 
 6. 首次安装后运行 register-protocol.ps1（或直接运行一次 exe）以注册「连接助手」协议。
 7. 网站点「连接助手」会通过 crosshub-sync-helper://start 拉起本程序。
-
-不要把本程序的下载入口放到运营人员使用的网页上。
 
 协议注册（若未自动注册）：
   powershell -ExecutionPolicy Bypass -File .\register-protocol.ps1 -ExePath .\CrossHub-Sync-Helper.exe

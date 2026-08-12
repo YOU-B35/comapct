@@ -53,4 +53,5 @@ test('not_found when probe never true', async () => {
   })
   assert.equal(result.status, 'not_found')
   assert.match(result.message, /请先下载安装/)
+  assert.match(result.message, /允许打开/)
 })

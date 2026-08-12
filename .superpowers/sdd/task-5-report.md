@@ -133,3 +133,39 @@ node --test tests/agentConnect.test.mjs
 **Commit:** `fix(helper): export openHelperDownload for status bars` (author CrossHub Agent)
 
 **Remaining concerns:** Live protocol E2E still needs HKCU registration + helper on 18765/18766; Vite default port still 5173 (worktree uses 5174 explicitly).
+
+---
+
+## Final review Important fixes (2026-08-12)
+
+**Status:** DONE  
+**Branch:** `impl/helper-connect-launch`
+
+### Fix 1 — Packaging README contradiction
+
+`scripts/build-sync-helper-exe.ps1` generated `README.txt` rewritten for **user-local Sync Helper**:
+- Double-click exe / keep running
+- Panel `http://127.0.0.1:18766`
+- Website bind code
+- `java_api_url` default `https://www.yoto.work`
+- Chrome required
+- Steps 6–7 kept (`register-protocol.ps1` / `crosshub-sync-helper://start`)
+- Removed ops-only / “don't expose download on ops web” language
+
+### Fix 2 — Browser intercept tip
+
+`dev/vue-site/src/utils/agentConnect.js` `not_found` message now includes allow-open tip:
+
+`未检测到本机助手，请先下载安装 Sync Helper。若浏览器拦截了打开提示，请允许打开 CrossHub Sync Helper`
+
+`tests/agentConnect.test.mjs` asserts `/请先下载安装/` and `/允许打开/`.
+
+### Verify
+
+```text
+cd dev/vue-site
+node --test tests/agentConnect.test.mjs
+# PASS 4/4 (fail 0)
+```
+
+**Commit:** `fix(helper): align README and connect timeout copy` (author CrossHub Agent)

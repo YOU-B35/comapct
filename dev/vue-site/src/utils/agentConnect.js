@@ -64,6 +64,7 @@ export async function connectLocalHelper(options = {}) {
 
   return {
     status: 'not_found',
-    message: '未检测到本机助手，请先下载安装 Sync Helper',
+    message:
+      '未检测到本机助手，请先下载安装 Sync Helper。若浏览器拦截了打开提示，请允许打开 CrossHub Sync Helper',
   }
 }
