@@ -1,7 +1,9 @@
 import { http } from '@sau/utils/request'
 
 /** 本地开发勿开 mock；线上 ContentWorks 同为 false */
-export const useContentMock = false
+export function useContentMock() {
+  return false
+}
 
 /** SAU 作品 / 同步 API（对齐线上 automedia 契约） */
 export const contentApi = {
