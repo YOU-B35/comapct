@@ -65,12 +65,33 @@ async function uploadTree(sftp, localDir, remoteDir, options = {}) {
   }
 }
 
-function shouldSkipPythonDeploy(_name, rel) {
+function shouldSkipPythonDeploy(name, rel) {
   const parts = rel.split('/').filter(Boolean);
+  if (
+    name === '.temu-browser-profile' ||
+    name === '.aliexpress-browser-profile' ||
+    name === '.amazon-browser-profile' ||
+    name === 'helper_app' ||
+    name === 'exports' ||
+    name === '.pytest_cache' ||
+    name === '__pycache__' ||
+    name === 'Cache' ||
+    name === 'Code Cache' ||
+    name === 'GPUCache'
+  ) {
+    return true;
+  }
   if (parts.includes('__pycache__')) return true;
   if (parts.includes('.temu-browser-profile')) return true;
+  if (parts.includes('.aliexpress-browser-profile')) return true;
+  if (parts.includes('.amazon-browser-profile')) return true;
+  if (parts.includes('helper_app')) return true;
+  if (parts.includes('exports')) return true;
   if (parts.includes('reports')) return true;
   if (parts.includes('tests')) return true;
+  if (parts.includes('Cache')) return true;
+  if (parts.includes('Code Cache')) return true;
+  if (parts.includes('GPUCache')) return true;
   if (rel === '.env') return true;
   if (rel.endsWith('.pyc')) return true;
   return false;
