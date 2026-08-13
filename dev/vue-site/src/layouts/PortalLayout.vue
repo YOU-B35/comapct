@@ -42,7 +42,8 @@ const activeMenu = computed(() => {
   return path
 })
 const openedMenus = computed(() => sidebarMenuOpenKeys(route.path))
-const menuRenderKey = computed(() => `${route.path}:${openedMenus.value.join(',')}`)
+// Use module-stable key for SAU so child nav does not remount the portal sidebar.
+const menuRenderKey = computed(() => `${activeMenu.value}:${openedMenus.value.join(',')}`)
 const pageTitle = computed(() => {
   if (isSauModule.value) return '自媒体运营'
   return route.meta.title || 'CrossHub'

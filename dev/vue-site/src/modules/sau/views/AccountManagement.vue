@@ -53,7 +53,7 @@
     <PageSection title="账号列表">
     <div class="account-tabs">
       <el-tabs v-model="activeTab" class="account-tabs-nav">
-        <el-tab-pane label="全部" name="all">
+        <el-tab-pane label="全部" name="all" lazy>
           <div class="account-list-container">
             <div class="account-search">
               <el-input
@@ -124,7 +124,7 @@
           </div>
         </el-tab-pane>
         
-        <el-tab-pane label="快手" name="kuaishou">
+        <el-tab-pane label="快手" name="kuaishou" lazy>
           <div class="account-list-container">
             <div class="account-search">
               <el-input
@@ -195,7 +195,7 @@
           </div>
         </el-tab-pane>
         
-        <el-tab-pane label="抖音" name="douyin">
+        <el-tab-pane label="抖音" name="douyin" lazy>
           <div class="account-list-container">
             <div class="account-search">
               <el-input
@@ -266,7 +266,7 @@
           </div>
         </el-tab-pane>
         
-        <el-tab-pane label="视频号" name="channels">
+        <el-tab-pane label="视频号" name="channels" lazy>
           <div class="account-list-container">
             <div class="account-search">
               <el-input
@@ -337,7 +337,7 @@
           </div>
         </el-tab-pane>
         
-        <el-tab-pane label="小红书" name="xiaohongshu">
+        <el-tab-pane label="小红书" name="xiaohongshu" lazy>
           <div class="account-list-container">
             <div class="account-search">
               <el-input
@@ -408,7 +408,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="TikTok" name="tiktok">
+        <el-tab-pane label="TikTok" name="tiktok" lazy>
           <div class="account-list-container">
             <div class="account-search">
               <el-input
@@ -607,7 +607,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, onActivated, onDeactivated } from 'vue'
 import { Refresh, CircleCheckFilled, CircleCloseFilled, Download, Upload, Loading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -748,19 +748,46 @@ const startAccountMonitor = () => {
   accountMonitorTimer = setInterval(runAccountMonitor, ACCOUNT_MONITOR_INTERVAL_MS)
 }
 
-onMounted(() => {
-  fetchAccountsQuick()
-  fetchLoginAgentStatus()
-  void requestPairCode(true)
-  loginAgentTimer = setInterval(fetchLoginAgentStatus, 5000)
-  startAccountMonitor()
-})
+const LOGIN_AGENT_POLL_MS = 30000
 
-onBeforeUnmount(() => {
+const startLoginAgentPoll = () => {
+  if (loginAgentTimer) return
+  loginAgentTimer = setInterval(fetchLoginAgentStatus, LOGIN_AGENT_POLL_MS)
+}
+
+const stopLoginAgentPoll = () => {
   if (loginAgentTimer) {
     clearInterval(loginAgentTimer)
     loginAgentTimer = null
   }
+}
+
+onMounted(() => {
+  // Skip remote getAccounts when store already warm (e.g. visited Dashboard first).
+  if (!accountStore.accounts.length) {
+    void fetchAccountsQuick()
+  }
+  // Status once; pair-code only when user clicks「连接助手」.
+  void fetchLoginAgentStatus()
+  startLoginAgentPoll()
+  startAccountMonitor()
+})
+
+onActivated(() => {
+  startLoginAgentPoll()
+  startAccountMonitor()
+  if (!accountStore.accounts.length) {
+    void fetchAccountsQuick()
+  }
+})
+
+onDeactivated(() => {
+  stopLoginAgentPoll()
+  stopAccountMonitor()
+})
+
+onBeforeUnmount(() => {
+  stopLoginAgentPoll()
   closeSSEConnection()
   stopAccountMonitor()
 })

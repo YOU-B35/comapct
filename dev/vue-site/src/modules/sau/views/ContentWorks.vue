@@ -217,7 +217,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageSection from '@/components/common/PageSection.vue'
@@ -684,9 +684,15 @@ const openShareUrl = (row) => {
   window.open(row.share_url, '_blank')
 }
 
-onMounted(async () => {
-  await fetchAccounts()
-  await handleRefresh()
+onMounted(() => {
+  // Parallel: works/dashboard do not need accounts to finish first.
+  void Promise.all([fetchAccounts(), handleRefresh()])
+})
+
+onActivated(() => {
+  if (!works.value.length && !loading.value && !refreshing.value) {
+    void Promise.all([fetchAccounts(), handleRefresh()])
+  }
 })
 
 onUnmounted(() => {

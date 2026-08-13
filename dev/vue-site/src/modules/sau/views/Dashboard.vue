@@ -91,7 +91,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   User, UserFilled, Platform, Document,
@@ -168,17 +168,32 @@ const getFileTypeTag = (filename) => {
 
 const navigateTo = (path) => router.push(path)
 
-const fetchDashboardData = async () => {
+const fetchDashboardData = async ({ force = false } = {}) => {
+  const needAccounts = force || accountStore.accounts.length === 0
+  const needMaterials = force || appStore.materials.length === 0
+  if (!needAccounts && !needMaterials) return
+
   loading.value = true
   try {
-    const [accountRes, materialRes] = await Promise.allSettled([
-      accountApi.getAccounts(),
-      materialApi.getAllMaterials(),
-    ])
-    if (accountRes.status === 'fulfilled' && accountRes.value.code === 200) {
+    const tasks = []
+    if (needAccounts) tasks.push(accountApi.getAccounts())
+    else tasks.push(Promise.resolve(null))
+    if (needMaterials) tasks.push(materialApi.getAllMaterials())
+    else tasks.push(Promise.resolve(null))
+
+    const [accountRes, materialRes] = await Promise.allSettled(tasks)
+    if (
+      needAccounts &&
+      accountRes.status === 'fulfilled' &&
+      accountRes.value?.code === 200
+    ) {
       accountStore.setAccounts(accountRes.value.data)
     }
-    if (materialRes.status === 'fulfilled' && materialRes.value.code === 200) {
+    if (
+      needMaterials &&
+      materialRes.status === 'fulfilled' &&
+      materialRes.value?.code === 200
+    ) {
       appStore.setMaterials(materialRes.value.data)
     }
   } catch (error) {
@@ -190,6 +205,13 @@ const fetchDashboardData = async () => {
 
 onMounted(() => {
   fetchDashboardData()
+})
+
+onActivated(() => {
+  // Recover blank keep-alive pages after a failed/401 first paint.
+  if (accountStore.accounts.length === 0 || appStore.materials.length === 0) {
+    fetchDashboardData()
+  }
 })
 </script>
 

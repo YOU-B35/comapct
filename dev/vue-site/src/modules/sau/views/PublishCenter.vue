@@ -531,7 +531,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onActivated } from 'vue'
 import { Upload, Plus, Close, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -675,7 +675,14 @@ const fetchPublishAccounts = async () => {
 }
 
 onMounted(() => {
+  if (accountStore.accounts.length > 0) return
   fetchPublishAccounts()
+})
+
+onActivated(() => {
+  if (accountStore.accounts.length === 0) {
+    fetchPublishAccounts()
+  }
 })
 
 // 话题相关状态

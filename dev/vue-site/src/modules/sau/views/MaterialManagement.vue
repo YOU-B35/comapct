@@ -147,7 +147,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { Refresh, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -394,6 +394,12 @@ const isImageFile = (filename) => {
 // 组件挂载时获取素材列表
 onMounted(() => {
   // 只有store中没有数据时才获取
+  if (appStore.materials.length === 0) {
+    fetchMaterials()
+  }
+})
+
+onActivated(() => {
   if (appStore.materials.length === 0) {
     fetchMaterials()
   }

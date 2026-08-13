@@ -18,6 +18,7 @@ const shell = useSauShellStore()
 
 const booting = ref(true)
 const bootError = ref('')
+const retrying = ref(false)
 
 const basePath = computed(() => {
   const path = route.path || ''
@@ -43,9 +44,12 @@ const activeMenu = computed(() => {
   return hit?.path || `${basePath.value}/home`
 })
 
-onMounted(async () => {
+async function bootSession({ force = false } = {}) {
+  booting.value = true
+  bootError.value = ''
   try {
-    await ensureSauSession({ force: true })
+    // force:false still refreshes expired JWT; force:true always re-exchanges.
+    await ensureSauSession({ force })
     bootError.value = ''
   } catch (err) {
     bootError.value = err?.message || '无法连接自媒体服务'
@@ -53,6 +57,20 @@ onMounted(async () => {
   } finally {
     booting.value = false
   }
+}
+
+async function retryBoot() {
+  if (retrying.value) return
+  retrying.value = true
+  try {
+    await bootSession({ force: true })
+  } finally {
+    retrying.value = false
+  }
+}
+
+onMounted(() => {
+  void bootSession({ force: false })
 })
 </script>
 
@@ -67,6 +85,9 @@ onMounted(async () => {
       :title="bootError"
       description="请确认可访问线上自媒体服务（automedia.yoto.work），且当前账号已开通自媒体权限。"
     />
+    <div v-if="bootError" class="sau-shell__retry">
+      <el-button type="primary" :loading="retrying" @click="retryBoot">重新连接</el-button>
+    </div>
 
     <div v-if="booting" class="sau-shell__hint">正在绑定自媒体会话…</div>
 
@@ -86,7 +107,16 @@ onMounted(async () => {
       </aside>
 
       <main class="sau-shell__main">
-        <router-view />
+        <!-- Keep child pages warm; key by route name so blank slots do not stick in cache -->
+        <router-view v-slot="{ Component, route: childRoute }">
+          <keep-alive :max="8">
+            <component
+              :is="Component"
+              v-if="Component"
+              :key="childRoute.name || childRoute.path"
+            />
+          </keep-alive>
+        </router-view>
       </main>
     </div>
   </div>
@@ -104,9 +134,14 @@ onMounted(async () => {
 }
 
 .sau-shell__alert,
-.sau-shell__hint {
+.sau-shell__hint,
+.sau-shell__retry {
   margin: 16px;
   flex-shrink: 0;
+}
+
+.sau-shell__retry {
+  margin-top: 0;
 }
 
 .sau-shell__layout {

@@ -1,5 +1,9 @@
 import { getAccessToken, service } from '@/api/request'
 import { useSauUserStore } from '@sau/stores/user'
+import { clearSauAuth, getSauToken } from '@sau/utils/authStorage'
+import { isSauTokenUsable } from '@sau/utils/sauToken'
+
+export { isSauTokenUsable }
 
 let inflight = null
 
@@ -7,7 +11,7 @@ let inflight = null
 export async function ensureSauSession({ force = false } = {}) {
   const store = useSauUserStore()
   store.restoreFromStorage()
-  if (store.token && !force) {
+  if (!force && store.token && isSauTokenUsable(store.token)) {
     return store.token
   }
   if (!getAccessToken()) {
@@ -26,6 +30,12 @@ export async function ensureSauSession({ force = false } = {}) {
           username: data.sau_username || '',
         })
         return token
+      })
+      .catch((err) => {
+        // Stale local token must not keep winning force:false after a failed refresh.
+        clearSauAuth()
+        store.logout()
+        throw err
       })
       .finally(() => {
         inflight = null
