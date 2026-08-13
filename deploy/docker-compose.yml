@@ -5,6 +5,9 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:18080:18080"
+    # 共用上货站运维账号（自动上货 BFF 代登）；文件在 /data/crosshub/.commander.env
+    env_file:
+      - .commander.env
     volumes:
       - /data/crosshub/data:/data
       - /data/crosshub/python-src:/opt/crosshub/python:ro
