@@ -1,4 +1,14 @@
 .temu-browser-profile/
+.aliexpress-browser-profile/
+.douyin-browser-profile/
+.sync-helper-local/
 __pycache__/
 *.pyc
 .env
+
+# Local scrape / probe dumps (not product code)
+agent/_*.json
+agent/_*.png
+agent/_*.txt
+agent/_*.py
+agent/_*.js

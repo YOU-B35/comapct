@@ -73,16 +73,37 @@ def peek_browser_runtime(*, tenant_id: int, session_key: str | None = None) -> B
         return _RUNTIMES.get(key)
 
 
+def discard_browser_runtime(*, tenant_id: int, session_key: str | None = None) -> BrowserRuntime | None:
+    """Remove runtime from the registry without closing Playwright (owner thread closes)."""
+    key = runtime_key(tenant_id, session_key)
+    with _LOCK:
+        return _RUNTIMES.pop(key, None)
+
+
+def _safe_close_context(context: Any, *, label: str = "runtime.close") -> None:
+    try:
+        context.close()
+    except Exception as exc:  # noqa: BLE001
+        text = str(exc).lower()
+        if (
+            "has been closed" in text
+            or "target closed" in text
+            or "cannot switch" in text
+            or "different thread" in text
+        ):
+            # Playwright sync API is thread-bound; wrong-thread close must not raise.
+            print(f"[TemuBrowser] skip {label}: {exc}", flush=True)
+            return
+        print(f"[TemuBrowser] {label}: {exc}", flush=True)
+
+
 def close_browser_runtime(*, tenant_id: int, session_key: str | None = None) -> None:
     key = runtime_key(tenant_id, session_key)
     with _LOCK:
         runtime = _RUNTIMES.pop(key, None)
     if runtime is None:
         return
-    try:
-        runtime.context.close()
-    except Exception:
-        pass
+    _safe_close_context(runtime.context, label="runtime.close")
 
 
 def reset_browser_runtime_for_tests() -> None:
@@ -90,7 +111,4 @@ def reset_browser_runtime_for_tests() -> None:
         runtimes = list(_RUNTIMES.values())
         _RUNTIMES.clear()
     for runtime in runtimes:
-        try:
-            runtime.context.close()
-        except Exception:
-            pass
+        _safe_close_context(runtime.context, label="runtime.reset")

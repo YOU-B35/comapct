@@ -52,6 +52,7 @@ public class AgentServiceImpl implements AgentService {
     private final AmazonSyncBridge amazonSyncBridge;
     private final AmazonWriteBridge amazonWriteBridge;
     private final TemuBridge temuBridge;
+    private final DouyinBridge douyinBridge;
     private final TransactionTemplate transactionTemplate;
     private final AgentProperties agentProperties;
 
@@ -66,7 +67,8 @@ public class AgentServiceImpl implements AgentService {
             AgentProperties agentProperties,
             @Autowired(required = false) @Lazy AmazonSyncBridge amazonSyncBridge,
             @Autowired(required = false) @Lazy AmazonWriteBridge amazonWriteBridge,
-            @Autowired(required = false) @Lazy TemuBridge temuBridge
+            @Autowired(required = false) @Lazy TemuBridge temuBridge,
+            @Autowired(required = false) @Lazy DouyinBridge douyinBridge
     ) {
         this.agentRepository = agentRepository;
         this.taskRepository = taskRepository;
@@ -79,6 +81,7 @@ public class AgentServiceImpl implements AgentService {
         this.amazonSyncBridge = amazonSyncBridge;
         this.amazonWriteBridge = amazonWriteBridge;
         this.temuBridge = temuBridge;
+        this.douyinBridge = douyinBridge;
     }
 
     private AgentTaskConcurrency.Limits concurrencyLimits() {
@@ -87,6 +90,7 @@ public class AgentServiceImpl implements AgentService {
                 cfg.getMaxTemu(),
                 cfg.getMaxAliExpress(),
                 cfg.getMaxAmazon(),
+                1,
                 cfg.getMaxGlobal(),
                 cfg.getMaxClaimBatch(),
                 cfg.getTemuParallelSessions()
@@ -99,6 +103,11 @@ public class AgentServiceImpl implements AgentService {
     }
 
     public interface TemuBridge {
+        void onAgentTaskStarted(AgentTask task);
+        void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
+    }
+
+    public interface DouyinBridge {
         void onAgentTaskStarted(AgentTask task);
         void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
     }
@@ -292,6 +301,9 @@ public class AgentServiceImpl implements AgentService {
         if (temuBridge != null) {
             temuBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
         }
+        if (douyinBridge != null) {
+            douyinBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
+        }
         return Map.of("task_id", task.getId(), "status", task.getStatus());
     }
 
@@ -305,6 +317,9 @@ public class AgentServiceImpl implements AgentService {
         }
         if (temuBridge != null) {
             temuBridge.onAgentTaskStarted(task);
+        }
+        if (douyinBridge != null) {
+            douyinBridge.onAgentTaskStarted(task);
         }
     }
 
@@ -358,6 +373,15 @@ public class AgentServiceImpl implements AgentService {
             }
             if (temuBridge != null) {
                 temuBridge.onAgentTaskCompleted(
+                        task,
+                        "failed",
+                        Map.of(),
+                        task.getErrorCode(),
+                        task.getErrorMessage()
+                );
+            }
+            if (douyinBridge != null) {
+                douyinBridge.onAgentTaskCompleted(
                         task,
                         "failed",
                         Map.of(),

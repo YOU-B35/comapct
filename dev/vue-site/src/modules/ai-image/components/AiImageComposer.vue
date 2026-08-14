@@ -67,7 +67,14 @@ function onPaste(e) {
   emit('pick-files', files)
 }
 
-function focusRoot() {
+function focusRoot(e) {
+  // Only focus the shell for paste-to-upload; never steal focus from the textarea/controls.
+  const t = e?.target
+  if (t && typeof t.closest === 'function') {
+    if (t.closest('textarea, input, button, .el-select, .el-input-number, a, [contenteditable="true"]')) {
+      return
+    }
+  }
   rootRef.value?.focus?.()
 }
 </script>
@@ -78,7 +85,7 @@ function focusRoot() {
     class="ai-composer"
     tabindex="0"
     @paste="onPaste"
-    @click="focusRoot"
+    @click.self="focusRoot"
   >
     <div class="ai-composer__refs" aria-label="参考图（可粘贴）">
       <div

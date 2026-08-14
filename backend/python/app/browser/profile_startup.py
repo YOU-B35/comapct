@@ -25,7 +25,7 @@ def sanitize_profile_startup_for_temu(
 ) -> None:
     """Clear session restore and pin startup to Temu seller home only.
 
-    Persistent profiles often resurrect old ERP tabs (店小秘等). Login must not.
+    Persistent profiles often resurrect old ERP tabs (店小秘等). Login/crawl must not.
     """
     target = (home_url or TEMU_SELLER_HOME).strip() or TEMU_SELLER_HOME
     default_dir = Path(profile_dir) / "Default"
@@ -39,16 +39,17 @@ def sanitize_profile_startup_for_temu(
         except OSError:
             pass
 
+    # Chrome keeps rotating Session_*/Tabs_* under Sessions/; wipe the whole tree.
     sessions_dir = default_dir / "Sessions"
-    if sessions_dir.is_dir():
+    if sessions_dir.exists():
         try:
             shutil.rmtree(sessions_dir, ignore_errors=True)
         except OSError:
             pass
-        try:
-            sessions_dir.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            pass
+    try:
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
 
     prefs_path = default_dir / "Preferences"
     prefs: dict = {}
@@ -65,6 +66,7 @@ def sanitize_profile_startup_for_temu(
         session = {}
     session["restore_on_startup"] = _RESTORE_OPEN_URLS
     session["startup_urls"] = [target]
+    session["startup_urls_with_timestamps"] = []
     prefs["session"] = session
 
     profile = prefs.get("profile")
@@ -73,6 +75,12 @@ def sanitize_profile_startup_for_temu(
     profile["exit_type"] = "Normal"
     profile["exited_cleanly"] = True
     prefs["profile"] = profile
+
+    browser = prefs.get("browser")
+    if not isinstance(browser, dict):
+        browser = {}
+    browser["has_seen_welcome_page"] = True
+    prefs["browser"] = browser
 
     try:
         prefs_path.write_text(json.dumps(prefs, ensure_ascii=False), encoding="utf-8")

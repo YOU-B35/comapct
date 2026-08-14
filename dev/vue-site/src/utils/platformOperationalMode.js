@@ -2,7 +2,7 @@ import { isTemuBackendEnabled } from '@/api/config'
 import { getAccessToken } from '@/api/request'
 
 /** Java 后端已提供运营读数的平台 */
-const BACKEND_OPERATIONAL_PLATFORMS = new Set(['temu', 'aliexpress', 'amazon'])
+const BACKEND_OPERATIONAL_PLATFORMS = new Set(['temu', 'aliexpress', 'amazon', 'douyin'])
 
 export function isBackendOperationalSession() {
   if (!isTemuBackendEnabled()) return false

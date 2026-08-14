@@ -27,17 +27,67 @@ function authHeaders(extra = {}) {
   return headers
 }
 
+const RETRY_HINT = '请稍后重试'
+const BALANCE_HINT = '余额不足'
+
+/**
+ * 非业务/非配置类错误（上游故障、网关、超时、网络等）→ 统一友好提示。
+ * 鉴权、违规、参数错误等仍透出原文，便于用户处理。
+ */
+export function humanizeAiImageError(message, fallback) {
+  const raw = String(message || '').trim()
+  const text = raw || String(fallback || '').trim()
+  if (!text) return RETRY_HINT
+
+  // 上游余额 / 额度不足
+  if (
+    /余额不足|额度不足|quota|insufficient(?:\s+\w+)*\s+(?:quota|balance|credit|fund)|billing|no\s+credit|out\s+of\s+credit|余额|credit\s+limit/i.test(
+      text,
+    )
+  ) {
+    return BALANCE_HINT
+  }
+
+  // 业务 / 配置类：保留原文
+  if (
+    /api\s*key|unauthorized|forbidden|鉴权|未配置|violation|content.?policy|违规|invalid|参数|prompt|model|size/i.test(
+      text,
+    )
+  ) {
+    return text
+  }
+
+  // 上游 / 网关 / 超时 / 网络等瞬时故障
+  if (
+    /upstream|failed to download|gateway|bad gateway|service unavailable|timed?\s*out|timeout|network|failed to fetch|econnreset|enotfound|econnrefused|temporarily unavailable|overloaded|502|503|504|internal server error|server error|请耐心/i.test(
+      text,
+    )
+  ) {
+    return RETRY_HINT
+  }
+
+  // 英文技术型报错（用户无法处理）一律改成重试提示
+  if (/^[A-Za-z0-9][\w\s./:-]*$/.test(text) && /fail|error|request|upstream|proxy|retry/i.test(text)) {
+    return RETRY_HINT
+  }
+
+  return text
+}
+
 function pickErrorMessage(data, fallback) {
-  if (!data || typeof data !== 'object') return fallback
+  if (!data || typeof data !== 'object') return humanizeAiImageError('', fallback)
   const nested = data.error
-  if (nested && typeof nested === 'object' && nested.message) return String(nested.message)
-  return (
-    (typeof nested === 'string' ? nested : '')
-    || data.message
-    || data.msg
-    || data.failure_reason
-    || fallback
-  )
+  let msg = ''
+  if (nested && typeof nested === 'object' && nested.message) msg = String(nested.message)
+  else {
+    msg =
+      (typeof nested === 'string' ? nested : '')
+      || data.message
+      || data.msg
+      || data.failure_reason
+      || ''
+  }
+  return humanizeAiImageError(msg, fallback)
 }
 
 async function readJson(res) {
@@ -163,6 +213,9 @@ async function runGenerateOnce({
         signal,
       })
     }
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err
+    throw new Error(humanizeAiImageError(err?.message, RETRY_HINT))
   } finally {
     stopWaiting()
   }
@@ -170,11 +223,21 @@ async function runGenerateOnce({
   onProgress?.(94)
   const data = await readJson(res)
   if (!res.ok) {
-    throw new Error(pickErrorMessage(data, `生图失败（HTTP ${res.status}）`))
+    const fallback =
+      res.status === 401 || res.status === 403
+        ? '鉴权失败，请检查 API Key'
+        : res.status === 402
+          ? BALANCE_HINT
+          : res.status === 400
+            ? '请求参数有误'
+            : res.status >= 500 || res.status === 429
+              ? RETRY_HINT
+              : `生图失败（HTTP ${res.status}）`
+    throw new Error(pickErrorMessage(data, fallback))
   }
   const urls = extractUrlsFromOpenAi(data)
   if (!urls.length) {
-    throw new Error(pickErrorMessage(data, '生图成功但未返回图片地址'))
+    throw new Error(pickErrorMessage(data, RETRY_HINT))
   }
   onProgress?.(100)
   return urls

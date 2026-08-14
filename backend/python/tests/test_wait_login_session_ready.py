@@ -32,10 +32,12 @@ def test_wait_login_session_ready_writes_cache_and_reports(tmp_path, monkeypatch
             patch("agent.temu_tasks.ensure_seller_login_page", return_value=page), \
             patch("app.browser.context.wait_for_login_and_mall", side_effect=fake_wait), \
             patch("app.browser.context.describe_session", return_value=status_ready), \
-            patch("agent.temu_tasks.close_temu_runtime") as close_rt, \
-            patch("agent.temu_tasks.close_tenant_profile_browsers"), \
+            patch("agent.temu_tasks.close_tenant_profile_browsers") as close_browsers, \
             patch("app.browser.profile_lock.write_session_cache") as write_cache, \
-            patch("app.browser.profile_lock.clear_profile_lock"):
+            patch("app.browser.profile_lock.clear_profile_lock"), \
+            patch("app.browser.runtime.discard_browser_runtime", return_value=runtime) as discard_rt, \
+            patch("app.browser.temu_cookie_trust.temu_login_cookies_alive", return_value=True), \
+            patch("app.browser.profile_sync.push_profile_sync") as push_profile:
         result = wait_login_session_ready(
             5,
             session_key="18061740604",
@@ -49,4 +51,8 @@ def test_wait_login_session_ready_writes_cache_and_reports(tmp_path, monkeypatch
     assert result["mall_id"] == "m1"
     assert write_cache.called
     assert client.report_temu_session.called
-    assert close_rt.called
+    # Owner-thread close: page.context.close + discard registry + soft OS reclaim.
+    assert page.context.close.called
+    assert discard_rt.called
+    assert close_browsers.called
+    assert push_profile.called

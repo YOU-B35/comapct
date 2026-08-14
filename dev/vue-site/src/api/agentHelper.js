@@ -47,7 +47,12 @@ export function isTemuJobTerminal(status) {
 /** GET /api/agent/me/status */
 export async function fetchMyAgentStatus() {
   const res = await service.get('/api/agent/me/status', { skipGlobalErrorToast: true })
-  return unwrapData(res)
+  const data = unwrapData(res)
+  // 兼容 { success, data } 未剥壳 / 多剥一层
+  if (data && typeof data === 'object' && data.online === undefined && data.data && typeof data.data === 'object') {
+    return data.data
+  }
+  return data
 }
 
 /** POST /api/agent/me/bind-code → { code, expires_at, expires_in_seconds } */

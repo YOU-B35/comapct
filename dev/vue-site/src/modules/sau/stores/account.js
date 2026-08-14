@@ -17,7 +17,8 @@ export const useAccountStore = defineStore('sauAccount', () => {
   // 设置账号列表
   const setAccounts = (accountsData) => {
     // 转换后端返回的数据格式为前端使用的格式
-    // 固定列：id,type,filePath,userName,status,owner_id,profile_dir,profile_bound_at,proxy_url,proxy_updated_at
+    // 固定列：id,type,filePath,userName,status,owner_id,profile_dir,profile_bound_at,
+    // proxy_url,proxy_updated_at,bound_agent_id,bound_agent_hostname
     accounts.value = accountsData.map(item => {
       return {
         id: item[0],

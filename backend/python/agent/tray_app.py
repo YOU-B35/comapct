@@ -61,7 +61,11 @@ def ensure_agent_started_after_bind(bind_result: dict[str, Any]) -> None:
     global _agent_loop_thread, _ops_watcher_started
 
     token = str(bind_result.get("agent_token") or "").strip()
-    api = str(bind_result.get("java_api_url") or "").strip().rstrip("/")
+    # Prefer env / request-side URL; server payload may still say www.yoto.work in local联调.
+    api = (
+        (os.environ.get("JAVA_API_URL") or "").strip().rstrip("/")
+        or str(bind_result.get("java_api_url") or "").strip().rstrip("/")
+    )
     if not token:
         return
 
@@ -73,6 +77,7 @@ def ensure_agent_started_after_bind(bind_result: dict[str, Any]) -> None:
     # Immediate heartbeat — website TTL is ~90s; don't wait for the first poll tick.
     try:
         client.heartbeat(ziniao_online=False)
+        print(f"[Agent] 绑定后首心跳成功 → {api or '(default)'}", flush=True)
     except Exception as exc:  # noqa: BLE001
         print(f"[Agent] 绑定后首心跳失败: {exc}", file=sys.stderr)
 
@@ -83,6 +88,8 @@ def ensure_agent_started_after_bind(bind_result: dict[str, Any]) -> None:
             return
         alive = _agent_loop_thread is not None and _agent_loop_thread.is_alive()
         if alive:
+            # Loop already running: it reads _active_java_client each tick (see run_agent_loop).
+            print("[Agent] 轮询已在运行，已切换到新绑定 token/API", flush=True)
             return
         thread = threading.Thread(
             target=run_agent_loop,
@@ -147,6 +154,10 @@ def _build_flask_app(java_client: Any) -> "Flask":
     app = Flask(__name__, static_folder=None)
     app.logger.removeHandler(default_handler)
 
+    def _client() -> Any:
+        """Prefer hot-swapped client after bind / local-java switch."""
+        return _active_java_client if _active_java_client is not None else java_client
+
     @app.after_request
     def _cors(resp):  # type: ignore[misc]
         resp.headers["Access-Control-Allow-Origin"] = "*"
@@ -167,9 +178,9 @@ def _build_flask_app(java_client: Any) -> "Flask":
 
     def _helper_config_path():
         """Canonical config.json for tray bind GET/POST/DELETE + status (same as sync_helper_app)."""
-        from agent.bind import default_config_path
+        from agent.bind import resolve_config_path
 
-        return default_config_path()
+        return resolve_config_path()
 
     @app.route("/api/status")
     def api_status():
@@ -183,6 +194,7 @@ def _build_flask_app(java_client: Any) -> "Flask":
         except Exception:
             snap["bound"] = bool((os.environ.get("AGENT_TOKEN") or "").strip())
             snap["bind"] = {}
+        snap["live_java_api_url"] = _api_base()
         return jsonify(snap)
 
     @app.route("/api/bind", methods=["GET"])
@@ -192,7 +204,56 @@ def _build_flask_app(java_client: Any) -> "Flask":
 
         st = binding_status(config_path=_helper_config_path())
         st["fingerprint_preview"] = (machine_fingerprint() or "")[:12]
+        # config java_api_url can diverge from the process; always expose live target
+        st["live_java_api_url"] = _api_base()
         return jsonify({"ok": True, **st})
+
+    @app.route("/api/dev/use-local-java", methods=["POST", "OPTIONS"])
+    def api_dev_use_local_java():
+        """Local Vite/dev only: force helper onto http://127.0.0.1:18080 without restart.
+
+        Panel is bound to 127.0.0.1, so this cannot be reached from the public internet.
+        """
+        if request.method == "OPTIONS":
+            return ("", 204)
+        local_api = "http://127.0.0.1:18080"
+        try:
+            from agent.bind import _read_config, _write_config
+            from agent.helper_java_url import sync_agent_config_module
+            from agent.java_client import AgentApiClient
+
+            path = _helper_config_path()
+            cfg = _read_config(path)
+            cfg["java_api_url"] = local_api
+            cfg["allow_local_java"] = True
+            _write_config(path, cfg)
+
+            os.environ["JAVA_API_URL"] = local_api
+            os.environ["CROSSHUB_ALLOW_LOCAL_JAVA"] = "1"
+            token = (
+                str(cfg.get("agent_token") or cfg.get("token") or os.environ.get("AGENT_TOKEN") or "")
+                .strip()
+            )
+            sync_agent_config_module(api=local_api, token=token)
+
+            if token:
+                client = AgentApiClient(token=token, base_url=local_api)
+                _set_active_java_client(client)
+                try:
+                    client.heartbeat(ziniao_online=False)
+                    _state.update_agent("running", error="")
+                except Exception as exc:  # noqa: BLE001
+                    _state.update_agent("running", error=str(exc))
+
+            return jsonify({
+                "ok": True,
+                "msg": "已切换到本机 Java :18080",
+                "live_java_api_url": _api_base(),
+                "java_api_url": local_api,
+                "allow_local_java": True,
+            })
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"ok": False, "msg": str(exc)}), 500
 
     @app.route("/api/bind", methods=["POST"])
     def api_bind_enroll():
@@ -329,7 +390,7 @@ def _build_flask_app(java_client: Any) -> "Flask":
     def api_accounts():
         """从 Java 拉取指定租户的 Temu 卖家账号列表（兼容旧接口），并与本地 session 状态合并。"""
         tenant_id = request.args.get("tenant_id", "")
-        accs = _fetch_accounts(java_client, tenant_id or None)
+        accs = _fetch_accounts(_client(), tenant_id or None)
         _state.set_accounts(accs)
         return jsonify({"accounts": accs})
 
@@ -362,18 +423,21 @@ def _build_flask_app(java_client: Any) -> "Flask":
         def _do_login():
             try:
                 if platform in ("temu", ""):
+                    from agent.handlers import _TEMU_BROWSER_LOCK
                     from agent.temu_tasks import open_login_window, wait_login_session_ready
 
-                    # Open window first (no remote profile pull) so UI feels instant.
-                    open_login_window(tenant_id, session_key=session_key)
+                    # Hold browser lock only while launching; release during manual login.
+                    with _TEMU_BROWSER_LOCK:
+                        open_login_window(tenant_id, session_key=session_key)
                     try:
                         # Must pass java_client — otherwise website never receives session-ready.
+                        # close/flush phase inside re-acquires the browser lock.
                         wait_login_session_ready(
                             tenant_id,
                             session_key=session_key,
                             timeout_seconds=600,
                             poll_seconds=2.0,
-                            client=java_client,
+                            client=_client(),
                         )
                     except Exception as wait_exc:  # noqa: BLE001
                         print(f"[Panel] temu login wait end: {wait_exc}", file=sys.stderr)
@@ -484,7 +548,7 @@ def _build_flask_app(java_client: Any) -> "Flask":
                     if session_key or platform_account_id or account:
                         sk = build_session_key(account or session_key, platform_account_id)
                         pull_profile_if_needed(
-                            java_client,
+                            _client(),
                             platform="temu",
                             tenant_id=tenant_id,
                             session_key=sk,
@@ -497,7 +561,7 @@ def _build_flask_app(java_client: Any) -> "Flask":
                 if session_key or platform_account_id or account:
                     sk = build_session_key(account or session_key, platform_account_id)
                     sessions = [{"session_key": sk, "platform_account_id": platform_account_id, "account": account}]
-                crawl_and_ingest(java_client, tenant_id, None, seller_sessions=sessions)
+                crawl_and_ingest(_client(), tenant_id, None, seller_sessions=sessions)
                 with _state.lock:
                     _state.last_sync_at = datetime.now().strftime("%H:%M:%S")
                 try:
@@ -534,7 +598,7 @@ def _build_flask_app(java_client: Any) -> "Flask":
         tenant_id = str(body.get("tenant_id") or "").strip()
 
         def _do_probe():
-            accs = _fetch_accounts(java_client, tenant_id or None)
+            accs = _fetch_accounts(_client(), tenant_id or None)
             _state.set_accounts(accs)
         threading.Thread(target=_do_probe, daemon=True).start()
         return jsonify({"ok": True})
@@ -549,8 +613,11 @@ def _api_headers() -> dict[str, str]:
 
 
 def _api_base() -> str:
+    env = (os.environ.get("JAVA_API_URL") or "").strip().rstrip("/")
+    if env:
+        return env
     from agent.config import JAVA_API_URL
-    return (JAVA_API_URL or os.environ.get("JAVA_API_URL") or "https://www.yoto.work").rstrip("/")
+    return (JAVA_API_URL or "https://www.yoto.work").rstrip("/")
 
 
 def _fetch_tenants() -> list[dict]:
@@ -938,6 +1005,10 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
     from agent.handlers import dispatch_task
     from agent.main import create_ziniao_client, detect_ziniao_online
 
+    def _client() -> Any:
+        # Prefer latest client after re-bind without restarting the whole panel.
+        return _active_java_client or java_client
+
     _state.update_agent("running")
     consecutive_errors = 0
     inflight: set[Future] = set()
@@ -945,6 +1016,7 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
     print(
         "[Agent] supported tasks: temu_crawl,temu_login_open,temu_session_probe,"
         "aliexpress_crawl,aliexpress_login_open,aliexpress_session_probe,"
+        "douyin_sync,douyin_products_sync,douyin_login_open,douyin_session_probe,"
         "amazon_sync,amazon_write",
         flush=True,
     )
@@ -952,7 +1024,7 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
     def _heartbeat_loop() -> None:
         while not stop_event.is_set():
             try:
-                java_client.heartbeat(ziniao_online=detect_ziniao_online(ziniao_holder[0]))
+                _client().heartbeat(ziniao_online=detect_ziniao_online(ziniao_holder[0]))
             except Exception as exc:  # noqa: BLE001
                 print(f"[Agent] 心跳失败: {exc}", file=sys.stderr)
             stop_event.wait(HEARTBEAT_INTERVAL_SECONDS)
@@ -969,7 +1041,7 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
                         fut.result()
                     except Exception as exc:  # noqa: BLE001
                         print(f"[Agent] 任务失败: {exc}", file=sys.stderr)
-                tasks = java_client.poll_tasks()
+                tasks = _client().poll_tasks()
                 consecutive_errors = 0
                 # 恢复 running 时显式清空 last_error，避免开机连不上的残留一直显示
                 _state.update_agent("running", error="")
@@ -987,7 +1059,7 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
                     t_type = str(task.get("task_type") or "")
                     _state.update_agent("running", task=t_type)
                     print(f"[Agent] 并行执行: {t_type} ({task.get('task_id')})")
-                    fut = pool.submit(dispatch_task, java_client, task)
+                    fut = pool.submit(dispatch_task, _client(), task)
                     inflight.add(fut)
                     fut.add_done_callback(lambda f: inflight.discard(f))
             except Exception as exc:

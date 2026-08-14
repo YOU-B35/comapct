@@ -1,4 +1,4 @@
-# 本地启动：Java(18080) + Express(3000) + Vue(5173)
+# 本地启动：Java(18080) + Express(3000) + Vue(5174) + Sync Helper(本地 Java)
 # 用法: powershell -File scripts\start-local.ps1
 # 会先关闭上一轮 launcher 窗口，再启动（避免堆几十个 PowerShell）
 $ErrorActionPreference = "Stop"
@@ -41,9 +41,18 @@ Start-CrosshubLauncherWindow -Name "web" -LauncherPath $webLauncher -ScriptLines
     "npm run dev -- --port 5174 --strictPort"
 )
 
-Start-Sleep -Seconds 8
+Write-Host "==> wait for Java :18080 then ensure local Sync Helper" -ForegroundColor Cyan
+$javaDeadline = (Get-Date).AddSeconds(45)
+while ((Get-Date) -lt $javaDeadline) {
+    if (Get-NetTCPConnection -LocalPort 18080 -State Listen -ErrorAction SilentlyContinue) { break }
+    Start-Sleep -Seconds 2
+}
+& (Join-Path $PSScriptRoot "ensure-local-helper.ps1")
+
+Start-Sleep -Seconds 2
 Write-Host ""
 Write-Host "Local URLs:" -ForegroundColor Green
 Write-Host "  Web     http://localhost:5174"
 Write-Host "  Java    http://localhost:18080/api/temu/shops"
 Write-Host "  Express http://localhost:3000/api/health"
+Write-Host "  Helper  http://127.0.0.1:18766  (forced local Java)"

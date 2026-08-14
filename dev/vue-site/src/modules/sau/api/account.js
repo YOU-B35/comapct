@@ -20,4 +20,8 @@ export const accountApi = {
   deleteAccount(id) {
     return http.get(`/deleteAccount?id=${id}`)
   },
+  /** 换绑到当前（或指定）在线助手，保留 Cookie */
+  rebindAgent(accountId, payload = {}) {
+    return http.post(`/account/${accountId}/rebind-agent`, payload)
+  },
 }

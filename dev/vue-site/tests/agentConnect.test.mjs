@@ -13,9 +13,11 @@ test('HELPER_PROTOCOL_START is fixed scheme', () => {
 
 test('already_running when probe true before trigger', async () => {
   let triggered = 0
+  let aligned = 0
   const result = await connectLocalHelper({
     probe: async () => true,
     trigger: () => { triggered += 1 },
+    alignLocal: async () => { aligned += 1 },
     openPanel: () => {},
     timeoutMs: 1000,
     pollMs: 50,
@@ -23,6 +25,7 @@ test('already_running when probe true before trigger', async () => {
   assert.equal(result.status, 'already_running')
   assert.match(result.message, /已在运行/)
   assert.equal(triggered, 0)
+  assert.equal(aligned, 1)
 })
 
 test('started when probe becomes true after trigger', async () => {

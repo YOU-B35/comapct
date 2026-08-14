@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import threading
 import time
 import sys
 from typing import Any
@@ -20,6 +21,57 @@ from app.ziniao.client import ZiniaoClient, ZiniaoConfig
 
 CRAWL_TIMEOUT_SECONDS = 2400
 CRAWL_TIMEOUT_MINUTES = CRAWL_TIMEOUT_SECONDS // 60
+
+# One Temu Chrome profile at a time on this machine (login/crawl/probe fight SingletonLock).
+_TEMU_BROWSER_LOCK = threading.Lock()
+_TEMU_BROWSER_TASK_TYPES = frozenset(
+    {
+        "temu_crawl",
+        "temu_login_open",
+        "temu_frontend_login_open",
+        "temu_session_probe",
+        "temu_competitor_discover",
+    }
+)
+
+
+def _clear_panel_logging_in(session_key: str | None) -> None:
+    key = str(session_key or "").strip()
+    if not key:
+        return
+    try:
+        from agent.tray_app import _state
+
+        with _state.lock:
+            _state.logging_in.discard(key)
+    except Exception:
+        pass
+
+
+def _temu_panel_logging_in(session_key: str | None = None) -> bool:
+    """True while panel /api/login holds the Temu profile for this account."""
+    try:
+        from agent.tray_app import _state
+
+        with _state.lock:
+            if not _state.logging_in:
+                return False
+            key = str(session_key or "").strip()
+            if key:
+                return key in _state.logging_in
+            return True
+    except Exception:
+        return False
+
+
+def _wait_out_panel_logging_in(session_key: str | None, *, timeout_seconds: float = 90.0) -> bool:
+    """Wait until panel login flag clears. Returns True if idle, False if still busy."""
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    while _temu_panel_logging_in(session_key):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(1.5)
+    return True
 
 
 def handle_ziniao_discover(client: AgentApiClient, task: dict[str, Any]) -> None:
@@ -242,10 +294,13 @@ def handle_temu_session_probe(client: AgentApiClient, task: dict[str, Any]) -> N
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
     seller_sessions = payload.get("seller_sessions")
+    session_key = payload.get("session_key")
+    key = str(session_key).strip() if session_key else None
     try:
         session = probe_session(
             tenant_id,
             seller_sessions=seller_sessions if isinstance(seller_sessions, list) else None,
+            session_key=key,
         )
         client.complete_task_with_retry(task_id, status="success", result=session)
     except Exception as exc:
@@ -271,6 +326,7 @@ def handle_temu_crawl(client: AgentApiClient, task: dict[str, Any]) -> None:
     seller_sessions = payload.get("seller_sessions")
     session_key = payload.get("session_key")
     shop_ids = payload.get("shop_ids")
+    key = str(session_key).strip() if session_key else None
     try:
         from app.temu.shop_scope import normalize_shop_id_allowlist
 
@@ -283,7 +339,7 @@ def handle_temu_crawl(client: AgentApiClient, task: dict[str, Any]) -> None:
                 tenant_id,
                 report_day,
                 seller_sessions if isinstance(seller_sessions, list) else None,
-                str(session_key).strip() if session_key else None,
+                key,
                 scoped_shop_ids,
             )
             result = future.result(timeout=CRAWL_TIMEOUT_SECONDS)
@@ -341,6 +397,150 @@ def handle_temu_competitor_discover(client: AgentApiClient, task: dict[str, Any]
         )
 
 
+def _douyin_error_code(message: str, default: str) -> str:
+    text = message or ""
+    for code in (
+        "DY_NOT_LOGGED_IN",
+        "DY_ORDERS_SOURCE_UNAVAILABLE",
+        "DY_PRODUCTS_SOURCE_UNAVAILABLE",
+        "DY_COMPASS_RANK_SOURCE_UNAVAILABLE",
+        "DY_COMPASS_SOURCE_UNAVAILABLE",
+        "DY_OPPORTUNITY_SOURCE_UNAVAILABLE",
+        "DY_SHOP_MAPPING_REQUIRED",
+        "DY_AGENT_OFFLINE",
+        "DY_SYNC_FAILED",
+    ):
+        if text.startswith(code) or code in text:
+            return code
+    if "未登录" in text:
+        return "DY_NOT_LOGGED_IN"
+    if "商品榜" in text or "罗盘商品" in text:
+        return "DY_COMPASS_RANK_SOURCE_UNAVAILABLE"
+    if "罗盘" in text:
+        return "DY_COMPASS_SOURCE_UNAVAILABLE"
+    if "商机" in text:
+        return "DY_OPPORTUNITY_SOURCE_UNAVAILABLE"
+    return default
+
+
+def handle_douyin_session_probe(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    try:
+        from agent.douyin_tasks import probe_session as douyin_probe_session
+
+        session = douyin_probe_session(tenant_id)
+        client.complete_task_with_retry(task_id, status="success", result=session)
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_douyin_error_code(message, "DY_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_douyin_login_open(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    try:
+        from agent.douyin_tasks import open_login_window as douyin_open_login_window
+
+        session = douyin_open_login_window(tenant_id, timeout_seconds=600)
+        client.complete_task_with_retry(task_id, status="success", result={"session": session})
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_douyin_error_code(message, "DY_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_douyin_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        payload = task.get("payload") or {}
+        scope = str(payload.get("scope") or "orders").strip().lower()
+        if scope == "compass":
+            from agent.douyin_tasks import run_compass_sync
+
+            result = run_compass_sync(client, task)
+        elif scope == "opportunity":
+            from agent.douyin_tasks import run_opportunity_sync
+
+            result = run_opportunity_sync(client, task)
+        elif scope == "compass_product_rank":
+            from agent.douyin_compass_rank import run_compass_product_rank_sync
+
+            result = run_compass_product_rank_sync(client, task)
+        elif scope == "issues":
+            from agent.douyin_tasks import run_issues_sync
+
+            result = run_issues_sync(client, task)
+        elif scope == "all":
+            from agent.douyin_tasks import run_issues_sync, run_orders_sync
+
+            result = run_orders_sync(client, task)
+            try:
+                issues_result = run_issues_sync(client, task)
+                result["issues_count"] = issues_result.get("issues_count", 0)
+                result["partial"] = bool(result.get("partial")) or bool(issues_result.get("partial"))
+                result["message"] = (
+                    f"{result.get('message') or ''}；{issues_result.get('message') or ''}"
+                ).strip("；")
+                result["scope"] = "all"
+            except Exception as issues_exc:  # noqa: BLE001
+                result["partial"] = True
+                result["issues_count"] = 0
+                result["message"] = (
+                    f"{result.get('message') or ''}；内容预警失败: {issues_exc}"
+                ).strip("；")
+                result["scope"] = "all"
+        else:
+            from agent.douyin_tasks import run_orders_sync
+
+            result = run_orders_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_douyin_error_code(message, "DY_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_douyin_products_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        from agent.douyin_tasks import run_products_sync
+
+        result = run_products_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_douyin_error_code(message, "DY_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
 def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
     task_type = str(task.get("task_type") or "")
     if task_type in {"ziniao_discover", "amazon_ziniao_discover"}:
@@ -352,20 +552,49 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
     if task_type == "amazon_write":
         handle_amazon_write(client, task)
         return
-    if task_type == "temu_crawl":
-        handle_temu_crawl(client, task)
+    if task_type in _TEMU_BROWSER_TASK_TYPES:
+        # Wait for panel login outside the browser lock so we don't stall the queue.
+        if task_type in ("temu_crawl", "temu_session_probe"):
+            payload = task.get("payload") or {}
+            key = str(payload.get("session_key") or "").strip() or None
+            if _temu_panel_logging_in(key):
+                print(f"[Agent] {task_type} waiting for panel login idle key={key}", flush=True)
+                if not _wait_out_panel_logging_in(key, timeout_seconds=120):
+                    # Prefer waiting over killing a live login Chrome mid-close.
+                    task_id = str(task.get("task_id") or task.get("id") or "")
+                    if task_id:
+                        client.complete_task_with_retry(
+                            task_id,
+                            status="failed",
+                            error_code="TEMU_PROFILE_BUSY",
+                            error_message="Temu 登录窗口仍在使用中，请完成登录后再刷新数据",
+                        )
+                    return
+                # Give login thread a moment to finish context.close / cookie flush.
+                time.sleep(2.0)
+        with _TEMU_BROWSER_LOCK:
+            if task_type == "temu_crawl":
+                handle_temu_crawl(client, task)
+            elif task_type == "temu_login_open":
+                handle_temu_login_open(client, task)
+            elif task_type == "temu_frontend_login_open":
+                handle_temu_frontend_login_open(client, task)
+            elif task_type == "temu_session_probe":
+                handle_temu_session_probe(client, task)
+            elif task_type == "temu_competitor_discover":
+                handle_temu_competitor_discover(client, task)
         return
-    if task_type == "temu_login_open":
-        handle_temu_login_open(client, task)
+    if task_type == "douyin_session_probe":
+        handle_douyin_session_probe(client, task)
         return
-    if task_type == "temu_frontend_login_open":
-        handle_temu_frontend_login_open(client, task)
+    if task_type == "douyin_login_open":
+        handle_douyin_login_open(client, task)
         return
-    if task_type == "temu_session_probe":
-        handle_temu_session_probe(client, task)
+    if task_type == "douyin_sync":
+        handle_douyin_sync(client, task)
         return
-    if task_type == "temu_competitor_discover":
-        handle_temu_competitor_discover(client, task)
+    if task_type == "douyin_products_sync":
+        handle_douyin_products_sync(client, task)
         return
     task_id = str(task.get("task_id") or "")
     if task_id:

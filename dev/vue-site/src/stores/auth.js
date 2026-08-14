@@ -55,6 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
   const teamLeader = ref(localStorage.getItem('crosshub_team_leader') === '1')
   const teamId = ref(Number(localStorage.getItem('crosshub_team_id') || 0) || null)
   const teamName = ref(localStorage.getItem('crosshub_team_name') || '')
+  const per = ref(localStorage.getItem('crosshub_per') || '')
 
   const isBoss = computed(() => role.value === 'boss')
   const isEmployee = computed(() => role.value === 'employee')
@@ -107,6 +108,8 @@ export const useAuthStore = defineStore('auth', () => {
     if (teamId.value) localStorage.setItem('crosshub_team_id', String(teamId.value))
     else localStorage.removeItem('crosshub_team_id')
     localStorage.setItem('crosshub_team_name', teamName.value || '')
+    if (per.value !== '' && per.value != null) localStorage.setItem('crosshub_per', String(per.value))
+    else localStorage.removeItem('crosshub_per')
     if (backendUserId.value) {
       localStorage.setItem('backend_user_id', String(backendUserId.value))
     } else {
@@ -133,6 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
     teamLeader.value = Boolean(payload.team_leader)
     teamId.value = payload.team_id || null
     teamName.value = payload.team_name || ''
+    if (payload.per != null && payload.per !== '') per.value = String(payload.per)
     backendLinked.value = true
     persistSession()
   }
@@ -258,6 +262,11 @@ export const useAuthStore = defineStore('auth', () => {
     persistSession()
   }
 
+  function setPer(nextPer) {
+    per.value = nextPer == null ? '' : String(nextPer)
+    persistSession()
+  }
+
   function logout() {
     usePlatformSyncStore().resetSession()
     isLoggedIn.value = false
@@ -265,6 +274,7 @@ export const useAuthStore = defineStore('auth', () => {
     backendRole.value = ''
     backendUserId.value = null
     tenantId.value = null
+    per.value = ''
     menus.value = []
     platforms.value = []
     shopScope.value = []
@@ -277,6 +287,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('backend_role')
     localStorage.removeItem('backend_user_id')
     localStorage.removeItem('backend_tenant_id')
+    localStorage.removeItem('crosshub_per')
     localStorage.removeItem('crosshub_menus')
     localStorage.removeItem('crosshub_platforms')
     localStorage.removeItem('crosshub_shop_scope')
@@ -290,6 +301,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     isLoggedIn,
     role,
+    per,
     company,
     employee,
     warehouse,
@@ -317,6 +329,7 @@ export const useAuthStore = defineStore('auth', () => {
     setCompany,
     setEmployee,
     setWarehouse,
+    setPer,
     applyBackendSession,
     hasMenuCode,
     refreshSession,

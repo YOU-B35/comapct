@@ -325,6 +325,10 @@ public class TenantMemberServiceImpl implements TenantMemberService {
 
         item.put("role", user.getJobTitle());
 
+        item.put("per", user.getPer());
+
+        item.put("portal_role", com.crosshub.auth.PortalPer.portalFromPer(user.getPer()));
+
         item.put("phone", user.getPhone() == null ? "" : user.getPhone());
 
         item.put("status", user.isActive());

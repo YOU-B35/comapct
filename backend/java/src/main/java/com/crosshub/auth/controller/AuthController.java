@@ -1,5 +1,6 @@
 package com.crosshub.auth.controller;
 
+import com.crosshub.auth.PortalPer;
 import com.crosshub.auth.entity.AppUser;
 import com.crosshub.auth.repository.AppUserRepository;
 import com.crosshub.security.AuthContext;
@@ -60,7 +61,8 @@ public class AuthController {
     public Map<String, Object> login(@RequestBody LoginRequest request) {
         String account = request.account() == null ? "" : request.account().trim();
         String password = request.password() == null ? "" : request.password();
-        String portalRole = request.portalRole() == null ? "boss" : request.portalRole();
+        // preferred portal（登录页选项卡）仅提示；实际入口由账号 per 决定
+        String preferredPortal = request.portalRole();
 
         Optional<AppUser> userOpt = resolveLoginUser(account, password);
         if (userOpt.isEmpty()) {
@@ -74,15 +76,10 @@ public class AuthController {
         if (!user.isActive()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "账号已停用");
         }
-        if ("boss".equals(portalRole) && !user.isAdmin()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该账号不是企业管理员");
-        }
-        if ("warehouse".equals(portalRole) && !user.isWarehouse()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该账号不是仓库用户");
-        }
-        if ("employee".equals(portalRole) && (user.isAdmin() || user.isWarehouse())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "请使用对应端口登录");
-        }
+
+        String per = user.getPer();
+        String portalRole = PortalPer.resolvePortal(per, preferredPortal);
+        String landingPath = PortalPer.landingPathFromPer(per);
 
         boolean bossPortal = "boss".equalsIgnoreCase(portalRole);
         List<String> platforms = dataScopeService.resolvePlatformsForLogin(user.getTenantId(), user.getId(), bossPortal);
@@ -98,7 +95,9 @@ public class AuthController {
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("token", token);
+        data.put("per", per);
         data.put("portal_role", portalRole);
+        data.put("landing_path", landingPath);
         data.put("role", user.getRole());
         data.put("tenant_id", user.getTenantId());
         data.put("user_id", user.getId());
@@ -146,10 +145,13 @@ public class AuthController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户不存在"));
 
         String portalRole = authContext.portalRole();
+        String per = user.getPer();
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("tenant_id", authContext.tenantId());
         data.put("user_id", userId);
+        data.put("per", per);
         data.put("portal_role", portalRole);
+        data.put("landing_path", PortalPer.landingPathFromPer(per));
         data.put("role", user.getRole());
         data.put("account", user.getUsername());
         data.put("company", user.getEnterprise());

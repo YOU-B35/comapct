@@ -85,7 +85,7 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    // 卡片选择仅作入口提示；后端按库内角色自动校准 portal / 菜单 / 落地页
+    // 选项卡仅作入口提示；后端按账号 per（0=boss / 1=员工 / 2=仓库）自动校准 portal / 落地页
     const res = await loginAccount({
       account: account.value.trim(),
       password: password.value,
@@ -100,6 +100,9 @@ async function handleLogin() {
       auth.setEmployee(res.data)
     }
     auth.login(portal)
+    if (res.per != null && res.per !== '') {
+      auth.setPer(String(res.per))
+    }
     if (portal !== portalRole.value) {
       ElMessage.info(`已按账号权限进入${portal === 'boss' ? '企业管理员' : portal === 'warehouse' ? '仓库端口' : '员工工作台'}`)
       portalRole.value = portal
@@ -128,6 +131,7 @@ async function handleLogin() {
       <button
         type="button"
         class="role-tab"
+        data-per="0"
         :class="{ 'is-active': portalRole === 'boss' }"
         @click="portalRole = 'boss'"
       >
@@ -137,6 +141,7 @@ async function handleLogin() {
       <button
         type="button"
         class="role-tab"
+        data-per="1"
         :class="{ 'is-active': portalRole === 'employee' }"
         @click="portalRole = 'employee'"
       >
@@ -146,6 +151,7 @@ async function handleLogin() {
       <button
         type="button"
         class="role-tab"
+        data-per="2"
         :class="{ 'is-active': portalRole === 'warehouse' }"
         @click="portalRole = 'warehouse'"
       >

@@ -510,6 +510,11 @@ async function loadTenants() {
   try {
     const res = await api('/api/tenants');
     _tenants = res.tenants || [];
+    // 机器已绑定到单一企业：直接进入，避免「选租户」被误当成未绑定
+    if (_tenants.length === 1) {
+      selectTenant(_tenants[0].tenant_id);
+      return;
+    }
     renderTenantGrid();
   } catch(e) {
     toast('加载租户失败', 'error');
@@ -518,7 +523,7 @@ async function loadTenants() {
 function renderTenantGrid() {
   const g = document.getElementById('tenantGrid');
   if (!_tenants.length) {
-    g.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>无租户数据</div>';
+    g.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>无租户数据（请确认本机已绑定且 Agent Token 有效）</div>';
     return;
   }
   g.innerHTML = _tenants.map(t => `
@@ -821,7 +826,7 @@ async function submitBindCode() {
       return;
     }
     toast(res.msg || '绑定成功');
-    log('绑定成功，请重启助手以开始任务轮询');
+    log('绑定成功，心跳已自动开始；网站刷新后应显示助手在线');
     await refreshBindStatus();
   } catch (e) {
     toast('绑定失败: ' + e.message, 'error');

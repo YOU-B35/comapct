@@ -110,6 +110,7 @@
                 <el-table-column label="操作">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
+                    <el-button size="small" type="warning" @click="handleRebindAgent(scope.row)">换绑助手</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
                     <el-button size="small" type="info" :icon="Upload" @click="handleUploadCookie(scope.row)">上传Cookie</el-button>
                     <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
@@ -181,6 +182,7 @@
                 <el-table-column label="操作">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
+                    <el-button size="small" type="warning" @click="handleRebindAgent(scope.row)">换绑助手</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
                     <el-button size="small" type="info" :icon="Upload" @click="handleUploadCookie(scope.row)">上传Cookie</el-button>
                     <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
@@ -249,9 +251,15 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作">
+                <el-table-column label="绑定助手" min-width="140">
+                  <template #default="scope">
+                    <span>{{ scope.row.boundAgentHostname || '未绑定' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" min-width="360">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
+                    <el-button size="small" type="warning" @click="handleRebindAgent(scope.row)">换绑助手</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
                     <el-button size="small" type="info" :icon="Upload" @click="handleUploadCookie(scope.row)">上传Cookie</el-button>
                     <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
@@ -323,6 +331,7 @@
                 <el-table-column label="操作">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
+                    <el-button size="small" type="warning" @click="handleRebindAgent(scope.row)">换绑助手</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
                     <el-button size="small" type="info" :icon="Upload" @click="handleUploadCookie(scope.row)">上传Cookie</el-button>
                     <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
@@ -394,6 +403,7 @@
                 <el-table-column label="操作">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
+                    <el-button size="small" type="warning" @click="handleRebindAgent(scope.row)">换绑助手</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
                     <el-button size="small" type="info" :icon="Upload" @click="handleUploadCookie(scope.row)">上传Cookie</el-button>
                     <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
@@ -467,6 +477,7 @@
                 <el-table-column label="操作">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
+                    <el-button size="small" type="warning" @click="handleRebindAgent(scope.row)">换绑助手</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
                     <el-button size="small" type="info" :icon="Upload" @click="handleUploadCookie(scope.row)">上传Cookie</el-button>
                     <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
@@ -1414,6 +1425,44 @@ const handleDelete = (row) => {
     .catch(() => {
       // 取消删除
     })
+}
+
+/** 换绑到网页当前助手（保留 Cookie，不强制重新扫码） */
+const handleRebindAgent = async (row) => {
+  try {
+    await fetchLoginAgentStatus()
+    const agentId = String(activeAgentId.value || loginAgentInfo.value?.agent_id || '').trim()
+    const host = loginAgentInfo.value?.hostname || agentId
+    if (!loginAgentOnline.value || !agentId) {
+      ElMessage.warning('请先连接本机助手，并设为「当前助手」后再换绑')
+      return
+    }
+    const oldHost = row.boundAgentHostname || '未绑定'
+    await ElMessageBox.confirm(
+      `将账号「${row.name}」从「${oldHost}」换绑到当前助手「${host}」？\n现有登录态会保留，换绑后可直接发布。`,
+      '换绑助手',
+      {
+        confirmButtonText: '确认换绑',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+    const res = await accountApi.rebindAgent(row.id, { agent_id: agentId })
+    if (res.code !== 200) {
+      ElMessage.error(res.msg || '换绑失败')
+      return
+    }
+    const data = res.data || {}
+    accountStore.updateAccount(row.id, {
+      boundAgentId: data.bound_agent_id || agentId,
+      boundAgentHostname: data.bound_agent_hostname || host,
+    })
+    ElMessage.success(`已换绑到：${data.bound_agent_hostname || host}`)
+  } catch (error) {
+    if (error === 'cancel' || error?.toString?.().includes('cancel')) return
+    console.error('换绑助手失败:', error)
+    ElMessage.error(error?.message || '换绑失败')
+  }
 }
 
 // 下载Cookie文件

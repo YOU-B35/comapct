@@ -19,12 +19,22 @@ import {
   openAliExpressSellerLogin,
   pollAliExpressSessionUntilReady,
 } from '@/api/aliexpressApi'
+import {
+  enqueueDouyinLogin,
+  fetchDouyinSession,
+  pollDouyinSessionUntilReady,
+} from '@/api/douyinApi'
 import { getAppErrorMessage, resolveAppError } from '@/utils/appErrorCode'
-import { fetchLocalHelperBind, getHelperPanelUrl } from '@/utils/agentProbe'
+import {
+  alignLocalDevHelperJava,
+  fetchLocalHelperBind,
+  getHelperPanelUrl,
+  helperApiMismatchHint,
+} from '@/utils/agentProbe'
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
-  /** temu | aliexpress | amazon */
+  /** temu | aliexpress | amazon | douyin */
   platform: { type: String, default: 'temu' },
 })
 
@@ -44,6 +54,7 @@ const localBind = ref({
   user_id: null,
   tenant_id: null,
   bound_account: '',
+  java_api_url: '',
 })
 
 const bindDialogVisible = ref(false)
@@ -75,17 +86,18 @@ let sessionPollAbort = null
 const platformLabel = computed(() => {
   if (props.platform === 'aliexpress') return 'AliExpress'
   if (props.platform === 'amazon') return 'Amazon'
+  if (props.platform === 'douyin') return '抖店'
   return 'Temu'
 })
 
 const supportsSessionLogin = computed(
-  () => props.platform === 'temu' || props.platform === 'aliexpress',
+  () => props.platform === 'temu' || props.platform === 'aliexpress' || props.platform === 'douyin',
 )
 
 const online = computed(() => Boolean(helperStatus.value.online))
 const sessionReady = computed(() => {
   if (!supportsSessionLogin.value) return true
-  return Boolean(sessionStatus.value.ready)
+  return Boolean(sessionStatus.value.ready || sessionStatus.value.logged_in)
 })
 const downloadUrl = computed(() => resolveHelperDownloadUrl())
 const canDownload = computed(() => Boolean(downloadUrl.value))
@@ -96,23 +108,10 @@ const recommendedAgent = computed(() => {
   return agents.find((a) => String(a.id) === id) || agents.find((a) => a.online) || null
 })
 
-const barMode = computed(() => {
-  if (!online.value) {
-    return localBind.value.reachable ? 'rebind' : 'offline'
-  }
-  if (supportsSessionLogin.value && !sessionReady.value) return 'need-login'
-  return 'ready'
-})
-
-const barTone = computed(() => {
-  if (barMode.value === 'offline' || barMode.value === 'rebind') return 'warn'
-  if (barMode.value === 'need-login') return 'info'
-  return 'ok'
-})
-
 const offlineErrorCode = computed(() => {
   if (props.platform === 'aliexpress') return 'AE_USER_HELPER_OFFLINE'
   if (props.platform === 'amazon') return 'AMAZON_USER_HELPER_OFFLINE'
+  if (props.platform === 'douyin') return 'DY_AGENT_OFFLINE'
   return 'TEMU_USER_HELPER_OFFLINE'
 })
 
@@ -132,7 +131,30 @@ const localTenantMismatch = computed(() => {
   )
 })
 
+const apiMismatchHint = computed(() =>
+  helperApiMismatchHint(localBind.value.live_java_api_url || localBind.value.java_api_url),
+)
+
+const barMode = computed(() => {
+  if (apiMismatchHint.value) return 'api-mismatch'
+  if (!online.value) {
+    // 本机已绑当前企业：不要再显示「未绑定」，只提示等心跳
+    if (localBind.value.bound && !localTenantMismatch.value) return 'heartbeat-wait'
+    return localBind.value.reachable ? 'rebind' : 'offline'
+  }
+  if (supportsSessionLogin.value && !sessionReady.value) return 'need-login'
+  return 'ready'
+})
+
+const barTone = computed(() => {
+  if (barMode.value === 'offline' || barMode.value === 'rebind' || barMode.value === 'api-mismatch') return 'warn'
+  if (barMode.value === 'need-login' || barMode.value === 'heartbeat-wait') return 'info'
+  return 'ok'
+})
+
 const barTitle = computed(() => {
+  if (barMode.value === 'api-mismatch') return '助手后端地址与当前页面不一致'
+  if (barMode.value === 'heartbeat-wait') return '本机助手已绑定，等待心跳同步…'
   if (barMode.value === 'rebind') {
     if (localTenantMismatch.value) return '本机助手已运行，但绑定的是其他企业'
     return '本机助手已运行，但当前企业尚未完成绑定/心跳'
@@ -144,6 +166,10 @@ const barTitle = computed(() => {
 })
 
 const barMeta = computed(() => {
+  if (barMode.value === 'api-mismatch') return apiMismatchHint.value
+  if (barMode.value === 'heartbeat-wait') {
+    return '绑定码已核销；若超过 1 分钟仍不变，请点「刷新状态」或用本地脚本重启助手'
+  }
   if (barMode.value === 'rebind') {
     if (localTenantMismatch.value) {
       return `助手当前租户 #${localBind.value.tenant_id}，与登录企业 #${currentTenantId.value} 不一致。请清除绑定后用本企业账号重新填入绑定码（同企业多账号共享，无需每人各绑一次）`
@@ -190,6 +216,8 @@ function publishHelperStatus() {
 async function loadHelperStatus() {
   helperLoading.value = true
   try {
+    // Local Vite: auto-heal helper if it still points at www.yoto.work
+    await alignLocalDevHelperJava(1500)
     const [status, local] = await Promise.all([
       fetchMyAgentStatus(),
       fetchLocalHelperBind(),
@@ -211,7 +239,9 @@ async function loadHelperStatus() {
 }
 
 function openHelperPanel() {
-  window.open(getHelperPanelUrl(), '_blank', 'noopener')
+  void alignLocalDevHelperJava(1500).finally(() => {
+    window.open(getHelperPanelUrl(), '_blank', 'noopener')
+  })
 }
 
 async function loadSessionStatus({ notifyIfPending = false } = {}) {
@@ -221,14 +251,22 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
   }
   sessionLoading.value = true
   try {
-    sessionStatus.value = props.platform === 'aliexpress'
-      ? await fetchAliExpressSessionStatus()
-      : await fetchTemuSessionStatus()
-    if (notifyIfPending && !sessionStatus.value.ready) {
+    if (props.platform === 'aliexpress') {
+      sessionStatus.value = await fetchAliExpressSessionStatus()
+    } else if (props.platform === 'douyin') {
+      sessionStatus.value = await fetchDouyinSession()
+    } else {
+      sessionStatus.value = await fetchTemuSessionStatus()
+    }
+    if (notifyIfPending && !sessionReady.value) {
       ElMessage.warning(
         sessionStatus.value.message
           || getAppErrorMessage(
-            props.platform === 'aliexpress' ? 'CRAWL_AE_NOT_LOGGED_IN' : 'CRAWL_NOT_LOGGED_IN',
+            props.platform === 'aliexpress'
+              ? 'CRAWL_AE_NOT_LOGGED_IN'
+              : props.platform === 'douyin'
+                ? 'DY_NOT_LOGGED_IN'
+                : 'CRAWL_NOT_LOGGED_IN',
           ),
       )
     }
@@ -273,15 +311,25 @@ async function startSessionPoll() {
   sessionPollAbort = new AbortController()
   const signal = sessionPollAbort.signal
   try {
-    const session = props.platform === 'aliexpress'
-      ? await pollAliExpressSessionUntilReady({ signal })
-      : await pollTemuSessionUntilReady({
-          timeoutMs: 90000,
-          intervalMs: 2000,
-          maxIntervalMs: 5000,
-          maxAttempts: 20,
-          signal,
-        })
+    let session
+    if (props.platform === 'aliexpress') {
+      session = await pollAliExpressSessionUntilReady({ signal })
+    } else if (props.platform === 'douyin') {
+      session = await pollDouyinSessionUntilReady({
+        timeoutMs: 90000,
+        intervalMs: 2000,
+        maxIntervalMs: 5000,
+        signal,
+      })
+    } else {
+      session = await pollTemuSessionUntilReady({
+        timeoutMs: 90000,
+        intervalMs: 2000,
+        maxIntervalMs: 5000,
+        maxAttempts: 20,
+        signal,
+      })
+    }
     if (!signal.aborted) sessionStatus.value = session
   } catch {
     // timeout / cancel
@@ -340,6 +388,8 @@ async function handleOpenLogin() {
   try {
     if (props.platform === 'aliexpress') {
       await openAliExpressSellerLogin()
+    } else if (props.platform === 'douyin') {
+      await enqueueDouyinLogin()
     } else {
       await enqueueTemuLogin({
         tenantId: currentTenantId.value,
@@ -392,7 +442,16 @@ defineExpose({ reload, online, sessionReady })
     </div>
 
     <div class="bar-actions">
-      <template v-if="barMode === 'rebind'">
+      <template v-if="barMode === 'api-mismatch'">
+        <el-button type="primary" size="small" @click="openHelperPanel">
+          打开助手面板
+        </el-button>
+        <el-button size="small" :icon="Refresh" :loading="helperLoading" @click="reload">
+          刷新状态
+        </el-button>
+      </template>
+
+      <template v-else-if="barMode === 'rebind' || barMode === 'heartbeat-wait'">
         <el-button
           type="primary"
           size="small"
@@ -402,7 +461,13 @@ defineExpose({ reload, online, sessionReady })
         >
           连接助手
         </el-button>
-        <el-button type="primary" size="small" :icon="Link" @click="openBindDialog">
+        <el-button
+          v-if="barMode === 'rebind'"
+          type="primary"
+          size="small"
+          :icon="Link"
+          @click="openBindDialog"
+        >
           生成绑定码
         </el-button>
         <el-button size="small" @click="openHelperPanel">

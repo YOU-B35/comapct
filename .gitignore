@@ -42,11 +42,15 @@ __screenshots__/
 *.local
 .eslintcache
 
+# Local git worktrees
+.worktrees/
+
 # Deploy build artifacts & local SSH probes (may contain credentials)
 deploy/.build/
 scripts/_ssh-probe/
 scripts/_dxm_cookie_tmp.txt
 scripts/_probe_dxm_*
+scripts/_tmp_*
 backend/python/tests/fixtures/_tmp_profile/
 
 # Python monitor runtime artifacts

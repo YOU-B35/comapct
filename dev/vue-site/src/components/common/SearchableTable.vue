@@ -31,13 +31,19 @@ const { keyword, page, pageSize, total, paged } = useFuzzySearchPagination(sourc
       :total="total"
       :placeholder="placeholder"
       :page-sizes="pageSizes"
-    />
+    >
+      <el-empty v-if="!total" :description="emptyText" :image-size="64" />
+      <el-table v-else :data="paged" v-bind="$attrs">
+        <slot />
+      </el-table>
+    </TableQueryBar>
 
-    <el-empty v-if="!total" :description="emptyText" :image-size="64" />
-
-    <el-table v-else :data="paged" v-bind="$attrs">
-      <slot />
-    </el-table>
+    <template v-else>
+      <el-empty v-if="!total" :description="emptyText" :image-size="64" />
+      <el-table v-else :data="paged" v-bind="$attrs">
+        <slot />
+      </el-table>
+    </template>
   </div>
 </template>
 

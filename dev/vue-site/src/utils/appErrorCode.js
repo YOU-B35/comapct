@@ -114,6 +114,19 @@ export const APP_ERROR_MESSAGES = {
   AMAZON_WRITE_JOB_NOT_FOUND: 'Amazon 写操作任务不存在',
   AMAZON_WRITE_FAILED: 'Amazon 写操作失败，请稍后重试',
   AMAZON_WRITE_DOM_FAILED: 'Seller Central 页面结构变化或未找到操作入口，请手动确认后重试',
+
+  DY_AGENT_OFFLINE: '本机同步助手未在线，请先启动 CrossHub-Sync-Helper',
+  DY_NOT_LOGGED_IN: '抖音商家后台未登录，请打开登录窗口完成登录',
+  DY_SHOP_MAPPING_REQUIRED: '请先在账户绑定中填写抖音店铺外部 ID',
+  DY_SYNC_IN_PROGRESS: '已有抖音同步任务进行中',
+  DY_SYNC_TIMEOUT: '抖音同步超时，请重试',
+  DY_SYNC_FAILED: '抖音同步失败',
+  DY_ORDERS_SOURCE_UNAVAILABLE: '无法获取订单列表，请检查后台改版或登录态',
+  DY_PRODUCTS_SOURCE_UNAVAILABLE: '无法获取商品列表，请确认已登录并打开商品管理后重试',
+  DY_COMPASS_SOURCE_UNAVAILABLE: '无法获取抖店罗盘数据，请确认已登录罗盘后重试',
+  DY_COMPASS_RANK_SOURCE_UNAVAILABLE: '无法获取罗盘商品榜数据，请确认已登录罗盘后重试',
+  DY_OPPORTUNITY_SOURCE_UNAVAILABLE: '无法获取商机中心数据，请确认已登录并打开商机中心后重试',
+  DY_ISSUES_SOURCE_UNCONFIGURED: '内容预警数据源尚未配置（订单可照常同步）',
 }
 
 const CRAWL_ERROR_UI = {

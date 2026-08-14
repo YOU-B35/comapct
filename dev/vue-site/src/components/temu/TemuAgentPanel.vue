@@ -108,7 +108,9 @@ defineExpose({ reload: loadStatus, agentOnline })
       <span v-if="recommendedAgent?.name" class="node-meta">
         当前：{{ recommendedAgent.name }}
       </span>
-      <span v-else-if="agents.length" class="node-meta">已绑定 {{ agents.length }} 台设备</span>
+      <span v-else-if="agents.length" class="node-meta">
+        已绑定 {{ agents.length }} 台设备{{ agentOnline ? '' : '（当前离线）' }}
+      </span>
       <span v-else class="node-meta">尚未绑定本机助手</span>
     </div>
 

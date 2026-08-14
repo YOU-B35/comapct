@@ -7,6 +7,7 @@ $script:CrosshubLauncherMarkers = @{
     web     = "crosshub-web.ps1"
     worker  = "crosshub-worker.ps1"
     collector = "crosshub-collector.ps1"
+    helper  = "crosshub-helper.ps1"
 }
 
 function Get-CrosshubLauncherPids {

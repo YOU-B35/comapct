@@ -24,6 +24,7 @@ function mapBackendSession(backend) {
     team_leader: Boolean(backend.team_leader),
     team_id: backend.team_id || null,
     team_name: backend.team_name || '',
+    per: backend.per == null || backend.per === '' ? '' : String(backend.per),
     portal_role: backend.portal_role || '',
     landing_path: backend.landing_path || '',
   }
@@ -41,8 +42,8 @@ async function requireBackendLogin(account, password, portalRole) {
 }
 
 /**
- * 统一登录：后端按库内角色自动校准 portal，并返回落地页。
- * preferredPortal 仅前端展示用，不覆盖后端校准结果。
+ * 统一登录：后端按账号 per（0=boss / 1=员工 / 2=仓库）自动校准 portal 与落地页。
+ * preferredPortal 仅前端选项卡提示，不覆盖后端校准结果。
  */
 export async function loginAccount({ account, password, preferredPortal }) {
   const acc = String(account || '').trim()
@@ -50,15 +51,22 @@ export async function loginAccount({ account, password, preferredPortal }) {
   const portalHint = String(preferredPortal || '').trim().toLowerCase()
 
   if (isTemuBackendEnabled()) {
-    // 后端 LoginRequest.portalRole 缺省为 boss；员工/仓库账号必须带上入口选择
+    // portal_role 可选；后端按账号 per 自动校准
     const backend = await requireBackendLogin(acc, pwd, portalHint || undefined)
     const portal = String(backend.portal_role || '').toLowerCase()
     const session = mapBackendSession(backend)
+    const landingFallback =
+      portal === 'boss'
+        ? '/boss/dashboard'
+        : portal === 'warehouse'
+          ? '/warehouse/pending-review'
+          : '/employee/dashboard'
     if (portal === 'boss') {
       return {
         success: true,
         portal: 'boss',
-        landingPath: backend.landing_path || '',
+        per: String(backend.per ?? '0'),
+        landingPath: backend.landing_path || landingFallback,
         data: {
           company: backend.company || backend.nickname || '企业',
           account: backend.account || acc,
@@ -70,7 +78,8 @@ export async function loginAccount({ account, password, preferredPortal }) {
       return {
         success: true,
         portal: 'warehouse',
-        landingPath: backend.landing_path || '',
+        per: String(backend.per ?? '2'),
+        landingPath: backend.landing_path || landingFallback,
         data: {
           id: String(backend.user_id),
           name: backend.nickname || backend.account || acc,
@@ -84,7 +93,8 @@ export async function loginAccount({ account, password, preferredPortal }) {
     return {
       success: true,
       portal: 'employee',
-      landingPath: backend.landing_path || '',
+      per: String(backend.per ?? '1'),
+      landingPath: backend.landing_path || landingFallback,
       data: {
         id: backend.user_id,
         name: backend.nickname || backend.account || acc,

@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from app.browser.context import ensure_seller_login_page, is_temu_seller_url
+from app.browser.context import (
+    ensure_seller_login_page,
+    is_allowed_temu_flow_url,
+    is_temu_seller_url,
+)
 
 
 def test_is_temu_seller_url_accepts_seller_hosts():
@@ -11,6 +15,13 @@ def test_is_temu_seller_url_accepts_seller_hosts():
     assert is_temu_seller_url("https://seller.kuajingmaihuo.com/login")
     assert not is_temu_seller_url("https://www.dianxiaomi.com/")
     assert not is_temu_seller_url("about:blank")
+
+
+def test_is_allowed_temu_flow_url_blocks_dianxiaomi():
+    assert is_allowed_temu_flow_url("https://agentseller.temu.com/")
+    assert is_allowed_temu_flow_url("https://www.temu.com/login")
+    assert is_allowed_temu_flow_url("about:blank")
+    assert not is_allowed_temu_flow_url("https://www.dianxiaomi.com/web/home")
 
 
 def test_ensure_seller_login_page_closes_foreign_tabs_and_navigates():

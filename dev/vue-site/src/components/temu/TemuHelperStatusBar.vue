@@ -73,20 +73,6 @@ const recommendedAgent = computed(() => {
   return agents.find((a) => String(a.id) === id) || agents.find((a) => a.online) || null
 })
 
-const barMode = computed(() => {
-  if (!online.value) {
-    return localBind.value.reachable ? 'rebind' : 'offline'
-  }
-  if (!sessionReady.value) return 'need-login'
-  return 'ready'
-})
-
-const barTone = computed(() => {
-  if (barMode.value === 'offline' || barMode.value === 'rebind') return 'warn'
-  if (barMode.value === 'need-login') return 'info'
-  return 'ok'
-})
-
 const currentTenantId = computed(() => {
   const tid = auth.tenantId ?? auth.tenant_id
   return tid != null && !Number.isNaN(Number(tid)) ? Number(tid) : null
@@ -103,7 +89,23 @@ const localTenantMismatch = computed(() => {
   )
 })
 
+const barMode = computed(() => {
+  if (!online.value) {
+    if (localBind.value.bound && !localTenantMismatch.value) return 'heartbeat-wait'
+    return localBind.value.reachable ? 'rebind' : 'offline'
+  }
+  if (!sessionReady.value) return 'need-login'
+  return 'ready'
+})
+
+const barTone = computed(() => {
+  if (barMode.value === 'offline' || barMode.value === 'rebind') return 'warn'
+  if (barMode.value === 'need-login' || barMode.value === 'heartbeat-wait') return 'info'
+  return 'ok'
+})
+
 const barTitle = computed(() => {
+  if (barMode.value === 'heartbeat-wait') return '本机助手已绑定，等待心跳同步…'
   if (barMode.value === 'rebind') {
     if (localTenantMismatch.value) return '本机助手已运行，但绑定的是其他企业'
     return '本机助手已运行，但当前企业尚未完成绑定/心跳'
@@ -118,6 +120,9 @@ const barTitle = computed(() => {
 })
 
 const barMeta = computed(() => {
+  if (barMode.value === 'heartbeat-wait') {
+    return '绑定码已核销；若超过 1 分钟仍不变，请点「刷新状态」或用 scripts\\start-desktop-helper-local.ps1 重启助手'
+  }
   if (barMode.value === 'rebind') {
     if (localTenantMismatch.value) {
       return `助手当前租户 #${localBind.value.tenant_id}，与登录企业 #${currentTenantId.value} 不一致。请清除绑定后用本企业账号重新填入绑定码（同企业多账号共享，无需每人各绑一次）`
@@ -463,7 +468,7 @@ defineExpose({
     </div>
 
     <div class="bar-actions">
-      <template v-if="barMode === 'rebind'">
+      <template v-if="barMode === 'rebind' || barMode === 'heartbeat-wait'">
         <el-button
           type="primary"
           size="small"
@@ -473,7 +478,13 @@ defineExpose({
         >
           连接助手
         </el-button>
-        <el-button type="primary" size="small" :icon="Link" @click="openBindDialog">
+        <el-button
+          v-if="barMode === 'rebind'"
+          type="primary"
+          size="small"
+          :icon="Link"
+          @click="openBindDialog"
+        >
           生成绑定码
         </el-button>
         <el-button size="small" @click="openHelperPanel">

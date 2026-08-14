@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { normalizeAiImageModel, produceAiImage } from '../api'
+import { humanizeAiImageError, normalizeAiImageModel, produceAiImage } from '../api'
 import { MAX_REFERENCE_IMAGES, sizeFromRatio } from '../constants'
 import {
   deleteAiImageHistoryItem,
@@ -237,7 +237,7 @@ async function submit() {
   } catch (err) {
     if (err?.name === 'AbortError') return
     recordAiImageFailure()
-    ElMessage.error(err?.message || '生图失败')
+    ElMessage.error(humanizeAiImageError(err?.message, '请稍后重试'))
   } finally {
     submitting.value = false
     progress.value = 0

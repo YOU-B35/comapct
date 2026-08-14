@@ -49,9 +49,9 @@ Write-Host "==> pyinstaller onedir" -ForegroundColor Cyan
     --hidden-import agent.handlers `
     --hidden-import agent.temu_tasks `
     --hidden-import agent.java_client `
-    --hidden-import agent.config `
-    --hidden-import agent.health_server `
-    --hidden-import agent.tray_app `
+      --hidden-import agent.helper_java_url `
+      --hidden-import agent.bind `
+      --hidden-import agent.protocol_launch `
     --hidden-import flask `
     --hidden-import pystray `
     --hidden-import PIL `

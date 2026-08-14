@@ -45,6 +45,17 @@ class ManagedBrowserContext:
         self.closed = True
         try:
             self.context.close()
+        except Exception as exc:  # noqa: BLE001
+            text = str(exc).lower()
+            if (
+                "has been closed" in text
+                or "target closed" in text
+                or "cannot switch" in text
+                or "different thread" in text
+            ):
+                print(f"[TemuBrowser] skip context.close: {exc}", flush=True)
+            else:
+                print(f"[TemuBrowser] context.close: {exc}", flush=True)
         finally:
             try:
                 self.playwright.stop()
@@ -241,11 +252,21 @@ def open_temu_context(
     *,
     headless: bool | None = None,
     session_key: str | None = None,
+    skip_profile_pull: bool | None = None,
 ) -> Generator[tuple[Playwright, BrowserContext], None, None]:
     from app.browser.profile_sync import profile_pull_enabled, pull_profile_if_needed
+    from app.browser.temu_cookie_trust import temu_login_cookies_alive
     from app.temu.profile_migration import maybe_migrate_legacy_temu_profile
 
-    if profile_pull_enabled():
+    # Prefer local cookies after a successful login; remote pull can overwrite them
+    # with a stale/empty bundle and force a fresh login page on crawl.
+    if skip_profile_pull is None:
+        try:
+            skip_profile_pull = temu_login_cookies_alive(tenant_id, session_key) is True
+        except Exception:
+            skip_profile_pull = False
+
+    if (not skip_profile_pull) and profile_pull_enabled():
         try:
             from agent.java_client import AgentApiClient
 
@@ -260,6 +281,21 @@ def open_temu_context(
     maybe_migrate_legacy_temu_profile(tenant_id, session_key)
     profile_dir: Path = resolve_profile_dir(tenant_id, session_key)
     profile_dir.mkdir(parents=True, exist_ok=True)
+    from app.browser.profile_startup import sanitize_profile_startup_for_temu
+
+    # Always wipe session restore before crawl/login launch (店小秘 tabs live in Sessions/).
+    sanitize_profile_startup_for_temu(profile_dir, home_url=TEMU_SELLER_HOME)
+    try:
+        from agent.handlers import _temu_panel_logging_in
+
+        if _temu_panel_logging_in(session_key):
+            raise RuntimeError(
+                "Temu 登录窗口仍在使用中。请完成登录后再点击「刷新数据」。"
+            )
+    except RuntimeError:
+        raise
+    except Exception:
+        pass
     effective_headless = is_headless() if headless is None else headless
     launch_kwargs = _launch_kwargs(effective_headless)
     try:
@@ -275,10 +311,16 @@ def open_temu_context(
             tenant_id=tenant_id,
             session_key=session_key,
         )
+        install_temu_only_tab_guard(context)
         try:
             yield p, context
         finally:
-            context.close()
+            try:
+                context.close()
+            except Exception as exc:  # noqa: BLE001
+                text = str(exc).lower()
+                if "has been closed" not in text and "target closed" not in text:
+                    print(f"[TemuBrowser] open_temu_context close: {exc}", flush=True)
 
 
 def launch_managed_temu_context(
@@ -308,6 +350,9 @@ def launch_managed_temu_context(
     maybe_migrate_legacy_temu_profile(tenant_id, session_key)
     profile_dir: Path = resolve_profile_dir(tenant_id, session_key)
     profile_dir.mkdir(parents=True, exist_ok=True)
+    from app.browser.profile_startup import sanitize_profile_startup_for_temu
+
+    sanitize_profile_startup_for_temu(profile_dir, home_url=TEMU_SELLER_HOME)
     effective_headless = is_headless() if headless is None else headless
     launch_kwargs = _launch_kwargs(effective_headless)
     try:
@@ -326,6 +371,7 @@ def launch_managed_temu_context(
             tenant_id=tenant_id,
             session_key=session_key,
         )
+        install_temu_only_tab_guard(context)
     except Exception:
         try:
             playwright.stop()
@@ -378,24 +424,79 @@ _TEMU_SELLER_HOST_MARKERS = (
     "seller.kuajingmaihuo.com",
 )
 
+# Tabs allowed during Temu automation (SSO / seller). Everything else (店小秘等) is closed.
+_TEMU_FLOW_HOST_MARKERS = (
+    "temu.com",
+    "temu.cn",
+    "kuajingmaihuo.com",
+)
+
 
 def is_temu_seller_url(url: str) -> bool:
     normalized = (url or "").lower()
     return any(marker in normalized for marker in _TEMU_SELLER_HOST_MARKERS)
 
 
+def is_allowed_temu_flow_url(url: str) -> bool:
+    """True for blank/chrome internal pages and Temu/跨境卖货 SSO hosts."""
+    normalized = (url or "").lower().strip()
+    if not normalized:
+        return True
+    if normalized.startswith(("about:", "chrome:", "devtools:", "data:", "blob:")):
+        return True
+    return any(marker in normalized for marker in _TEMU_FLOW_HOST_MARKERS)
+
+
 def close_non_temu_seller_pages(context: BrowserContext) -> int:
     """Drop restored unrelated tabs (店小秘 / other sites) from the crawl profile."""
     closed = 0
     for page in list(context.pages):
-        if is_temu_seller_url(page.url):
+        if is_allowed_temu_flow_url(page.url):
             continue
         try:
             page.close()
             closed += 1
+            print(f"[TemuBrowser] closed foreign tab: {page.url}", flush=True)
         except Exception:
             pass
     return closed
+
+
+def install_temu_only_tab_guard(context: BrowserContext) -> None:
+    """Auto-close tabs that navigate off Temu flow (blocks 店小秘 etc.)."""
+
+    def _guard_page(page: Page) -> None:
+        def _on_frame_navigated(frame) -> None:
+            try:
+                if frame != page.main_frame:
+                    return
+            except Exception:
+                return
+            url = ""
+            try:
+                url = page.url or ""
+            except Exception:
+                return
+            if is_allowed_temu_flow_url(url):
+                return
+            try:
+                print(f"[TemuBrowser] blocking foreign navigation: {url}", flush=True)
+                page.close()
+            except Exception:
+                pass
+
+        try:
+            page.on("framenavigated", _on_frame_navigated)
+        except Exception:
+            pass
+
+    try:
+        context.on("page", _guard_page)
+    except Exception:
+        pass
+    for existing in list(context.pages):
+        _guard_page(existing)
+    close_non_temu_seller_pages(context)
 
 
 def ensure_seller_login_page(context: BrowserContext, *, force_navigate: bool = True) -> Page:
@@ -439,14 +540,8 @@ def ensure_seller_login_page(context: BrowserContext, *, force_navigate: bool = 
 
 
 def get_or_open_seller_page(context: BrowserContext) -> Page:
-    close_non_temu_seller_pages(context)
-    for page in context.pages:
-        if is_temu_seller_url(page.url):
-            return page
-    page = context.new_page()
-    page.goto(TEMU_SELLER_HOME, wait_until="domcontentloaded", timeout=60_000)
-    human_pause()
-    return page
+    # Same policy as login: never leave 店小秘 / blank foreign tabs in front.
+    return ensure_seller_login_page(context, force_navigate=True)
 
 
 def requires_auth(url: str) -> bool:
@@ -581,7 +676,14 @@ def wait_for_login_and_mall(
 
         if on_poll is not None:
             try:
-                on_poll(describe_session(page))
+                from app.browser.session_state import session_ready as _session_ready
+
+                status = describe_session(page)
+                on_poll(status)
+                # If poll already sees a ready seller session with mall, stop waiting
+                # even when resolve_mall_id briefly fails (avoids stuck logging_in).
+                if _session_ready(status) and str(status.get("mall_id") or "").strip():
+                    return str(status.get("mall_id")).strip()
             except Exception:
                 pass
 

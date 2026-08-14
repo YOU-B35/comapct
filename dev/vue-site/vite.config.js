@@ -44,6 +44,7 @@ export default defineConfig(({ mode }) => {
           '/api/tasks',
           '/api/ops-feedback',
           '/api/amazon',
+          '/api/douyin',
           '/api/agent',
           '/api/sau',
           '/api/commander',

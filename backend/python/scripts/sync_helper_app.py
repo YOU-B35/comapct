@@ -27,33 +27,33 @@ DEFAULT_JAVA_API_URL = "https://www.yoto.work"
 ZINIAO_EXE = Path(r"C:\Program Files\ziniao\ziniao.exe")
 
 
-def _allow_local_java() -> bool:
-    return os.environ.get("CROSSHUB_ALLOW_LOCAL_JAVA", "").strip().lower() in {"1", "true", "yes"}
+def _allow_local_java(cfg: dict | None = None) -> bool:
+    from agent.helper_java_url import allow_local_java
+
+    return allow_local_java(cfg)
 
 
 def _is_local_java_api(url: str) -> bool:
-    text = (url or "").strip().lower()
-    if not text:
-        return False
-    host_local = ("127.0.0.1" in text) or ("localhost" in text)
-    return host_local and (":18080" in text or text.rstrip("/").endswith("18080"))
+    from agent.helper_java_url import is_local_java_api
+
+    return is_local_java_api(url)
 
 
-def normalize_java_api_url(api: str) -> str:
-    """Sync Helper 默认强制线上后端；本机 Java 需显式 CROSSHUB_ALLOW_LOCAL_JAVA=1。"""
+def normalize_java_api_url(api: str, cfg: dict | None = None) -> str:
+    """Sync Helper 默认强制线上后端；本机 Java 需 CROSSHUB_ALLOW_LOCAL_JAVA=1 或 config.allow_local_java。"""
+    from agent.helper_java_url import normalize_java_api_url as _normalize
+
     cleaned = (api or "").strip().rstrip("/")
-    if not cleaned:
-        return DEFAULT_JAVA_API_URL
-    if _is_local_java_api(cleaned) and not _allow_local_java():
+    result = _normalize(cleaned, cfg)
+    if cleaned and _is_local_java_api(cleaned) and result == DEFAULT_JAVA_API_URL:
         print(
             f"==> [WARN] java_api_url={cleaned} 指向本机 Java；"
             f"Sync Helper 改用 {DEFAULT_JAVA_API_URL}。"
-            f"若确需本机联调，请设 CROSSHUB_ALLOW_LOCAL_JAVA=1。",
+            f"若确需本机联调，请设 CROSSHUB_ALLOW_LOCAL_JAVA=1 或在 config.json 写 "
+            f'"allow_local_java": true。',
             file=sys.stderr,
         )
-        return DEFAULT_JAVA_API_URL
-    return cleaned
-
+    return result
 
 class _TeeStream:
     def __init__(self, original, log_file) -> None:
@@ -101,12 +101,16 @@ def ensure_pythonpath() -> None:
 
 
 def load_config() -> dict:
-    """优先：环境变量 → 同目录 config.json → %LOCALAPPDATA%\\CrossHub\\SyncHelper\\config.json"""
+    """优先：CROSSHUB_HELPER_CONFIG → 同目录 config.json → %LOCALAPPDATA%\\CrossHub\\SyncHelper\\config.json"""
     cfg: dict = {}
-    candidates = [
+    env_cfg = (os.environ.get("CROSSHUB_HELPER_CONFIG") or "").strip()
+    candidates = []
+    if env_cfg:
+        candidates.append(Path(env_cfg))
+    candidates.extend([
         app_dir() / "config.json",
         Path(os.environ.get("LOCALAPPDATA", "")) / "CrossHub" / "SyncHelper" / "config.json",
-    ]
+    ])
     for path in candidates:
         if path.is_file():
             try:
@@ -188,9 +192,12 @@ def load_config() -> dict:
         os.environ["AGENT_TOKEN"] = explicit_token
 
     token = (os.environ.get("AGENT_TOKEN") or cfg.get("agent_token") or cfg.get("token") or "").strip()
-    api = normalize_java_api_url(
-        os.environ.get("JAVA_API_URL") or cfg.get("java_api_url") or cfg.get("api_url") or ""
-    )
+    # allow_local_java + local config.json beats a stale parent JAVA_API_URL=https://www.yoto.work
+    from agent.helper_java_url import resolve_java_api_url, sync_agent_config_module
+
+    api, api_note = resolve_java_api_url(cfg, env_api=explicit_api if explicit_api is not None else None)
+    if api_note:
+        print(f"==> [INFO] {api_note}")
 
     # Propagate bound user/account for profile isolation (even when token comes from env).
     try:
@@ -203,6 +210,8 @@ def load_config() -> dict:
         apply_bound_env(merged)
     except Exception as exc:
         print(f"==> [WARN] apply_bound_env: {exc}", file=sys.stderr)
+
+    sync_agent_config_module(api=api, token=token)
 
     # Nest profile roots under user-{id} / account-* when bound.
     if project_root:

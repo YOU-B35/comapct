@@ -5,6 +5,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "_launcher-utils.ps1")
 
 Write-Host "==> compile Java API" -ForegroundColor Cyan
+. (Join-Path $PSScriptRoot "env-java.ps1")
 Set-Location (Join-Path $Root "backend\java")
 mvn -q compile -DskipTests
 

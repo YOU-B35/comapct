@@ -477,6 +477,10 @@ public class TemuAgentService {
             job.setErrorCode(defaultText(errorCode, AppErrorCode.CRAWL_PROCESS_FAILED.getCode()));
             job.setErrorMessage(defaultText(errorMessage, AppErrorCode.CRAWL_PROCESS_FAILED.getUserMessage()));
             jobRepository.save(job);
+            // 爬取发现登录失效时，立刻清掉「已登录」快照，避免网站仍显示可同步
+            if (isSessionAuthFailure(job.getErrorCode(), job.getErrorMessage())) {
+                markSessionAuthExpired(job.getTenantId(), job.getErrorMessage());
+            }
             return;
         }
 
@@ -861,6 +865,75 @@ public class TemuAgentService {
                 ? "请联系运维启动 CrossHub-Sync-Helper.exe"
                 : "未检测到会话");
         return payload;
+    }
+
+    /** Crawl/API 判定登录失效：清快照，让网站立刻显示「Temu 未登录」。 */
+    void markSessionAuthExpired(Long tenantId, String detail) {
+        if (tenantId == null) {
+            return;
+        }
+        Map<String, Object> baseline = loadStoredSessionBaseline(tenantId);
+        List<Map<String, Object>> sessions = extractSessionRows(baseline);
+        if (sessions.isEmpty()) {
+            Map<String, Object> payload = defaultSessionPayload(tenantId);
+            payload.put("error_hint", AppErrorCode.CRAWL_NOT_LOGGED_IN.getCode());
+            payload.put("message", AppErrorCode.CRAWL_NOT_LOGGED_IN.getUserMessage());
+            if (detail != null && !detail.isBlank()) {
+                payload.put("message", detail.trim());
+            }
+            saveSessionSnapshot(tenantId, payload);
+            return;
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> item : sessions) {
+            Map<String, Object> row = new LinkedHashMap<>(item);
+            row.put("ready", false);
+            row.put("logged_in", false);
+            row.put("requires_auth", true);
+            row.put("profile_busy", false);
+            row.put("error_hint", AppErrorCode.CRAWL_NOT_LOGGED_IN.getCode());
+            row.put("message", detail != null && !detail.isBlank()
+                    ? detail.trim()
+                    : AppErrorCode.CRAWL_NOT_LOGGED_IN.getUserMessage());
+            rows.add(row);
+        }
+        Map<String, Object> payload = aggregateSessions(tenantId, rows);
+        payload.put("error_hint", AppErrorCode.CRAWL_NOT_LOGGED_IN.getCode());
+        payload.put("message", detail != null && !detail.isBlank()
+                ? detail.trim()
+                : AppErrorCode.CRAWL_NOT_LOGGED_IN.getUserMessage());
+        saveSessionSnapshot(tenantId, payload);
+        log.info("Temu session snapshot marked auth-expired for tenant {}", tenantId);
+    }
+
+    private static boolean isSessionAuthFailure(String errorCode, String errorMessage) {
+        String msg = errorMessage == null ? "" : errorMessage;
+        String lower = msg.toLowerCase();
+        // Profile lock / Playwright thread fights must NOT wipe a fresh ready snapshot.
+        if (msg.contains("已打开窗口")
+                || msg.contains("登录窗口仍在使用")
+                || msg.contains("Cannot switch to a different thread")
+                || msg.contains("Target page, context or browser has been closed")
+                || msg.contains("browser has been closed")
+                || msg.contains("Permission denied")
+                || msg.contains("SingletonLock")
+                || (msg.contains("profile") && (msg.contains("busy") || msg.contains("locked")))) {
+            return false;
+        }
+        // Only clear snapshot on real auth expiry from Temu API / clean login probes.
+        if (msg.contains("Invalid Login State")
+                || msg.contains("登录已过期")
+                || lower.contains("invalid login")) {
+            return true;
+        }
+        String code = errorCode == null ? "" : errorCode.trim().toUpperCase();
+        if ("TEMU_LOGIN_REQUIRED".equalsIgnoreCase(code)
+                || "AUTH_NOT_LOGGED_IN".equalsIgnoreCase(code)) {
+            return true;
+        }
+        // CRAWL_NOT_LOGGED_IN alone is too broad (mapped from many wait/busy failures).
+        return AppErrorCode.CRAWL_NOT_LOGGED_IN.getCode().equalsIgnoreCase(code)
+                && (msg.contains("卖家后台未登录") || msg.contains("请先在本机完成登录"));
     }
 
     private String defaultText(String value, String fallback) {

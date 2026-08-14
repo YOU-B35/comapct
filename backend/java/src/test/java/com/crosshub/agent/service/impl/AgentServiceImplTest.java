@@ -62,7 +62,8 @@ class AgentServiceImplTest {
                 new AgentProperties(),
                 amazonSyncBridge,
                 amazonWriteBridge,
-                temuBridge
+                temuBridge,
+                null
         );
 
         Map<String, Object> result = service.completeTask(

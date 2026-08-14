@@ -1,5 +1,6 @@
 package com.crosshub.auth.entity;
 
+import com.crosshub.auth.PortalPer;
 import jakarta.persistence.*;
 
 @Entity
@@ -61,6 +62,12 @@ public class AppUser {
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
     public boolean isAdmin() { return "admin".equalsIgnoreCase(role); }
     public boolean isWarehouse() { return "warehouse".equalsIgnoreCase(role); }
+
+    /** 端口权限码：0=boss，1=员工，2=仓库（由 role 推导，与登录页选项卡对齐）。 */
+    public String getPer() {
+        return PortalPer.fromRole(role);
+    }
+
     public boolean isActive() {
         return status == null || status.isBlank() || "active".equalsIgnoreCase(status);
     }

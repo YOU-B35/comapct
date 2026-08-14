@@ -71,6 +71,8 @@ function shouldSkipPythonDeploy(name, rel) {
     name === '.temu-browser-profile' ||
     name === '.aliexpress-browser-profile' ||
     name === '.amazon-browser-profile' ||
+    name === '.douyin-browser-profile' ||
+    name === '.sync-helper-local' ||
     name === 'helper_app' ||
     name === 'exports' ||
     name === '.pytest_cache' ||
@@ -85,6 +87,8 @@ function shouldSkipPythonDeploy(name, rel) {
   if (parts.includes('.temu-browser-profile')) return true;
   if (parts.includes('.aliexpress-browser-profile')) return true;
   if (parts.includes('.amazon-browser-profile')) return true;
+  if (parts.includes('.douyin-browser-profile')) return true;
+  if (parts.includes('.sync-helper-local')) return true;
   if (parts.includes('helper_app')) return true;
   if (parts.includes('exports')) return true;
   if (parts.includes('reports')) return true;

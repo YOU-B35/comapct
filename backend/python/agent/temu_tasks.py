@@ -261,7 +261,21 @@ def wait_login_session_ready(
         poll_interval_seconds=max(1, int(poll_seconds)),
         on_poll=_on_poll,
     )
-    status = describe_session(page)
+    try:
+        status = describe_session(page)
+    except Exception as exc:  # noqa: BLE001
+        # Another task may have reclaimed the profile while we were finishing.
+        print(f"[TemuLogin] describe after ready failed (using last status): {exc}", flush=True)
+        status = {
+            "url": "",
+            "title": "",
+            "requires_auth": False,
+            "logged_in": True,
+            "mall_id": "",
+            "mall_count": 1,
+            "malls": [],
+            "ready_hint": True,
+        }
     payload = build_session_payload(tenant_id, status, profile_busy=False)
     payload["session_key"] = key
     write_session_cache(tenant_id, payload, session_key=key)
@@ -270,21 +284,105 @@ def wait_login_session_ready(
             client.report_temu_session(payload)
         except Exception as exc:  # noqa: BLE001
             print(f"[TemuLogin] final report session failed: {exc}", flush=True)
-    # Release the profile so「刷新数据」can launch a crawl browser without SingletonLock clash.
-    try:
-        close_temu_runtime(tenant_id, session_key=key)
-    except Exception as exc:  # noqa: BLE001
-        print(f"[TemuLogin] close login runtime: {exc}", flush=True)
-    try:
-        from app.browser.profile_lock import clear_profile_lock
 
-        clear_profile_lock(tenant_id, session_key=key)
-    except Exception:
-        pass
+    # Close under the same browser lock as crawl so refresh cannot kill Chrome mid-flush.
     try:
-        close_tenant_profile_browsers(tenant_id, session_key=key)
+        from agent.handlers import _TEMU_BROWSER_LOCK
+
+        browser_lock = _TEMU_BROWSER_LOCK
     except Exception:
-        pass
+        browser_lock = None
+
+    def _flush_and_close() -> None:
+        import time as _time
+
+        from app.browser import runtime as browser_runtime
+        from app.browser.temu_cookie_trust import temu_login_cookies_alive
+
+        # 1) Graceful Playwright close on THIS thread so Cookies flush to disk.
+        #    Never force-kill first — that is what caused「第一次刷新又要登录」.
+        try:
+            page.context.close()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[TemuLogin] page.context.close: {exc}", flush=True)
+        try:
+            owned = browser_runtime.discard_browser_runtime(
+                tenant_id=tenant_id, session_key=key
+            )
+            if owned is not None and owned.context is not None:
+                # ManagedBrowserContext.close also stops Playwright driver.
+                try:
+                    owned.context.close()
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[TemuLogin] owned runtime close: {exc}", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[TemuLogin] discard runtime: {exc}", flush=True)
+        try:
+            from app.browser.profile_lock import clear_profile_lock
+
+            clear_profile_lock(tenant_id, session_key=key)
+        except Exception:
+            pass
+        # 2) Soft reclaim leftover OS Chrome only after graceful close.
+        try:
+            close_tenant_profile_browsers(tenant_id, session_key=key)
+        except Exception:
+            pass
+        # 3) Wait until cookie DB reflects the login before releasing panel busy.
+        cookies_ok = False
+        for _ in range(12):
+            try:
+                if temu_login_cookies_alive(tenant_id, key) is True:
+                    cookies_ok = True
+                    break
+            except Exception:
+                pass
+            _time.sleep(0.5)
+        if not cookies_ok:
+            print(
+                f"[TemuLogin] WARNING cookies not confirmed after close "
+                f"tenant={tenant_id} key={key}",
+                flush=True,
+            )
+        else:
+            print(
+                f"[TemuLogin] cookies confirmed on disk tenant={tenant_id} key={key}",
+                flush=True,
+            )
+        try:
+            from agent.tray_app import _state
+
+            with _state.lock:
+                _state.logging_in.discard(key)
+        except Exception:
+            pass
+
+    if browser_lock is not None:
+        with browser_lock:
+            _flush_and_close()
+    else:
+        _flush_and_close()
+    # Push outside the browser lock — packing/HTTP must not block crawl.
+    try:
+        from app.browser.profile_sync import push_profile_sync
+        from agent.java_client import AgentApiClient
+
+        push_client = client if client is not None else AgentApiClient()
+        push_profile_sync(
+            push_client,
+            platform="temu",
+            tenant_id=tenant_id,
+            session_key=key,
+            platform_account_id=str(payload.get("platform_account_id") or ""),
+            account=str(payload.get("account") or key),
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[TemuLogin] profile push after login: {exc}", flush=True)
+    print(
+        f"[TemuLogin] session ready — cookies flushed to profile "
+        f"tenant={tenant_id} key={key}",
+        flush=True,
+    )
     return payload
 
 

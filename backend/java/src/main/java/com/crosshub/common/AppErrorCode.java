@@ -106,7 +106,23 @@ public enum AppErrorCode {
     COMPETITOR_CRAWL_TIMEOUT("COMPETITOR_CRAWL_TIMEOUT", "竞店爬取超时"),
     COMPETITOR_BROWSER_PROFILE_UNAVAILABLE("COMPETITOR_BROWSER_PROFILE_UNAVAILABLE", "Temu 前台浏览器配置无法打开"),
     COMPETITOR_CRAWL_FAILED("COMPETITOR_CRAWL_FAILED", "竞店爬取失败"),
-    COMPETITOR_NAVIGATION_TIMEOUT("COMPETITOR_NAVIGATION_TIMEOUT", "打开 Temu 前台搜索页超时");
+    COMPETITOR_NAVIGATION_TIMEOUT("COMPETITOR_NAVIGATION_TIMEOUT", "打开 Temu 前台搜索页超时"),
+
+    DY_AGENT_OFFLINE("DY_AGENT_OFFLINE", "本机同步助手未在线，请先启动 CrossHub-Sync-Helper"),
+    DY_NOT_LOGGED_IN("DY_NOT_LOGGED_IN", "抖音商家后台未登录，请打开登录窗口完成登录"),
+    DY_SHOP_MAPPING_REQUIRED("DY_SHOP_MAPPING_REQUIRED", "请先在账户绑定中填写抖音店铺外部 ID"),
+    DY_SYNC_IN_PROGRESS("DY_SYNC_IN_PROGRESS", "已有抖音同步任务进行中"),
+    DY_SYNC_TIMEOUT("DY_SYNC_TIMEOUT", "抖音同步超时，请重试"),
+    DY_SYNC_FAILED("DY_SYNC_FAILED", "抖音同步失败"),
+    DY_ORDERS_SOURCE_UNAVAILABLE("DY_ORDERS_SOURCE_UNAVAILABLE", "无法获取订单列表，请检查后台改版或登录态"),
+    DY_PRODUCTS_SOURCE_UNAVAILABLE("DY_PRODUCTS_SOURCE_UNAVAILABLE", "无法获取商品列表，请确认已登录并打开商品管理后重试"),
+    DY_COMPASS_SOURCE_UNAVAILABLE("DY_COMPASS_SOURCE_UNAVAILABLE", "无法获取抖店罗盘数据，请确认已登录罗盘后重试"),
+    DY_COMPASS_RANK_SOURCE_UNAVAILABLE(
+            "DY_COMPASS_RANK_SOURCE_UNAVAILABLE",
+            "无法获取罗盘商品榜数据，请确认已登录罗盘后重试"
+    ),
+    DY_OPPORTUNITY_SOURCE_UNAVAILABLE("DY_OPPORTUNITY_SOURCE_UNAVAILABLE", "无法获取商机中心数据，请确认已登录并打开商机中心后重试"),
+    DY_ISSUES_SOURCE_UNCONFIGURED("DY_ISSUES_SOURCE_UNCONFIGURED", "内容预警数据源尚未配置（订单可照常同步）");
 
     private static final Map<String, AppErrorCode> BY_CODE = new HashMap<>();
     private static final Map<String, AppErrorCode> BY_REASON = new HashMap<>();
@@ -271,7 +287,7 @@ public enum AppErrorCode {
                 || text.contains("browser has been closed")
                 || text.contains("Browser closed")
                 || text.contains("登录窗口仍在使用")) {
-            return CRAWL_NOT_LOGGED_IN;
+            return CRAWL_PROCESS_FAILED;
         }
         if (MALL_PATTERN.matcher(text).find()) {
             return CRAWL_MALL_NOT_SELECTED;

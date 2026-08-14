@@ -12,6 +12,8 @@ const props = defineProps({
   assigneeMap: { type: Object, default: () => ({}) },
   showStoreList: { type: Boolean, default: true },
   issuesLabel: { type: String, default: '运营预警' },
+  /** 嵌入驾驶舱时隐藏图表，只保留指标/预警/分店表 */
+  compact: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['navigate'])
@@ -88,7 +90,7 @@ const chartCompare = computed(() =>
 </script>
 
 <template>
-  <div class="domestic-overview">
+  <div class="domestic-overview" :class="{ 'domestic-overview--compact': compact }">
     <div class="metrics-bar metrics-bar--4">
       <div v-for="item in keyMetrics" :key="item.label" class="metric-item">
         <div class="metric-value" :class="item.type ? `is-${item.type}` : ''">
@@ -111,9 +113,13 @@ const chartCompare = computed(() =>
         <span v-if="item.count" class="alert-count">{{ item.count }}</span>
         <span>{{ item.label }}</span>
       </button>
+      <el-text v-if="!alertItems.some((i) => i.count > 0)" size="small" type="success">
+        暂无待办预警
+      </el-text>
     </div>
 
     <PlatformAnalyticsCharts
+      v-if="!compact"
       title="数据分析"
       :metric-items="chartMetrics"
       :compare-items="chartCompare"
@@ -178,5 +184,13 @@ const chartCompare = computed(() =>
 .domestic-overview {
   display: grid;
   gap: 16px;
+}
+
+.domestic-overview--compact {
+  gap: 12px;
+}
+
+.domestic-overview--compact .store-table {
+  margin-top: 0;
 }
 </style>

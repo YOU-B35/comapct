@@ -87,9 +87,9 @@ export function useDomesticModule(config) {
     loadingOrders.value = true
     try {
       const res = await config.fetchOrders(stores.value, { refresh })
-      todayOrders.value = enrichOrdersWithWarehouseFeedback(res.data.orders)
+      todayOrders.value = await enrichOrdersWithWarehouseFeedback(res.data.orders || [], auth)
       ordersSyncedAt.value = res.data.syncedAt
-      if (refresh) ElMessage.success(res.message || '已刷新今日订单')
+      if (refresh) ElMessage.success(res.message || '已刷新订单')
     } catch (err) {
       ElMessage.error(err.message || '订单抓取失败')
     } finally {
@@ -108,7 +108,7 @@ export function useDomesticModule(config) {
     try {
       const res = refresh
         ? await config.crawlIssues(stores.value, { refresh: true })
-        : config.loadIssues(stores.value)
+        : await config.loadIssues(stores.value)
       issues.value = res.data.issues
       issuesSyncedAt.value = res.data.syncedAt
       if (refresh) ElMessage.success(res.message || '已刷新运营预警')
@@ -121,7 +121,7 @@ export function useDomesticModule(config) {
 
   async function handleResolveIssue(payload) {
     try {
-      const res = config.resolveIssue(payload.id)
+      const res = await config.resolveIssue(payload.id, payload)
       const index = issues.value.findIndex((item) => item.id === payload.id)
       if (index !== -1) issues.value[index] = res.data
       ElMessage.success('已标记为已解决')

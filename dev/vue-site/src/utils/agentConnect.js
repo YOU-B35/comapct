@@ -1,4 +1,4 @@
-import { probeLocalAgent, getHelperPanelUrl } from './agentProbe.js'
+import { probeLocalAgent, getHelperPanelUrl, alignLocalDevHelperJava } from './agentProbe.js'
 
 export const HELPER_PROTOCOL_START = 'crosshub-sync-helper://start'
 
@@ -37,8 +37,14 @@ export async function connectLocalHelper(options = {}) {
   const trigger = options.trigger || triggerHelperProtocol
   const openPanel = options.openPanel || ((url) => window.open(url, '_blank', 'noopener'))
   const sleep = options.sleep || defaultSleep
+  const alignLocal = options.alignLocal || (() => alignLocalDevHelperJava())
 
   if (await probe()) {
+    try {
+      await alignLocal()
+    } catch {
+      /* ignore */
+    }
     try {
       openPanel(getHelperPanelUrl())
     } catch {
@@ -53,6 +59,11 @@ export async function connectLocalHelper(options = {}) {
   while (Date.now() < deadline) {
     await sleep(pollMs)
     if (await probe()) {
+      try {
+        await alignLocal()
+      } catch {
+        /* ignore */
+      }
       try {
         openPanel(getHelperPanelUrl())
       } catch {

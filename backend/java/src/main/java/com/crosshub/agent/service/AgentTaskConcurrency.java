@@ -1,6 +1,7 @@
 package com.crosshub.agent.service;
 
 import com.crosshub.amazon.service.AmazonWriteService;
+import com.crosshub.douyin.service.DouyinAgentTasks;
 import com.crosshub.temu.service.TemuAgentTasks;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +32,7 @@ public final class AgentTaskConcurrency {
         TEMU,
         ALIEXPRESS,
         AMAZON,
+        DOUYIN,
         OTHER
     }
 
@@ -38,6 +40,7 @@ public final class AgentTaskConcurrency {
             int maxTemu,
             int maxAliExpress,
             int maxAmazon,
+            int maxDouyin,
             int maxGlobal,
             int maxClaimBatch,
             int temuParallelSessions
@@ -47,6 +50,7 @@ public final class AgentTaskConcurrency {
                     DEFAULT_MAX_TEMU,
                     DEFAULT_MAX_ALIEXPRESS,
                     DEFAULT_MAX_AMAZON,
+                    1,
                     DEFAULT_MAX_GLOBAL,
                     DEFAULT_MAX_CLAIM_BATCH,
                     DEFAULT_TEMU_PARALLEL_SESSIONS
@@ -75,6 +79,7 @@ public final class AgentTaskConcurrency {
         private int temu;
         private int aliexpress;
         private int amazon;
+        private int douyin;
         private int global;
 
         public State(Limits limits) {
@@ -97,6 +102,7 @@ public final class AgentTaskConcurrency {
                 case TEMU -> temu + req.browserSlots() <= limits.maxTemu();
                 case ALIEXPRESS -> aliexpress + req.browserSlots() <= limits.maxAliExpress();
                 case AMAZON -> amazon + req.browserSlots() <= limits.maxAmazon();
+                case DOUYIN -> douyin + req.browserSlots() <= limits.maxDouyin();
                 case OTHER -> true;
             };
         }
@@ -111,6 +117,7 @@ public final class AgentTaskConcurrency {
                 case TEMU -> temu += req.browserSlots();
                 case ALIEXPRESS -> aliexpress += req.browserSlots();
                 case AMAZON -> amazon += req.browserSlots();
+                case DOUYIN -> douyin += req.browserSlots();
                 case OTHER -> {
                 }
             }
@@ -133,6 +140,9 @@ public final class AgentTaskConcurrency {
 
         if (TemuAgentTasks.BROWSER_BUSY_TYPES.contains(type)) {
             return temuRequirement(type, body, tid, lim);
+        }
+        if (DouyinAgentTasks.BROWSER_BUSY_TYPES.contains(type)) {
+            return douyinRequirement(body, tid);
         }
         if (AgentService.TASK_TYPE.equals(type) || AmazonWriteService.WRITE_TASK_TYPE.equals(type)) {
             return amazonRequirement(body, tid);
@@ -201,6 +211,17 @@ public final class AgentTaskConcurrency {
         );
         String key = "aliexpress:" + tenantId + ":" + normalizeKey(session);
         return new Requirement(Family.ALIEXPRESS, Set.of(key), 1);
+    }
+
+    private static Requirement douyinRequirement(Map<String, Object> body, long tenantId) {
+        String session = firstNonBlank(
+                stringValue(body.get("session_key")),
+                stringValue(body.get("store_id")),
+                stringValue(body.get("platform_account_id")),
+                "default"
+        );
+        String key = "douyin:" + tenantId + ":" + normalizeKey(session);
+        return new Requirement(Family.DOUYIN, Set.of(key), 1);
     }
 
     @SuppressWarnings("unchecked")

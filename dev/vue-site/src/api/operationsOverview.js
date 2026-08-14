@@ -217,9 +217,12 @@ export async function loadOperationsOverview(auth = null) {
   const douyinOrders = demoMode && douyinStores.length
     ? filterByStoreIds(loadCachedDouyinOrders(douyinStores).data.orders, douyinStoreIds)
     : []
+  const douyinIssuesRes = demoMode && douyinStores.length
+    ? await Promise.resolve(loadDouyinIssues(douyinStores))
+    : { data: { issues: [] } }
   const douyinIssues = demoMode && douyinStores.length
     ? filterByStoreIds(
-        loadDouyinIssues(douyinStores).data.issues.map((issue) => enrichDomesticIssue(issue, DOUYIN_ISSUE_TYPES)),
+        (douyinIssuesRes?.data?.issues || []).map((issue) => enrichDomesticIssue(issue, DOUYIN_ISSUE_TYPES)),
         douyinStoreIds,
       )
     : []

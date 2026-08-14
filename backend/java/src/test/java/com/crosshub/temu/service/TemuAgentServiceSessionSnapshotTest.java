@@ -108,4 +108,56 @@ class TemuAgentServiceSessionSnapshotTest {
         assertEquals("13861260796", String.valueOf(sessions.get(0).get("session_key")));
         assertTrue(Boolean.TRUE.equals(snapshot.get("ready")));
     }
+
+    @Test
+    void markSessionAuthExpired_clearsReadySnapshot() {
+        jdbc.update(
+                "INSERT INTO temu_session_snapshot(tenant_id, payload_json, updated_at) VALUES (?,?,?)",
+                5L,
+                """
+                {"tenant_id":5,"sessions":[{"session_key":"18061740604","ready":true,"logged_in":true,"requires_auth":false,"mall_id":"1","mall_count":1,"malls":[]}],"ready":true,"logged_in":true,"requires_auth":false}
+                """,
+                "2026-08-13 11:17:40"
+        );
+
+        service.markSessionAuthExpired(5L, "18061740604: Temu API HTTP 403: Invalid Login State");
+
+        Map<String, Object> snapshot = service.readSessionSnapshot(5L);
+        assertFalse(Boolean.TRUE.equals(snapshot.get("ready")));
+        assertFalse(Boolean.TRUE.equals(snapshot.get("logged_in")));
+        assertTrue(Boolean.TRUE.equals(snapshot.get("requires_auth")));
+        assertEquals("CRAWL_NOT_LOGGED_IN", String.valueOf(snapshot.get("error_hint")));
+        assertTrue(String.valueOf(snapshot.get("message")).contains("Invalid Login State"));
+    }
+
+    @Test
+    void isSessionAuthFailure_ignoresProfileBusyButClearsOnInvalidLogin() throws Exception {
+        var method = TemuAgentService.class.getDeclaredMethod(
+                "isSessionAuthFailure",
+                String.class,
+                String.class
+        );
+        method.setAccessible(true);
+
+        assertFalse((Boolean) method.invoke(
+                null,
+                "TEMU_PROFILE_BUSY",
+                "Temu 登录窗口仍在使用中，请完成登录后再刷新数据"
+        ));
+        assertFalse((Boolean) method.invoke(
+                null,
+                "CRAWL_NOT_LOGGED_IN",
+                "Cannot switch to a different thread"
+        ));
+        assertTrue((Boolean) method.invoke(
+                null,
+                "CRAWL_NOT_LOGGED_IN",
+                "18061740604: Temu API HTTP 403: Invalid Login State"
+        ));
+        assertTrue((Boolean) method.invoke(
+                null,
+                "CRAWL_NOT_LOGGED_IN",
+                "Temu 卖家后台未登录，请先在本机完成登录"
+        ));
+    }
 }

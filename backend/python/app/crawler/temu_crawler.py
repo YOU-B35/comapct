@@ -44,6 +44,20 @@ def ensure_profile_available(
 ) -> None:
     from app.browser.context import close_temu_runtime
 
+    # Never reclaim the profile while the panel login thread still owns Chrome —
+    # force-kill there drops cookies before context.close() can flush them.
+    try:
+        from agent.handlers import _temu_panel_logging_in
+
+        if _temu_panel_logging_in(session_key):
+            raise RuntimeError(
+                "Temu 登录窗口仍在使用中。请完成登录后再点击「刷新数据」。"
+            )
+    except RuntimeError:
+        raise
+    except Exception:
+        pass
+
     # Always drop in-process login/crawl runtimes first (lock file may be absent).
     try:
         close_temu_runtime(tenant_id, session_key=session_key)
@@ -96,6 +110,10 @@ def _resolve_malls(page, fallback_mall_id: str) -> list[dict]:
     raise RuntimeError("未获取到可同步的 Temu 店铺列表，请重新登录并选择店铺。")
 
 
+class _CookieAuthRetry(Exception):
+    """Internal: relaunch persistent profile once when cookies exist but page still needs auth."""
+
+
 def crawl_temu_sales_live(
     report_day: str | None = None,
     *,
@@ -106,99 +124,171 @@ def crawl_temu_sales_live(
     key = normalize_session_key(session_key)
     report_time = report_day or date.today().isoformat()
     cached = read_ready_session_cache(tenant_id, session_key=key)
+    try:
+        from app.browser.temu_cookie_trust import temu_login_cookies_alive
 
-    ensure_profile_available(tenant_id, session_key=key)
-    close_tenant_profile_browsers(tenant_id, session_key=key)
+        cookies_alive = temu_login_cookies_alive(tenant_id, key) is True
+    except Exception:
+        cookies_alive = False
 
-    with open_temu_context(tenant_id, headless=is_headless(), session_key=key) as (_, context):
-        page = get_or_open_seller_page(context)
+    # Never reuse a Playwright context across threads (panel login vs agent crawl).
+    # Always relaunch the same persistent profile after login has flushed cookies.
+    last_closed_error: Exception | None = None
+    for attempt in range(2):
+        ensure_profile_available(tenant_id, session_key=key)
+        close_tenant_profile_browsers(tenant_id, session_key=key)
         try:
-            if cached and session_ready(cached):
-                mall_id = ensure_logged_in(page)
-            else:
-                mall_id = wait_for_login_and_mall(
-                    page,
-                    tenant_id=tenant_id,
-                    timeout_seconds=90,
-                    on_poll=lambda status: write_session_cache(
-                        tenant_id,
-                        cache_payload_from_status(tenant_id, status),
-                        session_key=key,
-                    ),
-                )
-        except RuntimeError:
-            clear_session_cache(tenant_id, session_key=key)
-            raise
-
-        client = TemuApiClient(page)
-        client.ensure_sales_context()
-        malls = filter_malls_by_shop_ids(_resolve_malls(page, mall_id), shop_ids)
-        if not malls:
-            raise RuntimeError(
-                "当前账号下没有权限范围内的 Temu 店铺可同步，请确认店铺授权后重试。"
-            )
-        all_rows: list[dict] = []
-        shops: list[dict] = []
-        seen_shop_ids: set[str] = set()
-
-        for mall in malls:
-            current_mall_id = str(mall.get("mallId") or "").strip()
-            if not current_mall_id:
-                continue
-            client.switch_mall(current_mall_id)
-            shop_name, shop_id = client.get_shop_info()
-            if not shop_name:
-                shop_name = str(mall.get("mallName") or shop_id)
-            batches = client.fetch_all_sales()
-            all_rows.extend(
-                map_sales_batches(
-                    batches,
-                    shop_id=shop_id,
-                    shop_name=shop_name,
-                    report_time=report_time,
-                    tenant_id=tenant_id,
-                )
-            )
-            if shop_id not in seen_shop_ids:
-                seen_shop_ids.add(shop_id)
-                shops.append(
-                    {
-                        "shop_id": shop_id,
-                        "shop_name": shop_name,
-                        "is_upload": True,
-                        "tenant_id": tenant_id,
-                    }
-                )
-
-        if not shops:
-            raise RuntimeError("未同步到任何 Temu 店铺数据，请确认卖家后台已登录并选择店铺。")
-
-        set_mall_id(page, str(shops[0]["shop_id"]))
-        session = describe_session(page)
-        write_session_cache(
-            tenant_id,
-            cache_payload_from_status(
+            with open_temu_context(
                 tenant_id,
-                {
-                    **session,
-                    "logged_in": True,
-                    "mall_id": shops[0]["shop_id"],
-                    "mall_count": len(shops),
-                    "malls": [
-                        {"mallId": s["shop_id"], "mallName": s["shop_name"]}
-                        for s in shops
-                    ],
-                    "requires_auth": False,
-                },
-            ),
-            session_key=key,
-        )
-        return {
-            "report_time": report_time,
-            "shops": shops,
-            "rows": all_rows,
-            "session_key": key,
-        }
+                headless=is_headless(),
+                session_key=key,
+                skip_profile_pull=True,
+            ) as (_, context):
+                page = get_or_open_seller_page(context)
+                try:
+                    # Prefer profile cookies when present — do not force the manual
+                    # login wait just because the Java/local ready cache was cleared.
+                    if (cached and session_ready(cached)) or cookies_alive:
+                        try:
+                            mall_id = ensure_logged_in(page)
+                        except RuntimeError:
+                            if not cookies_alive:
+                                clear_session_cache(tenant_id, session_key=key)
+                                raise
+                            if attempt == 0:
+                                # First open after login flush can race; relaunch once
+                                # before forcing the user through another login wait.
+                                print(
+                                    f"[TemuCrawl] cookies present but page needs auth; "
+                                    f"relaunch once tenant={tenant_id} key={key}",
+                                    flush=True,
+                                )
+                                raise _CookieAuthRetry()
+                            print(
+                                f"[TemuCrawl] cookies present but page needs auth; "
+                                f"waiting for login tenant={tenant_id} key={key}",
+                                flush=True,
+                            )
+                            mall_id = wait_for_login_and_mall(
+                                page,
+                                tenant_id=tenant_id,
+                                timeout_seconds=90,
+                                on_poll=lambda status: write_session_cache(
+                                    tenant_id,
+                                    cache_payload_from_status(tenant_id, status),
+                                    session_key=key,
+                                ),
+                            )
+                    else:
+                        mall_id = wait_for_login_and_mall(
+                            page,
+                            tenant_id=tenant_id,
+                            timeout_seconds=90,
+                            on_poll=lambda status: write_session_cache(
+                                tenant_id,
+                                cache_payload_from_status(tenant_id, status),
+                                session_key=key,
+                            ),
+                        )
+                except _CookieAuthRetry:
+                    raise
+                except RuntimeError:
+                    clear_session_cache(tenant_id, session_key=key)
+                    raise
+
+                client = TemuApiClient(page)
+                client.ensure_sales_context()
+                malls = filter_malls_by_shop_ids(_resolve_malls(page, mall_id), shop_ids)
+                if not malls:
+                    raise RuntimeError(
+                        "当前账号下没有权限范围内的 Temu 店铺可同步，请确认店铺授权后重试。"
+                    )
+                all_rows: list[dict] = []
+                shops: list[dict] = []
+                seen_shop_ids: set[str] = set()
+
+                for mall in malls:
+                    current_mall_id = str(mall.get("mallId") or "").strip()
+                    if not current_mall_id:
+                        continue
+                    client.switch_mall(current_mall_id)
+                    shop_name, shop_id = client.get_shop_info()
+                    if not shop_name:
+                        shop_name = str(mall.get("mallName") or shop_id)
+                    batches = client.fetch_all_sales()
+                    all_rows.extend(
+                        map_sales_batches(
+                            batches,
+                            shop_id=shop_id,
+                            shop_name=shop_name,
+                            report_time=report_time,
+                            tenant_id=tenant_id,
+                        )
+                    )
+                    if shop_id not in seen_shop_ids:
+                        seen_shop_ids.add(shop_id)
+                        shops.append(
+                            {
+                                "shop_id": shop_id,
+                                "shop_name": shop_name,
+                                "is_upload": True,
+                                "tenant_id": tenant_id,
+                            }
+                        )
+
+                if not shops:
+                    raise RuntimeError("未同步到任何 Temu 店铺数据，请确认卖家后台已登录并选择店铺。")
+
+                set_mall_id(page, str(shops[0]["shop_id"]))
+                session = describe_session(page)
+                write_session_cache(
+                    tenant_id,
+                    cache_payload_from_status(
+                        tenant_id,
+                        {
+                            **session,
+                            "logged_in": True,
+                            "mall_id": shops[0]["shop_id"],
+                            "mall_count": len(shops),
+                            "malls": [
+                                {"mallId": s["shop_id"], "mallName": s["shop_name"]}
+                                for s in shops
+                            ],
+                            "requires_auth": False,
+                        },
+                    ),
+                    session_key=key,
+                )
+                return {
+                    "report_time": report_time,
+                    "shops": shops,
+                    "rows": all_rows,
+                    "session_key": key,
+                }
+        except _CookieAuthRetry:
+            time.sleep(2.0)
+            try:
+                from app.browser.temu_cookie_trust import temu_login_cookies_alive
+
+                cookies_alive = temu_login_cookies_alive(tenant_id, key) is True
+            except Exception:
+                pass
+            continue
+        except Exception as exc:  # noqa: BLE001
+            text = str(exc).lower()
+            closed = "has been closed" in text or "target closed" in text or "browser has been closed" in text
+            if closed and attempt == 0:
+                last_closed_error = exc
+                print(
+                    f"[TemuCrawl] browser closed mid-run, retry once tenant={tenant_id} key={key}: {exc}",
+                    flush=True,
+                )
+                time.sleep(2.0)
+                continue
+            raise
+    if last_closed_error is not None:
+        raise last_closed_error
+    raise RuntimeError("Temu crawl failed after browser close retry")
 
 
 def crawl_temu_sales_all_sessions(

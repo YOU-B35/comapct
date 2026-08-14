@@ -1,0 +1,4 @@
+# CrossHub host memory watchdog — every minute
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* * * * * root /usr/local/sbin/crosshub-memory-watchdog.sh

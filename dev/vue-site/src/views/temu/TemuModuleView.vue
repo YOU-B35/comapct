@@ -343,7 +343,7 @@ async function handleRefreshData() {
       status: 'failed',
       message: syncError.value.title || err.message || 'Temu 同步失败',
     })
-    ElMessage.error(syncError.value.title)
+    ElMessage.error(syncError.value.summary || syncError.value.title || err.message || 'Temu 同步失败')
     await helperStatusBarRef.value?.reload?.()
   } finally {
     crawling.value = false

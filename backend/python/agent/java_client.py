@@ -12,10 +12,29 @@ import httpx
 from agent.config import AGENT_TOKEN, JAVA_API_URL
 
 
+def _resolve_java_api_url(base_url: str | None = None) -> str:
+    """Prefer live process env over module snapshot (load_config may update env later)."""
+    if base_url and str(base_url).strip():
+        return str(base_url).strip().rstrip("/")
+    env = (os.environ.get("JAVA_API_URL") or "").strip().rstrip("/")
+    if env:
+        return env
+    try:
+        import agent.config as agent_config
+
+        snap = str(getattr(agent_config, "JAVA_API_URL", "") or "").strip().rstrip("/")
+        if snap:
+            return snap
+    except Exception:
+        pass
+    return (JAVA_API_URL or "https://www.yoto.work").rstrip("/")
+
+
 class AgentApiClient:
     def __init__(self, token: str | None = None, base_url: str | None = None) -> None:
-        self.base_url = (base_url or JAVA_API_URL).rstrip("/")
-        self.token = (token or AGENT_TOKEN).strip()
+        self.base_url = _resolve_java_api_url(base_url)
+        env_token = (os.environ.get("AGENT_TOKEN") or "").strip()
+        self.token = (token or env_token or AGENT_TOKEN).strip()
         if not self.token:
             raise ValueError(
                 "同步助手尚未配置。请到 CrossHub 下载并双击「CrossHub-Sync-Helper.bat」启动文件（Temu/Amazon 共用）。"
@@ -52,6 +71,72 @@ class AgentApiClient:
         with httpx.Client(timeout=120.0) as client:
             resp = client.post(
                 f"{self.base_url}/api/agent/temu/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_douyin_orders(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/douyin/orders/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_douyin_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/douyin/products/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_douyin_compass(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/douyin/compass/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_douyin_opportunity(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=180.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/douyin/opportunity/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_douyin_compass_product_rank(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=180.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/douyin/compass-product-rank/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_douyin_issues(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/douyin/issues/ingest",
                 headers=self._headers(),
                 json=payload,
             )

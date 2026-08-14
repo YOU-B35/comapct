@@ -95,21 +95,35 @@ public class AgentController {
         );
     }
 
-    /** Helper 面板：获取所有租户列表（Boss 用户去重）。 */
+    /**
+     * Helper 面板：仅返回当前 Agent Token 所属租户（机器绑定后不应再看到别的企业）。
+     */
     @GetMapping("/tenants")
     public Map<String, Object> tenants() {
+        Long agentTenantId = agentContext.tenantId();
+        if (agentTenantId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Agent 未绑定租户");
+        }
         List<AppUser> admins = appUserRepository.findAll().stream()
                 .filter(u -> "admin".equals(u.getRole()))
+                .filter(u -> agentTenantId.equals(u.getTenantId()))
                 .toList();
-        Set<Long> seen = new LinkedHashSet<>();
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (AppUser u : admins) {
-            if (u.getTenantId() == null || !seen.add(u.getTenantId())) continue;
+        if (!admins.isEmpty()) {
+            AppUser u = admins.get(0);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("tenant_id", u.getTenantId());
             row.put("username", u.getUsername());
             row.put("enterprise", u.getEnterprise());
             row.put("nickname", u.getNickname());
+            rows.add(row);
+        } else {
+            // 无 admin 行时仍返回本租户，避免面板显示「无租户/未绑定」
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("tenant_id", agentTenantId);
+            row.put("username", "");
+            row.put("enterprise", "当前企业");
+            row.put("nickname", "Tenant #" + agentTenantId);
             rows.add(row);
         }
         return Map.of("success", true, "data", rows);
@@ -118,6 +132,7 @@ public class AgentController {
     /** Helper 面板：获取指定租户下所有平台的绑定账号。 */
     @GetMapping("/platform-accounts")
     public Map<String, Object> platformAccounts(@RequestParam(value = "tenant_id") Long tenantId) {
+        requireAgentTenant(tenantId);
         List<PlatformAccount> accounts = platformAccountRepository.findByTenantIdOrderByBoundAtDesc(tenantId);
         Map<String, List<Map<String, Object>>> grouped = new LinkedHashMap<>();
         for (PlatformAccount pa : accounts) {
@@ -143,6 +158,7 @@ public class AgentController {
         if (tenantId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少 tenant_id");
         }
+        requireAgentTenant(tenantId);
         String platform = str(body.get("platform"));
         String storeName = str(body.get("store_name"));
         if (storeName.isBlank()) storeName = str(body.get("storeName"));
@@ -170,8 +186,19 @@ public class AgentController {
             @PathVariable String id,
             @RequestParam(value = "tenant_id") Long tenantId
     ) {
+        requireAgentTenant(tenantId);
         Map<String, Object> data = platformAccountService.deleteForTenant(tenantId, id);
         return Map.of("success", true, "message", "店铺已解除绑定", "data", data);
+    }
+
+    private void requireAgentTenant(Long tenantId) {
+        Long agentTenantId = agentContext.tenantId();
+        if (agentTenantId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Agent 未绑定租户");
+        }
+        if (tenantId == null || !agentTenantId.equals(tenantId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能操作本机已绑定的企业");
+        }
     }
 
     private static Long parseLong(Object value) {
