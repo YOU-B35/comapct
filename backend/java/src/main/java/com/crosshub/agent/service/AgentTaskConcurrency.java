@@ -1,5 +1,6 @@
 package com.crosshub.agent.service;
 
+import com.crosshub.alibaba1688.service.Alibaba1688AgentTasks;
 import com.crosshub.amazon.service.AmazonWriteService;
 import com.crosshub.douyin.service.DouyinAgentTasks;
 import com.crosshub.temu.service.TemuAgentTasks;
@@ -144,6 +145,9 @@ public final class AgentTaskConcurrency {
         if (DouyinAgentTasks.BROWSER_BUSY_TYPES.contains(type)) {
             return douyinRequirement(body, tid);
         }
+        if (Alibaba1688AgentTasks.BROWSER_BUSY_TYPES.contains(type) || type.startsWith("1688_")) {
+            return alibaba1688Requirement(body, tid);
+        }
         if (AgentService.TASK_TYPE.equals(type) || AmazonWriteService.WRITE_TASK_TYPE.equals(type)) {
             return amazonRequirement(body, tid);
         }
@@ -221,6 +225,18 @@ public final class AgentTaskConcurrency {
                 "default"
         );
         String key = "douyin:" + tenantId + ":" + normalizeKey(session);
+        return new Requirement(Family.DOUYIN, Set.of(key), 1);
+    }
+
+    /** Share DOUYIN family slot (max 1) with a distinct lock key so 1688 ≠ 抖音 profile. */
+    private static Requirement alibaba1688Requirement(Map<String, Object> body, long tenantId) {
+        String session = firstNonBlank(
+                stringValue(body.get("session_key")),
+                stringValue(body.get("store_id")),
+                stringValue(body.get("platform_account_id")),
+                "default"
+        );
+        String key = "1688:" + tenantId + ":" + normalizeKey(session);
         return new Requirement(Family.DOUYIN, Set.of(key), 1);
     }
 

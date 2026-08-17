@@ -24,6 +24,11 @@ import {
   fetchDouyinSession,
   pollDouyinSessionUntilReady,
 } from '@/api/douyinApi'
+import {
+  enqueueAlibaba1688Login,
+  fetchAlibaba1688Session,
+  pollAlibaba1688SessionUntilReady,
+} from '@/api/alibaba1688Api'
 import { getAppErrorMessage, resolveAppError } from '@/utils/appErrorCode'
 import {
   alignLocalDevHelperJava,
@@ -34,7 +39,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
-  /** temu | aliexpress | amazon | douyin */
+  /** temu | aliexpress | amazon | douyin | 1688 */
   platform: { type: String, default: 'temu' },
 })
 
@@ -87,11 +92,16 @@ const platformLabel = computed(() => {
   if (props.platform === 'aliexpress') return 'AliExpress'
   if (props.platform === 'amazon') return 'Amazon'
   if (props.platform === 'douyin') return '抖店'
+  if (props.platform === '1688') return '1688'
   return 'Temu'
 })
 
 const supportsSessionLogin = computed(
-  () => props.platform === 'temu' || props.platform === 'aliexpress' || props.platform === 'douyin',
+  () =>
+    props.platform === 'temu'
+    || props.platform === 'aliexpress'
+    || props.platform === 'douyin'
+    || props.platform === '1688',
 )
 
 const online = computed(() => Boolean(helperStatus.value.online))
@@ -112,6 +122,7 @@ const offlineErrorCode = computed(() => {
   if (props.platform === 'aliexpress') return 'AE_USER_HELPER_OFFLINE'
   if (props.platform === 'amazon') return 'AMAZON_USER_HELPER_OFFLINE'
   if (props.platform === 'douyin') return 'DY_AGENT_OFFLINE'
+  if (props.platform === '1688') return 'A1688_AGENT_OFFLINE'
   return 'TEMU_USER_HELPER_OFFLINE'
 })
 
@@ -255,6 +266,8 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
       sessionStatus.value = await fetchAliExpressSessionStatus()
     } else if (props.platform === 'douyin') {
       sessionStatus.value = await fetchDouyinSession()
+    } else if (props.platform === '1688') {
+      sessionStatus.value = await fetchAlibaba1688Session()
     } else {
       sessionStatus.value = await fetchTemuSessionStatus()
     }
@@ -266,7 +279,9 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
               ? 'CRAWL_AE_NOT_LOGGED_IN'
               : props.platform === 'douyin'
                 ? 'DY_NOT_LOGGED_IN'
-                : 'CRAWL_NOT_LOGGED_IN',
+                : props.platform === '1688'
+                  ? 'A1688_NOT_LOGGED_IN'
+                  : 'CRAWL_NOT_LOGGED_IN',
           ),
       )
     }
@@ -316,6 +331,13 @@ async function startSessionPoll() {
       session = await pollAliExpressSessionUntilReady({ signal })
     } else if (props.platform === 'douyin') {
       session = await pollDouyinSessionUntilReady({
+        timeoutMs: 90000,
+        intervalMs: 2000,
+        maxIntervalMs: 5000,
+        signal,
+      })
+    } else if (props.platform === '1688') {
+      session = await pollAlibaba1688SessionUntilReady({
         timeoutMs: 90000,
         intervalMs: 2000,
         maxIntervalMs: 5000,
@@ -390,6 +412,8 @@ async function handleOpenLogin() {
       await openAliExpressSellerLogin()
     } else if (props.platform === 'douyin') {
       await enqueueDouyinLogin()
+    } else if (props.platform === '1688') {
+      await enqueueAlibaba1688Login()
     } else {
       await enqueueTemuLogin({
         tenantId: currentTenantId.value,

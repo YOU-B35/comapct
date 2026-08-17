@@ -1,5 +1,6 @@
 package com.crosshub.agent;
 
+import com.crosshub.alibaba1688.service.Alibaba1688AgentTasks;
 import com.crosshub.douyin.service.DouyinAgentTasks;
 import com.crosshub.temu.service.TemuAgentTasks;
 
@@ -16,6 +17,7 @@ public final class BrowserBusyRegistry {
     public static final String PLATFORM_DOUYIN = "douyin";
     public static final String PLATFORM_ALIEXPRESS = "aliexpress";
     public static final String PLATFORM_AMAZON = "amazon";
+    public static final String PLATFORM_1688 = "1688";
 
     private static final Map<String, Set<String>> TYPES = Map.of(
             PLATFORM_TEMU, TemuAgentTasks.BROWSER_BUSY_TYPES,
@@ -26,7 +28,8 @@ public final class BrowserBusyRegistry {
                     "aliexpress_session_probe",
                     "aliexpress_violations_sync"
             ),
-            PLATFORM_AMAZON, Set.of("amazon_sync", "amazon_write", "ziniao_discover", "amazon_ziniao_discover")
+            PLATFORM_AMAZON, Set.of("amazon_sync", "amazon_write", "ziniao_discover", "amazon_ziniao_discover"),
+            PLATFORM_1688, Alibaba1688AgentTasks.BROWSER_BUSY_TYPES
     );
 
     private BrowserBusyRegistry() {

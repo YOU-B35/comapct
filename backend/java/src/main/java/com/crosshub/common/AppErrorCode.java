@@ -111,6 +111,9 @@ public enum AppErrorCode {
 
     DY_AGENT_OFFLINE("DY_AGENT_OFFLINE", "本机同步助手未在线，请先启动 CrossHub-Sync-Helper"),
     DY_NOT_LOGGED_IN("DY_NOT_LOGGED_IN", "抖音商家后台未登录，请打开登录窗口完成登录"),
+    A1688_AGENT_OFFLINE("A1688_AGENT_OFFLINE", "本机同步助手未在线，请先启动 CrossHub-Sync-Helper"),
+    A1688_NOT_LOGGED_IN("A1688_NOT_LOGGED_IN", "1688 买家后台未登录，请打开登录窗口完成登录"),
+    A1688_LOGIN_FAILED("A1688_LOGIN_FAILED", "1688 登录失败，请重试打开登录窗口"),
     DY_SHOP_MAPPING_REQUIRED("DY_SHOP_MAPPING_REQUIRED", "请先在账户绑定中填写抖音店铺外部 ID"),
     DY_SYNC_IN_PROGRESS("DY_SYNC_IN_PROGRESS", "已有抖音同步任务进行中"),
     DY_SYNC_TIMEOUT("DY_SYNC_TIMEOUT", "抖音同步超时，请重试"),

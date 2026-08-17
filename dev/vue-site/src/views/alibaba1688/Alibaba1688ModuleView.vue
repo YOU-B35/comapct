@@ -13,6 +13,7 @@ import { canUseAlibaba1688Backend } from '@/api/alibaba1688Api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
 import PageSection from '@/components/common/PageSection.vue'
+import HelperStatusBar from '@/components/helper/HelperStatusBar.vue'
 import Alibaba1688BossOverview from '@/components/alibaba1688/Alibaba1688BossOverview.vue'
 import Alibaba1688PurchasePanel from '@/components/alibaba1688/Alibaba1688PurchasePanel.vue'
 import Alibaba1688SupplierPanel from '@/components/alibaba1688/Alibaba1688SupplierPanel.vue'
@@ -214,6 +215,10 @@ onActivated(loadModuleData)
       />
     </template>
 
+    <PageSection v-if="backendReady" tone="toolbar" title="本机助手">
+      <HelperStatusBar platform="1688" />
+    </PageSection>
+
     <PageSection v-if="stores1688.length" tone="toolbar" title="店铺">
       <div class="toolbar-row">
         <el-radio-group v-model="selectedStoreId" size="small">
@@ -227,7 +232,6 @@ onActivated(loadModuleData)
           </el-radio-button>
         </el-radio-group>
         <div class="toolbar-actions">
-          <el-button size="small" :loading="syncing" @click="runCrawl('login_probe')">检测登录</el-button>
           <el-button type="primary" size="small" :loading="syncing" @click="runCrawl('sync')">同步采购</el-button>
         </div>
       </div>

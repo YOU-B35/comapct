@@ -465,6 +465,57 @@ def handle_douyin_login_open(client: AgentApiClient, task: dict[str, Any]) -> No
         )
 
 
+def _a1688_error_code(message: str, default: str = "A1688_LOGIN_FAILED") -> str:
+    text = (message or "").lower()
+    if "offline" in text or "未在线" in text:
+        return "A1688_AGENT_OFFLINE"
+    if "login" in text or "登录" in text:
+        return "A1688_NOT_LOGGED_IN"
+    return default
+
+
+def handle_1688_session_probe(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    try:
+        from agent.alibaba1688_tasks import probe_session
+
+        session = probe_session(tenant_id)
+        client.complete_task_with_retry(task_id, status="success", result={"session": session})
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_a1688_error_code(message),
+            error_message=message,
+        )
+
+
+def handle_1688_login_open(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    try:
+        from agent.alibaba1688_tasks import open_login_window
+
+        session = open_login_window(tenant_id, timeout_seconds=600)
+        client.complete_task_with_retry(task_id, status="success", result={"session": session})
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_a1688_error_code(message),
+            error_message=message,
+        )
+
+
 def handle_douyin_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
     task_id = str(task.get("task_id") or task.get("id") or "")
     if not task_id:
@@ -595,6 +646,12 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
         return
     if task_type == "douyin_products_sync":
         handle_douyin_products_sync(client, task)
+        return
+    if task_type == "1688_session_probe":
+        handle_1688_session_probe(client, task)
+        return
+    if task_type == "1688_login_open":
+        handle_1688_login_open(client, task)
         return
     task_id = str(task.get("task_id") or "")
     if task_id:

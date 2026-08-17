@@ -127,6 +127,10 @@ export const APP_ERROR_MESSAGES = {
   DY_COMPASS_RANK_SOURCE_UNAVAILABLE: '无法获取罗盘商品榜数据，请确认已登录罗盘后重试',
   DY_OPPORTUNITY_SOURCE_UNAVAILABLE: '无法获取商机中心数据，请确认已登录并打开商机中心后重试',
   DY_ISSUES_SOURCE_UNCONFIGURED: '内容预警数据源尚未配置（订单可照常同步）',
+
+  A1688_AGENT_OFFLINE: '本机同步助手未在线，请先启动 CrossHub-Sync-Helper',
+  A1688_NOT_LOGGED_IN: '1688 买家后台未登录，请打开登录窗口完成登录',
+  A1688_LOGIN_FAILED: '1688 登录失败，请重试打开登录窗口',
 }
 
 const CRAWL_ERROR_UI = {

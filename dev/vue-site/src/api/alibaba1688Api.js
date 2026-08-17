@@ -122,3 +122,46 @@ export async function fetchAlibaba1688Operational({ storeId } = {}) {
   })
   return res?.data ?? res ?? {}
 }
+
+export async function fetchAlibaba1688Session() {
+  const res = await service.get('/api/1688/session', { skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function enqueueAlibaba1688Login() {
+  const res = await service.post('/api/1688/login/open', {}, { skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function enqueueAlibaba1688SessionProbe() {
+  const res = await service.post('/api/1688/session/probe', {}, { skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+/** Poll 1688 buyer session until ready (HelperStatusBar). */
+export async function pollAlibaba1688SessionUntilReady({
+  timeoutMs = 90000,
+  intervalMs = 2000,
+  maxIntervalMs = 5000,
+  signal = null,
+} = {}) {
+  const deadline = Date.now() + Math.max(5000, timeoutMs)
+  let delay = Math.max(800, intervalMs)
+  try {
+    await enqueueAlibaba1688SessionProbe()
+  } catch {
+    // ignore; still poll session
+  }
+  while (Date.now() < deadline) {
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError')
+    }
+    const session = await fetchAlibaba1688Session()
+    if (session?.ready || session?.logged_in) {
+      return session
+    }
+    await new Promise((r) => setTimeout(r, delay))
+    delay = Math.min(maxIntervalMs, Math.floor(delay * 1.25))
+  }
+  return fetchAlibaba1688Session()
+}

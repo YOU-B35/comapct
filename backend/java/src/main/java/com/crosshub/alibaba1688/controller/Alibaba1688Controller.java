@@ -5,6 +5,7 @@ import com.crosshub.alibaba1688.entity.Alibaba1688CrawlJob;
 import com.crosshub.alibaba1688.service.Alibaba1688CrawlConflictException;
 import com.crosshub.alibaba1688.service.Alibaba1688CrawlService;
 import com.crosshub.alibaba1688.service.Alibaba1688OperationalService;
+import com.crosshub.alibaba1688.service.Alibaba1688SessionService;
 import com.crosshub.alibaba1688.service.impl.Alibaba1688CrawlServiceImpl;
 import com.crosshub.common.ApiResult;
 import com.crosshub.common.AppErrorCode;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,16 +31,52 @@ import java.util.Map;
 public class Alibaba1688Controller {
     private final Alibaba1688CrawlService crawlService;
     private final Alibaba1688OperationalService operationalService;
+    private final Alibaba1688SessionService sessionService;
     private final DataScopeService dataScopeService;
 
     public Alibaba1688Controller(
             Alibaba1688CrawlService crawlService,
             Alibaba1688OperationalService operationalService,
+            Alibaba1688SessionService sessionService,
             DataScopeService dataScopeService
     ) {
         this.crawlService = crawlService;
         this.operationalService = operationalService;
+        this.sessionService = sessionService;
         this.dataScopeService = dataScopeService;
+    }
+
+    @GetMapping("/session")
+    public Map<String, Object> session() {
+        return ApiResult.ok(sessionService.session());
+    }
+
+    @PostMapping("/login/open")
+    public ResponseEntity<Map<String, Object>> loginOpen() {
+        try {
+            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueLoginOpen()));
+        } catch (ResponseStatusException ex) {
+            return mapSessionError(ex);
+        }
+    }
+
+    @PostMapping("/session/probe")
+    public ResponseEntity<Map<String, Object>> sessionProbe() {
+        try {
+            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueSessionProbe()));
+        } catch (ResponseStatusException ex) {
+            return mapSessionError(ex);
+        }
+    }
+
+    private ResponseEntity<Map<String, Object>> mapSessionError(ResponseStatusException ex) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        if (status == null) status = HttpStatus.BAD_REQUEST;
+        String msg = ex.getReason() == null ? AppErrorCode.A1688_AGENT_OFFLINE.getUserMessage() : ex.getReason();
+        String code = status == HttpStatus.SERVICE_UNAVAILABLE
+                ? AppErrorCode.A1688_AGENT_OFFLINE.getCode()
+                : AppErrorCode.A1688_LOGIN_FAILED.getCode();
+        return ResponseEntity.status(status).body(ApiResult.error(status.value(), code, msg));
     }
 
     @PostMapping("/crawl")

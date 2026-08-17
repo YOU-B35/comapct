@@ -53,6 +53,7 @@ public class AgentServiceImpl implements AgentService {
     private final AmazonWriteBridge amazonWriteBridge;
     private final TemuBridge temuBridge;
     private final DouyinBridge douyinBridge;
+    private final Alibaba1688Bridge alibaba1688Bridge;
     private final TransactionTemplate transactionTemplate;
     private final AgentProperties agentProperties;
 
@@ -68,7 +69,8 @@ public class AgentServiceImpl implements AgentService {
             @Autowired(required = false) @Lazy AmazonSyncBridge amazonSyncBridge,
             @Autowired(required = false) @Lazy AmazonWriteBridge amazonWriteBridge,
             @Autowired(required = false) @Lazy TemuBridge temuBridge,
-            @Autowired(required = false) @Lazy DouyinBridge douyinBridge
+            @Autowired(required = false) @Lazy DouyinBridge douyinBridge,
+            @Autowired(required = false) @Lazy Alibaba1688Bridge alibaba1688Bridge
     ) {
         this.agentRepository = agentRepository;
         this.taskRepository = taskRepository;
@@ -82,6 +84,7 @@ public class AgentServiceImpl implements AgentService {
         this.amazonWriteBridge = amazonWriteBridge;
         this.temuBridge = temuBridge;
         this.douyinBridge = douyinBridge;
+        this.alibaba1688Bridge = alibaba1688Bridge;
     }
 
     private AgentTaskConcurrency.Limits concurrencyLimits() {
@@ -108,6 +111,11 @@ public class AgentServiceImpl implements AgentService {
     }
 
     public interface DouyinBridge {
+        void onAgentTaskStarted(AgentTask task);
+        void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
+    }
+
+    public interface Alibaba1688Bridge {
         void onAgentTaskStarted(AgentTask task);
         void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
     }
@@ -304,6 +312,9 @@ public class AgentServiceImpl implements AgentService {
         if (douyinBridge != null) {
             douyinBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
         }
+        if (alibaba1688Bridge != null) {
+            alibaba1688Bridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
+        }
         return Map.of("task_id", task.getId(), "status", task.getStatus());
     }
 
@@ -320,6 +331,9 @@ public class AgentServiceImpl implements AgentService {
         }
         if (douyinBridge != null) {
             douyinBridge.onAgentTaskStarted(task);
+        }
+        if (alibaba1688Bridge != null) {
+            alibaba1688Bridge.onAgentTaskStarted(task);
         }
     }
 
@@ -382,6 +396,15 @@ public class AgentServiceImpl implements AgentService {
             }
             if (douyinBridge != null) {
                 douyinBridge.onAgentTaskCompleted(
+                        task,
+                        "failed",
+                        Map.of(),
+                        task.getErrorCode(),
+                        task.getErrorMessage()
+                );
+            }
+            if (alibaba1688Bridge != null) {
+                alibaba1688Bridge.onAgentTaskCompleted(
                         task,
                         "failed",
                         Map.of(),
