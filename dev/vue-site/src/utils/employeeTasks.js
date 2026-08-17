@@ -393,14 +393,16 @@ function collect1688Tasks(platform, auth, tasks) {
 
   for (const item of platform.supplierAlerts || []) {
     if (!isIssueVisible(item, auth)) continue
+    const alertType = String(item.type || '')
+    const isOpsAlert = alertType === 'delay' || alertType === 'stockout'
     tasks.push(
       makeIssueTask({
-        id: `issue_1688_alert_${item.storeId}_${item.type}_${item.supplierName}`,
+        id: `issue_1688_alert_${item.storeId}_${item.type}_${item.supplierName}_${item.relatedOrderNo || item.orderNo || ''}`,
         platformKey: '1688',
         category: '供应商',
-        priority: item.severity === 'high' ? 'high' : 'medium',
+        priority: item.severity === 'high' || isOpsAlert ? 'high' : 'medium',
         title: `供应商预警：${item.typeLabel || item.type}`,
-        detail: `${item.storeName} · ${item.supplierName} · ${item.detail}`,
+        detail: `${item.storeName} · ${item.supplierName} · ${item.detail || item.message || ''}`,
         assignee: item.assigneeName,
         storeName: item.storeName,
       }),

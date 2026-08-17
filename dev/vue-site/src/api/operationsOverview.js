@@ -24,6 +24,12 @@ import { CHANNELS_ISSUE_TYPES } from '@/constants/channelsDemo'
 import { loadCachedPddOrders, loadPddIssues, loadCachedDouyinOrders, loadDouyinIssues, loadCachedChannelsOrders, loadChannelsIssues } from './domesticPlatforms'
 import { ensureAliexpressDemoData } from './aliexpressDemoLocal'
 import { loadAlibaba1688DemoData } from './alibaba1688DemoLocal'
+import {
+  canUseAlibaba1688Backend,
+  fetchAlibaba1688Operational,
+} from './alibaba1688Api'
+import { enrichPurchaseOrder, enrichSupplierAlert } from '@/utils/alibaba1688'
+import { isPlatformOperationalDemoOnly } from '@/utils/platformOperationalMode'
 import { ensureAmazonDailyData } from './amazonDailyLocal'
 import { loadAmazonDailyWorkflow } from './amazon'
 import { fetchAmazonDailyFromBackend } from './amazonApi'
@@ -251,9 +257,33 @@ export async function loadOperationsOverview(auth = null) {
           cases: [],
         }
 
-  const demo1688 = demoMode && stores1688.length ? loadAlibaba1688DemoData(stores1688) : { purchaseOrders: [], supplierAlerts: [] }
-  const purchaseOrders = filterByStoreIds(demo1688.purchaseOrders, stores1688Ids)
-  const supplierAlerts = filterByStoreIds(demo1688.supplierAlerts, stores1688Ids)
+  let purchaseOrders = []
+  let supplierAlerts = []
+  const use1688Backend =
+    !demoMode &&
+    stores1688.length > 0 &&
+    canUseAlibaba1688Backend(auth) &&
+    !isPlatformOperationalDemoOnly('1688')
+  if (use1688Backend) {
+    try {
+      const op = await fetchAlibaba1688Operational()
+      purchaseOrders = filterByStoreIds(
+        (op.purchaseOrders || []).map(enrichPurchaseOrder),
+        stores1688Ids,
+      )
+      supplierAlerts = filterByStoreIds(
+        (op.supplierAlerts || []).map(enrichSupplierAlert),
+        stores1688Ids,
+      )
+    } catch {
+      purchaseOrders = []
+      supplierAlerts = []
+    }
+  } else if (demoMode && stores1688.length) {
+    const demo1688 = loadAlibaba1688DemoData(stores1688)
+    purchaseOrders = filterByStoreIds(demo1688.purchaseOrders, stores1688Ids)
+    supplierAlerts = filterByStoreIds(demo1688.supplierAlerts, stores1688Ids)
+  }
 
   const dtcOrders = demoMode ? filterByStoreIds(loadDtcTodayOrders(dtcStores), dtcStoreIds) : []
 

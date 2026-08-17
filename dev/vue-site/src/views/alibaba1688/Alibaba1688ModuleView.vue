@@ -3,12 +3,13 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { loadAlibaba1688OperationalData } from '@/api/alibaba1688'
+import { loadAlibaba1688OperationalData, refreshAlibaba1688DataWithCrawl } from '@/api/alibaba1688'
 import { fetchAlibaba1688Stores } from '@/api/platformAccounts'
 import { scopeStores } from '@/utils/scope'
 import { useStoreAssignees } from '@/composables/useStoreAssignees'
 import { pushPlatformOrderToWarehouse, enrichOrdersWithWarehouseFeedback } from '@/api/platformShipRequests'
 import { isPlatformOperationalDemoOnly, platformOperationalHint } from '@/utils/platformOperationalMode'
+import { canUseAlibaba1688Backend } from '@/api/alibaba1688Api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
 import PageSection from '@/components/common/PageSection.vue'
@@ -25,8 +26,11 @@ const selectedStoreId = ref('all')
 const stores1688 = ref([])
 const purchaseOrders = ref([])
 const supplierAlerts = ref([])
+const supplierRanking = ref([])
+const overview = ref(null)
 const syncedAt = ref('')
 const loadingStores = ref(false)
+const syncing = ref(false)
 const shipDialogVisible = ref(false)
 const shipDialogOrder = ref(null)
 const shipDialogType = ref('push')
@@ -34,6 +38,7 @@ const shipSubmitting = ref(false)
 
 const operationalDemoOnly = computed(() => isPlatformOperationalDemoOnly('1688'))
 const operationalHint = computed(() => platformOperationalHint('1688'))
+const backendReady = computed(() => canUseAlibaba1688Backend(auth))
 
 const storeNameMap = computed(() =>
   Object.fromEntries(stores1688.value.map((store) => [store.id, store.storeName])),
@@ -71,38 +76,78 @@ const openAlertCount = computed(() =>
   filteredAlerts.value.filter((alert) => alert.isOpen).length,
 )
 
+async function applyOperationalPayload(payload) {
+  purchaseOrders.value = enrichOrdersWithWarehouseFeedback(payload.purchaseOrders || [])
+  supplierAlerts.value = payload.supplierAlerts || []
+  supplierRanking.value = payload.supplierRanking || []
+  overview.value = payload.overview || null
+  syncedAt.value = payload.syncedAt || ''
+}
+
 async function loadModuleData() {
   loadingStores.value = true
   try {
     const res = await fetchAlibaba1688Stores()
     stores1688.value = scopeStores(res.data || [], auth)
-    if (stores1688.value.length && !operationalDemoOnly.value) {
-      const demoRes = loadAlibaba1688OperationalData(stores1688.value)
-      purchaseOrders.value = enrichOrdersWithWarehouseFeedback(demoRes.data.purchaseOrders)
-      supplierAlerts.value = demoRes.data.supplierAlerts
-      syncedAt.value = demoRes.data.syncedAt
-    } else if (!stores1688.value.length) {
+    if (!stores1688.value.length) {
       purchaseOrders.value = []
       supplierAlerts.value = []
+      supplierRanking.value = []
+      overview.value = null
       syncedAt.value = ''
+      return
     }
+    const opRes = await loadAlibaba1688OperationalData(stores1688.value, auth)
+    await applyOperationalPayload(opRes.data || {})
   } catch {
     stores1688.value = []
     purchaseOrders.value = []
     supplierAlerts.value = []
+    supplierRanking.value = []
+    overview.value = null
     syncedAt.value = ''
   } finally {
     loadingStores.value = false
   }
 }
 
-function refreshData() {
-  if (!stores1688.value.length || operationalDemoOnly.value) return
-  const demoRes = loadAlibaba1688OperationalData(stores1688.value)
-  purchaseOrders.value = enrichOrdersWithWarehouseFeedback(demoRes.data.purchaseOrders)
-  supplierAlerts.value = demoRes.data.supplierAlerts
-  syncedAt.value = demoRes.data.syncedAt
-  ElMessage.success('已刷新 1688 运营数据')
+async function refreshData() {
+  if (!stores1688.value.length) return
+  loadingStores.value = true
+  try {
+    const opRes = await loadAlibaba1688OperationalData(stores1688.value, auth)
+    await applyOperationalPayload(opRes.data || {})
+    ElMessage.success('已刷新 1688 运营数据')
+  } catch (err) {
+    ElMessage.error(err?.message || '刷新失败')
+  } finally {
+    loadingStores.value = false
+  }
+}
+
+async function runCrawl(jobType) {
+  if (!backendReady.value) {
+    ElMessage.info('当前为本地 Demo 数据；连接 Java 后端后可真实同步')
+    await refreshData()
+    return
+  }
+  syncing.value = true
+  try {
+    await refreshAlibaba1688DataWithCrawl({ jobType, force: true })
+    const opRes = await loadAlibaba1688OperationalData(stores1688.value, auth)
+    await applyOperationalPayload(opRes.data || {})
+    ElMessage.success(jobType === 'login_probe' ? '登录检测完成' : '同步完成')
+  } catch (err) {
+    if (err?.code === 'CRAWL_IN_PROGRESS') {
+      ElMessage.warning(err.message || '已有同步任务进行中')
+    } else if (err?.code === 'CRAWL_1688_NOT_LOGGED_IN') {
+      ElMessage.warning(err.message || '请先完成 1688 登录')
+    } else {
+      ElMessage.error(err?.message || '同步失败')
+    }
+  } finally {
+    syncing.value = false
+  }
 }
 
 function goToAccountBinding() {
@@ -170,16 +215,22 @@ onActivated(loadModuleData)
     </template>
 
     <PageSection v-if="stores1688.length" tone="toolbar" title="店铺">
-      <el-radio-group v-model="selectedStoreId" size="small">
-        <el-radio-button value="all">全部账号</el-radio-button>
-        <el-radio-button
-          v-for="store in stores1688"
-          :key="store.id"
-          :value="store.id"
-        >
-          {{ store.storeName }}
-        </el-radio-button>
-      </el-radio-group>
+      <div class="toolbar-row">
+        <el-radio-group v-model="selectedStoreId" size="small">
+          <el-radio-button value="all">全部账号</el-radio-button>
+          <el-radio-button
+            v-for="store in stores1688"
+            :key="store.id"
+            :value="store.id"
+          >
+            {{ store.storeName }}
+          </el-radio-button>
+        </el-radio-group>
+        <div class="toolbar-actions">
+          <el-button size="small" :loading="syncing" @click="runCrawl('login_probe')">检测登录</el-button>
+          <el-button type="primary" size="small" :loading="syncing" @click="runCrawl('sync')">同步采购</el-button>
+        </div>
+      </div>
     </PageSection>
 
     <PageSection v-if="!loadingStores && !stores1688.length" flush>
@@ -211,6 +262,7 @@ onActivated(loadModuleData)
           v-if="auth.isBoss"
           :purchase-orders="filteredOrders"
           :supplier-alerts="filteredAlerts"
+          :overview="overview"
           :stores="overviewStores"
           :assignee-map="assigneeMap"
           :show-store-list="showStoreList"
@@ -245,8 +297,9 @@ onActivated(loadModuleData)
             <div class="tab-panel">
               <Alibaba1688SupplierPanel
                 :alerts="filteredAlerts"
+                :ranking="supplierRanking"
                 :synced-at="syncedAt"
-                :loading="loadingStores"
+                :loading="loadingStores || syncing"
                 :show-store-column="showStoreColumn"
                 :store-name-map="storeNameMap"
                 @refresh="refreshData"
@@ -271,8 +324,17 @@ onActivated(loadModuleData)
 </template>
 
 <style scoped>
-.page-toolbar {
-  margin-bottom: 16px;
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .module-tabs {
@@ -292,5 +354,9 @@ onActivated(loadModuleData)
   position: relative;
   transform: none;
   vertical-align: middle;
+}
+
+.operational-hint {
+  margin-bottom: 12px;
 }
 </style>

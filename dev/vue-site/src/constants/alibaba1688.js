@@ -13,6 +13,10 @@ export const SUPPLIER_ALERT_TYPES = {
   price_increase: { label: '涨价预警', type: 'danger' },
   delivery_delay: { label: '交期延误', type: 'warning' },
   moq_change: { label: '起订量变更', type: 'info' },
+  delay: { label: '到货延期', type: 'warning' },
+  stockout: { label: '缺货', type: 'danger' },
+  quality: { label: '质量异常', type: 'danger' },
+  other: { label: '其他', type: 'info' },
 }
 
 export const PURCHASE_ORDER_TEMPLATES = [

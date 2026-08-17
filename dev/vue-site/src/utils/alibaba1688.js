@@ -10,16 +10,24 @@ export function enrichPurchaseOrder(order) {
     amountText: formatMoney(order.amount || 0),
     isPending: order.status !== 'completed',
     isActionNeeded: ['pending_payment', 'pending_shipment'].includes(order.status),
+    isDelayed: Boolean(order.isDelayed),
+    isStockout: Boolean(order.isStockout),
+    expectedArrivalAt: order.expectedArrivalAt || order.expected_arrival_at || '',
   }
 }
 
 export function enrichSupplierAlert(alert) {
   const meta = SUPPLIER_ALERT_TYPES[alert.type] || { label: alert.type, type: 'info' }
+  const resolved = alert.resolved === true || alert.isOpen === false
+  const severity = alert.severity || alert.level || 'medium'
+  const detail = alert.detail || alert.message || ''
   return {
     ...alert,
     typeLabel: meta.label,
     typeTag: meta.type,
-    isOpen: !alert.resolved,
+    severity,
+    detail,
+    isOpen: alert.isOpen === true || (!resolved && alert.resolved !== true),
   }
 }
 

@@ -4,8 +4,11 @@ import { summarize1688SupplierAlerts } from '@/utils/alibaba1688'
 import Alibaba1688PanelHeader from '@/components/alibaba1688/Alibaba1688PanelHeader.vue'
 import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 
+import { formatMoneyDecimal } from '@/utils/format'
+
 const props = defineProps({
   alerts: { type: Array, default: () => [] },
+  ranking: { type: Array, default: () => [] },
   syncedAt: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   showStoreColumn: { type: Boolean, default: false },
@@ -21,10 +24,18 @@ const summary = computed(() => summarize1688SupplierAlerts(props.alerts))
 const filterOptions = computed(() => [
   { label: summary.value.open ? `待处理 (${summary.value.open})` : '待处理', value: 'open' },
   { label: '全部', value: 'all' },
+  { label: '到货延期', value: 'delay' },
+  { label: '缺货', value: 'stockout' },
   { label: '涨价预警', value: 'price_increase' },
   { label: '交期延误', value: 'delivery_delay' },
   { label: '起订量变更', value: 'moq_change' },
 ])
+
+function onTimeRateText(rate) {
+  const n = Number(rate)
+  if (!Number.isFinite(n)) return '—'
+  return `${Math.round(n * 1000) / 10}%`
+}
 
 const filteredAlerts = computed(() => {
   if (filterStatus.value === 'open') return props.alerts.filter((a) => a.isOpen)
@@ -43,7 +54,7 @@ function severityType(severity) {
   <div class="panel">
     <Alibaba1688PanelHeader
       title="供应商跟进"
-      description="监控供应商涨价、交期延误与起订量变更"
+      description="复购排行（90 日）+ 延期/缺货等供应商预警"
       :synced-at="syncedAt"
       action-label="刷新预警"
       :loading="loading"
@@ -65,6 +76,20 @@ function severityType(severity) {
       </div>
     </div>
 
+    <div v-if="ranking.length" class="ranking-block">
+      <div class="ranking-title">复购供应商排行（90 日）</div>
+      <el-table :data="ranking" stripe size="small" class="data-table">
+        <el-table-column prop="supplierName" label="供应商" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="orderCount" label="单量" width="90" align="center" />
+        <el-table-column label="金额" width="120" align="right">
+          <template #default="{ row }">{{ formatMoneyDecimal(row.totalAmount) }}</template>
+        </el-table-column>
+        <el-table-column label="准时率" width="100" align="center">
+          <template #default="{ row }">{{ onTimeRateText(row.onTimeRate) }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
+
     <el-segmented v-model="filterStatus" :options="filterOptions" />
 
     <el-table :data="filteredAlerts" stripe size="small" v-loading="loading" class="data-table">
@@ -80,7 +105,9 @@ function severityType(severity) {
       <AssigneeTableColumn />
       <el-table-column prop="supplierName" label="供应商" min-width="150" show-overflow-tooltip />
       <el-table-column prop="productName" label="关联商品" min-width="140" show-overflow-tooltip />
-      <el-table-column prop="detail" label="详情" min-width="200" show-overflow-tooltip />
+      <el-table-column label="详情" min-width="200" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.detail || row.message || '—' }}</template>
+      </el-table-column>
       <el-table-column label="优先级" width="90" align="center">
         <template #default="{ row }">
           <el-tag :type="severityType(row.severity)" size="small">

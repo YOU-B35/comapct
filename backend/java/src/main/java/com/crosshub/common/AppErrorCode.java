@@ -16,6 +16,7 @@ public enum AppErrorCode {
     CRAWL_IN_PROGRESS("CRAWL_IN_PROGRESS", "已有爬取任务进行中，请稍后再试"),
     CRAWL_NOT_LOGGED_IN("CRAWL_NOT_LOGGED_IN", "Temu 卖家后台未登录，请先在本机完成登录"),
     CRAWL_AE_NOT_LOGGED_IN("CRAWL_AE_NOT_LOGGED_IN", "AliExpress 卖家后台未登录，请先运行 login_aliexpress.py"),
+    CRAWL_1688_NOT_LOGGED_IN("CRAWL_1688_NOT_LOGGED_IN", "1688 买家后台未登录，请先在本机完成登录"),
     CRAWL_MALL_NOT_SELECTED("CRAWL_MALL_NOT_SELECTED", "Temu 卖家后台未选择店铺，请登录后选择店铺"),
     TEMU_PRODUCT_MAPPING_ERROR("TEMU_PRODUCT_MAPPING_ERROR", "Temu 货品映射异常：请在卖家后台「商品管理」补全 SKU 货号，并在「销售管理」页确认当前店铺后重试"),
     CRAWL_SCRIPT_MISSING("CRAWL_SCRIPT_MISSING", "爬虫环境未配置，请联系管理员"),
@@ -279,6 +280,10 @@ public enum AppErrorCode {
         }
         if (AE_LOGIN_PATTERN.matcher(text).find()) {
             return CRAWL_AE_NOT_LOGGED_IN;
+        }
+        if (text.contains("CRAWL_1688_NOT_LOGGED_IN")
+                || (text.contains("1688") && (text.contains("未登录") || text.contains("need_login")))) {
+            return CRAWL_1688_NOT_LOGGED_IN;
         }
         if (LOGIN_PATTERN.matcher(text).find()) {
             return CRAWL_NOT_LOGGED_IN;

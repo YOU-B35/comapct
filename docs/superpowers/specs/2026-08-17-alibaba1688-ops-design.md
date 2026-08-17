@@ -1,7 +1,9 @@
 # 1688 运营真后端 Design Spec
 
 > 日期：2026-08-17  
-> 状态：**已批准 · 实施计划见 `docs/superpowers/plans/2026-08-17-alibaba1688-ops.md`**  
+> 状态：**已批准 · 实施中（Tasks 1–10 代码落地；Day0 真人探测与提交待用户）**  
+> 实施计划：`docs/superpowers/plans/2026-08-17-alibaba1688-ops.md`  
+> 验收：`docs/superpowers/specs/attachments/1688-acceptance.md`  
 > 上级：`2026-07-27-platform-ops-master-design.md`  
 > 取代关系：启动本分册后，`2026-07-27-channels-1688-deferred.md` 中 **1688 延期条款作废**（视频号延期仍有效）  
 > 参考实现：AliExpress 垂直包（`com.crosshub.aliexpress` + Playwright crawl/job）  

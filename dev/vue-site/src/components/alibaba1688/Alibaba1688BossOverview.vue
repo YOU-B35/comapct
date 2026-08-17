@@ -12,6 +12,7 @@ import PlatformAnalyticsCharts from '@/components/charts/PlatformAnalyticsCharts
 const props = defineProps({
   purchaseOrders: { type: Array, default: () => [] },
   supplierAlerts: { type: Array, default: () => [] },
+  overview: { type: Object, default: null },
   stores: { type: Array, default: () => [] },
   assigneeMap: { type: Object, default: () => ({}) },
   showStoreList: { type: Boolean, default: true },
@@ -25,31 +26,66 @@ const storeSummaries = computed(() =>
   summarize1688ByStore(props.purchaseOrders, props.supplierAlerts, props.stores),
 )
 
-const keyMetrics = computed(() => [
-  {
-    label: '今日采购单',
-    value: orderSummary.value.total,
-    hint: orderSummary.value.totalAmountText,
-  },
-  {
-    label: '待付款',
-    value: orderSummary.value.pendingPayment,
-    type: orderSummary.value.pendingPayment ? 'warning' : undefined,
-    hint: '需今日完成付款',
-  },
-  {
-    label: '待发货 / 待收货',
-    value: orderSummary.value.pendingShipment + orderSummary.value.pendingReceive,
-    type: orderSummary.value.pendingShipment ? 'danger' : 'primary',
-    hint: `待发 ${orderSummary.value.pendingShipment} · 待收 ${orderSummary.value.pendingReceive}`,
-  },
-  {
-    label: '供应商预警',
-    value: alertSummary.value.open,
-    type: alertSummary.value.high ? 'danger' : alertSummary.value.open ? 'warning' : 'success',
-    hint: alertSummary.value.high ? `${alertSummary.value.high} 项高优先级` : '跟进供应商动态',
-  },
-])
+const keyMetrics = computed(() => {
+  const ov = props.overview
+  if (ov && typeof ov === 'object') {
+    const pending = Number(ov.pendingPurchase) || 0
+    const open = Number(ov.openAlerts) || 0
+    const delayed = Number(ov.delayedCount) || 0
+    const stockout = Number(ov.stockoutCount) || 0
+    return [
+      {
+        label: '待跟进采购',
+        value: pending,
+        type: pending ? 'warning' : undefined,
+        hint: '待付款 / 待发货',
+      },
+      {
+        label: '开放预警',
+        value: open,
+        type: open ? 'danger' : 'success',
+        hint: '供应商待处理',
+      },
+      {
+        label: '延期未到',
+        value: delayed,
+        type: delayed ? 'warning' : undefined,
+        hint: '预计到货已过期',
+      },
+      {
+        label: '缺货',
+        value: stockout,
+        type: stockout ? 'danger' : undefined,
+        hint: '状态含缺货标记',
+      },
+    ]
+  }
+  return [
+    {
+      label: '今日采购单',
+      value: orderSummary.value.total,
+      hint: orderSummary.value.totalAmountText,
+    },
+    {
+      label: '待付款',
+      value: orderSummary.value.pendingPayment,
+      type: orderSummary.value.pendingPayment ? 'warning' : undefined,
+      hint: '需今日完成付款',
+    },
+    {
+      label: '待发货 / 待收货',
+      value: orderSummary.value.pendingShipment + orderSummary.value.pendingReceive,
+      type: orderSummary.value.pendingShipment ? 'danger' : 'primary',
+      hint: `待发 ${orderSummary.value.pendingShipment} · 待收 ${orderSummary.value.pendingReceive}`,
+    },
+    {
+      label: '供应商预警',
+      value: alertSummary.value.open,
+      type: alertSummary.value.high ? 'danger' : alertSummary.value.open ? 'warning' : 'success',
+      hint: alertSummary.value.high ? `${alertSummary.value.high} 项高优先级` : '跟进供应商动态',
+    },
+  ]
+})
 
 const alertItems = computed(() => [
   { label: '待付款', count: orderSummary.value.pendingPayment, tab: 'purchase', type: 'warning' },

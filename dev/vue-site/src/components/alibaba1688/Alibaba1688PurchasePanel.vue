@@ -89,6 +89,14 @@ const filteredOrders = computed(() => {
       </el-table-column>
       <el-table-column prop="linkedPlatform" label="关联平台" width="100" />
       <el-table-column prop="expectedShipAt" label="预计发货" width="110" />
+      <el-table-column prop="expectedArrivalAt" label="预计到货" width="110" />
+      <el-table-column label="异常" width="120" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row.isDelayed" type="warning" size="small" style="margin-right: 4px">延期</el-tag>
+          <el-tag v-if="row.isStockout" type="danger" size="small">缺货</el-tag>
+          <span v-if="!row.isDelayed && !row.isStockout">—</span>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="90" align="center">
         <template #default="{ row }">
           <el-tag :type="row.statusType" size="small">{{ row.statusLabel }}</el-tag>

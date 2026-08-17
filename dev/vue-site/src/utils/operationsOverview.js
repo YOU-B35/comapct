@@ -656,7 +656,7 @@ function build1688Section({ purchaseOrders, supplierAlerts, stores }, storeNameM
   })
 
   const alerts = (supplierAlerts || [])
-    .filter((alert) => !alert.resolved)
+    .filter((alert) => alert.resolved !== true && alert.isOpen !== false)
     .map((alert) => {
       const meta = SUPPLIER_ALERT_TYPES[alert.type] || { label: alert.type, type: 'info' }
       return attachAssignee(
@@ -668,9 +668,9 @@ function build1688Section({ purchaseOrders, supplierAlerts, stores }, storeNameM
             typeTag: meta.type,
             supplierName: alert.supplierName,
             productName: alert.productName,
-            detail: alert.detail,
-            severity: alert.severity,
-            reportedAt: alert.reportedAt,
+            detail: alert.detail || alert.message || '',
+            severity: alert.severity || alert.level || 'medium',
+            reportedAt: alert.reportedAt || alert.createdAt,
           },
           storeNameMap,
         ),

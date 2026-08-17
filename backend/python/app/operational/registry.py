@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from app.platforms.aliexpress_operational_adapter import AliExpressOperationalAdapter
+from app.platforms.alibaba1688_operational_adapter import Alibaba1688OperationalAdapter
 from app.platforms.operational_base import PlatformOperationalAdapter
 from app.platforms.temu_operational_adapter import TemuOperationalAdapter
 
 _ADAPTERS: dict[str, PlatformOperationalAdapter] = {
     "temu": TemuOperationalAdapter(),
     "aliexpress": AliExpressOperationalAdapter(),
+    "1688": Alibaba1688OperationalAdapter(),
 }
 
 

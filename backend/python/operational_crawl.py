@@ -18,8 +18,8 @@ def main() -> None:
     parser.add_argument(
         "--scope",
         default="all",
-        choices=["all", "orders", "violations", "operational"],
-        help="AliExpress 抓取范围；Temu 忽略此参数",
+        choices=["all", "orders", "violations", "operational", "login_probe", "sync"],
+        help="抓取范围；1688 使用 login_probe|sync；AliExpress 使用 orders|violations|all",
     )
     parser.add_argument("--seed", action="store_true", help="已禁用")
     parser.add_argument("--json", action="store_true", help="成功时输出单行 JSON")
