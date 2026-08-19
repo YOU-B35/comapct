@@ -131,6 +131,10 @@ async function main() {
     password: process.env.CROSSHUB_SSH_PASSWORD || '',
     readyTimeout: 120000,
   };
+  const keyPath = process.env.CROSSHUB_SSH_KEY || '';
+  if (keyPath && fs.existsSync(keyPath)) {
+    ssh.privateKey = fs.readFileSync(keyPath);
+  }
 
   console.log('==> build Java JAR');
   run('powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-java.ps1');
