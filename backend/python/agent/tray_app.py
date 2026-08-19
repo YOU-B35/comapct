@@ -1017,7 +1017,8 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
         "[Agent] supported tasks: temu_crawl,temu_login_open,temu_session_probe,"
         "aliexpress_crawl,aliexpress_login_open,aliexpress_session_probe,"
         "douyin_sync,douyin_products_sync,douyin_login_open,douyin_session_probe,"
-        "1688_login_open,1688_session_probe,1688_products_sync,"
+        "1688_login_open,1688_session_probe,1688_products_sync,1688_orders_sync,"
+        "1688_peer_bestsellers_sync,"
         "amazon_sync,amazon_write",
         flush=True,
     )
@@ -1052,7 +1053,9 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
                     "temu_frontend_login_open": 1,
                     "aliexpress_login_open": 0,
                     "1688_login_open": 0,
+                    "1688_orders_sync": 30,
                     "1688_products_sync": 40,
+                    "1688_peer_bestsellers_sync": 45,
                     "douyin_login_open": 0,
                 }
                 tasks = sorted(

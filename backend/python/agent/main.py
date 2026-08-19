@@ -114,7 +114,9 @@ def main() -> int:
                     "temu_frontend_login_open": 1,
                     "aliexpress_login_open": 0,
                     "1688_login_open": 0,
+                    "1688_orders_sync": 30,
                     "1688_products_sync": 40,
+                    "1688_peer_bestsellers_sync": 45,
                     "douyin_login_open": 0,
                 }
                 tasks = sorted(
