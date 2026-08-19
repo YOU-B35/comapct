@@ -198,7 +198,9 @@ async function main() {
   await uploadTree(sftp, pythonDir, `${REMOTE_ROOT}/python-src`, { skip: shouldSkipPythonDeploy });
 
   console.log('==> upload static frontend');
-  await uploadTree(sftp, distDir, WEB_ROOT);
+  await uploadTree(sftp, distDir, WEB_ROOT, {
+    skip: (name, rel) => rel === 'downloads' || rel.startsWith('downloads/'),
+  });
 
   const remoteCmd = [
     `set -e`,
