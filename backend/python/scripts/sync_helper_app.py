@@ -336,8 +336,9 @@ def main() -> int:
     print(f"==> 目录: {app_dir()}")
     try:
         from agent.install_marker import write_install_marker
+        from agent.version import HELPER_VERSION
 
-        write_install_marker()
+        write_install_marker(version=HELPER_VERSION)
     except Exception as exc:
         print(f"==> [WARN] install marker: {exc}", file=sys.stderr)
     ensure_pythonpath()

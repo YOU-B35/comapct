@@ -967,8 +967,9 @@ def start_panel_server(java_client: Any, stop_event: threading.Event) -> None:
 
     try:
         from agent.install_marker import write_install_marker
+        from agent.version import HELPER_VERSION
 
-        write_install_marker()
+        write_install_marker(version=HELPER_VERSION)
     except Exception as exc:
         print(f"[Panel] install marker: {exc}", file=sys.stderr)
 

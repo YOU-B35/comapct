@@ -241,3 +241,9 @@ export function openHelperDownload(url = resolveHelperDownloadUrl()) {
   anchor.remove()
   return true
 }
+
+/** GET /api/helper/update-info → { version, download_url }（线上最新 Helper 版本）。 */
+export async function fetchHelperUpdateInfo() {
+  const res = await service.get('/api/helper/update-info', { skipGlobalErrorToast: true })
+  return unwrapData(res)
+}

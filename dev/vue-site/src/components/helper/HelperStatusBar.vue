@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { Connection, Download, Link, Refresh, Monitor } from '@element-plus/icons-vue'
 import {
   createBindCode,
+  fetchHelperUpdateInfo,
   enqueueTemuLogin,
   fetchMyAgentStatus,
   openHelperDownload,
@@ -31,9 +32,11 @@ import {
   pollAlibaba1688SessionUntilReady,
 } from '@/api/alibaba1688Api'
 import { getAppErrorMessage, resolveAppError } from '@/utils/appErrorCode'
+import { isHelperOutdated } from '@/utils/helperVersion'
 import {
   alignLocalDevHelperJava,
   fetchLocalHelperBind,
+  fetchLocalInstallInfo,
   getHelperPanelUrl,
   helperApiMismatchHint,
 } from '@/utils/agentProbe'
@@ -54,6 +57,8 @@ const openingKey = ref('')
 const connecting = ref(false)
 const helperStatus = ref({ online: false, agents: [], recommended_agent_id: '' })
 const sessionStatus = ref({})
+const helperUpdateInfo = ref({})
+const localInstall = ref({})
 /** 本机助手进程探测结果（与当前用户 Java 在线状态独立） */
 const localBind = ref({
   reachable: false,
@@ -68,6 +73,7 @@ const bindDialogVisible = ref(false)
 const bindLoading = ref(false)
 const bindInfo = ref(null)
 const stepsDialogVisible = ref(false)
+const updateStepsVisible = ref(false)
 const guideDialogVisible = ref(false)
 const syncLogVisible = ref(false)
 const syncLogs = ref([])
@@ -153,6 +159,7 @@ const apiMismatchHint = computed(() =>
 )
 
 const barMode = computed(() => {
+  if (updateRequired.value) return 'update-required'
   if (apiMismatchHint.value) return 'api-mismatch'
   if (!online.value) {
     // 本机已绑当前企业：不要再显示「未绑定」，只提示等心跳
@@ -163,13 +170,23 @@ const barMode = computed(() => {
   return 'ready'
 })
 
+const updateRequired = computed(() =>
+  isHelperOutdated(localInstall.value.version, helperUpdateInfo.value.version),
+)
+
 const barTone = computed(() => {
-  if (barMode.value === 'offline' || barMode.value === 'rebind' || barMode.value === 'api-mismatch') return 'warn'
+  if (
+    barMode.value === 'offline'
+    || barMode.value === 'rebind'
+    || barMode.value === 'api-mismatch'
+    || barMode.value === 'update-required'
+  ) return 'warn'
   if (barMode.value === 'need-login' || barMode.value === 'heartbeat-wait') return 'info'
   return 'ok'
 })
 
 const barTitle = computed(() => {
+  if (barMode.value === 'update-required') return '本机 Sync Helper 需要更新'
   if (barMode.value === 'api-mismatch') return '助手后端地址与当前页面不一致'
   if (barMode.value === 'heartbeat-wait') return '本机助手已绑定，等待心跳同步…'
   if (barMode.value === 'rebind') {
@@ -183,6 +200,9 @@ const barTitle = computed(() => {
 })
 
 const barMeta = computed(() => {
+  if (barMode.value === 'update-required') {
+    return `当前版本 ${localInstall.value.version || '未知'} · 最新版本 ${helperUpdateInfo.value.version || '—'}。请重新下载安装包覆盖安装后重启助手。`
+  }
   if (barMode.value === 'api-mismatch') return apiMismatchHint.value
   if (barMode.value === 'heartbeat-wait') {
     return '绑定码已核销；若超过 1 分钟仍不变，请点「刷新状态」或用本地脚本重启助手'
@@ -299,9 +319,21 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
 }
 
 async function reload() {
-  await loadHelperStatus()
-  await loadSessionStatus()
+  await Promise.all([loadHelperStatus(), loadSessionStatus(), loadUpdateInfo()])
   // Avoid auto live-probes on page load; poll only after「打开登录」/确认登录.
+}
+
+async function loadUpdateInfo() {
+  try {
+    helperUpdateInfo.value = (await fetchHelperUpdateInfo()) || {}
+  } catch {
+    helperUpdateInfo.value = {}
+  }
+  try {
+    localInstall.value = (await fetchLocalInstallInfo(1500)) || {}
+  } catch {
+    localInstall.value = {}
+  }
 }
 
 function startHelperPoll() {
@@ -534,6 +566,18 @@ defineExpose({ reload, online, sessionReady, openBindDialog })
     </div>
 
     <div class="bar-actions">
+      <template v-if="barMode === 'update-required'">
+        <el-button type="primary" size="small" :icon="Download" @click="onDownloadHelper">
+          立即下载更新
+        </el-button>
+        <el-button size="small" @click="updateStepsVisible = true">
+          查看更新步骤
+        </el-button>
+        <el-button size="small" :icon="Refresh" :loading="helperLoading" @click="reload">
+          刷新
+        </el-button>
+      </template>
+
       <template v-if="barMode === 'api-mismatch'">
         <el-button type="primary" size="small" @click="openHelperPanel">
           打开助手面板
@@ -692,6 +736,19 @@ defineExpose({ reload, online, sessionReady, openBindDialog })
       <el-button type="primary" @click="stepsDialogVisible = false; guideDialogVisible = true">
         完整操作指南
       </el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="updateStepsVisible" title="更新本机 Sync Helper" width="460px" append-to-body>
+    <ol class="guide-steps">
+      <li>点击「立即下载更新」获取最新安装包（约 110MB）</li>
+      <li>解压后覆盖原目录（确保旧文件全部替换）</li>
+      <li>双击 <strong>SETUP.cmd</strong>（或 CrossHub-Sync-Helper.exe）启动</li>
+      <li>回到本页点「刷新」，确认版本为最新后再使用 1688 新功能</li>
+    </ol>
+    <template #footer>
+      <el-button @click="updateStepsVisible = false">关闭</el-button>
+      <el-button type="primary" @click="onDownloadHelper">立即下载更新</el-button>
     </template>
   </el-dialog>
 

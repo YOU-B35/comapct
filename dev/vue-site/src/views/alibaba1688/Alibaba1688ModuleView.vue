@@ -1,8 +1,11 @@
 <script setup>
 import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { fetchHelperUpdateInfo, openHelperDownload } from '@/api/agentHelper'
+import { fetchLocalInstallInfo } from '@/utils/agentProbe'
+import { isHelperOutdated } from '@/utils/helperVersion'
 import { fetchAlibaba1688Stores } from '@/api/platformAccounts'
 import { scopeStores } from '@/utils/scope'
 import {
@@ -102,6 +105,7 @@ async function loadProducts() {
 }
 
 async function syncProducts() {
+  if (!(await ensureHelperUpdated())) return
   if (!backendReady.value || productsSyncing.value) return
   productsSyncing.value = true
   try {
@@ -135,6 +139,7 @@ async function syncProducts() {
 }
 
 async function syncOrders() {
+  if (!(await ensureHelperUpdated())) return
   if (!backendReady.value || ordersSyncing.value) return
   ordersSyncing.value = true
   try {
@@ -176,6 +181,7 @@ async function syncOrders() {
 }
 
 async function syncPeerBestsellers() {
+  if (!(await ensureHelperUpdated())) return
   if (!backendReady.value || peerSyncing.value) return
   peerSyncing.value = true
   try {
@@ -205,6 +211,39 @@ async function syncPeerBestsellers() {
     ElMessage.error(error?.message || '同行爆款抓取失败')
   } finally {
     peerSyncing.value = false
+  }
+}
+
+/** 旧版 Helper 强制拦截：未更新则弹提示并中止同步。 */
+async function ensureHelperUpdated() {
+  try {
+    const [latestRes, localRes] = await Promise.allSettled([
+      fetchHelperUpdateInfo(),
+      fetchLocalInstallInfo(1500),
+    ])
+    const latest = latestRes.status === 'fulfilled' ? latestRes.value?.version : ''
+    const local = localRes.status === 'fulfilled' ? localRes.value?.version : ''
+    if (isHelperOutdated(local, latest)) {
+      try {
+        await ElMessageBox.confirm(
+          `当前助手版本 ${local || '未知'}，最新版本 ${latest || '—'}。请先下载最新安装包并覆盖安装，否则 1688 同步不可用。`,
+          '本机助手需要更新',
+          {
+            confirmButtonText: '立即下载更新',
+            cancelButtonText: '稍后',
+            type: 'warning',
+            distinguishCancelAndClose: true,
+          },
+        )
+        openHelperDownload()
+      } catch {
+        // 用户取消/关闭
+      }
+      return false
+    }
+    return true
+  } catch {
+    return true // 无法获取版本信息时不拦截，避免影响既有功能
   }
 }
 
