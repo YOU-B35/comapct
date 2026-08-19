@@ -15,6 +15,8 @@ const props = defineProps({
   initialFilter: { type: String, default: 'all' },
   issuesTitle: { type: String, default: '运营预警' },
   issuesDescription: { type: String, default: '商品、活动与内容相关待跟进事项' },
+  /** 为 false 时不展示大标题区，仅保留同步时间 + 操作 */
+  showHeader: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['refresh', 'resolve'])
@@ -90,6 +92,7 @@ defineExpose({ finishResolve, setFilter })
 <template>
   <div class="domestic-panel">
     <DomesticPanelHeader
+      v-if="showHeader"
       :title="issuesTitle"
       :description="issuesDescription"
       :synced-at="syncedAt"
@@ -97,9 +100,57 @@ defineExpose({ finishResolve, setFilter })
       :loading="loading"
       @action="$emit('refresh')"
     />
+    <div v-else class="domestic-panel__toolbar">
+      <div class="domestic-panel__toolbar-filters">
+        <el-radio-group v-model="filterStatus" size="small">
+          <el-radio-button
+            v-for="opt in filterOptions"
+            :key="opt.value"
+            :value="opt.value"
+          >
+            {{ opt.label }}
+          </el-radio-button>
+        </el-radio-group>
+        <el-input
+          v-model="keyword"
+          clearable
+          size="small"
+          placeholder="搜索 SKU / 商品 / 说明"
+          class="domestic-panel__toolbar-search"
+        />
+      </div>
+      <div class="domestic-panel__toolbar-actions">
+        <el-button type="primary" size="small" :loading="loading" @click="$emit('refresh')">
+          刷新预警
+        </el-button>
+        <el-text v-if="syncedAt" size="small" type="info" class="domestic-panel__toolbar-meta">
+          同步 {{ syncedAt }}
+        </el-text>
+      </div>
+    </div>
 
-    <el-segmented v-model="filterStatus" :options="filterOptions" size="small" />
-
+    <div v-if="showHeader" class="domestic-panel__header-filters">
+      <el-radio-group
+        v-model="filterStatus"
+        size="small"
+        class="domestic-panel__filters"
+      >
+        <el-radio-button
+          v-for="opt in filterOptions"
+          :key="opt.value"
+          :value="opt.value"
+        >
+          {{ opt.label }}
+        </el-radio-button>
+      </el-radio-group>
+      <el-input
+        v-model="keyword"
+        clearable
+        size="small"
+        placeholder="搜索 SKU / 商品 / 说明"
+        class="domestic-panel__toolbar-search"
+      />
+    </div>
     <TableQueryBar
       v-model:keyword="keyword"
       v-model:page="page"
@@ -107,6 +158,7 @@ defineExpose({ finishResolve, setFilter })
       :total="total"
       placeholder="搜索 SKU / 商品 / 说明"
       :show-sizes="false"
+      :show-search="false"
     >
       <el-table :data="paged" size="small" stripe v-loading="loading">
         <el-table-column prop="typeLabel" label="类型" width="110" />
@@ -166,6 +218,51 @@ defineExpose({ finishResolve, setFilter })
 .domestic-panel {
   display: grid;
   gap: 16px;
+}
+
+.domestic-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.domestic-panel__toolbar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.domestic-panel__toolbar-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.domestic-panel__toolbar-meta {
+  text-align: right;
+  line-height: 1.3;
+}
+
+.domestic-panel__filters {
+  margin-bottom: 0;
+}
+
+.domestic-panel__header-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.domestic-panel__toolbar-search {
+  width: min(220px, 100%);
 }
 
 .issue-product-cell {

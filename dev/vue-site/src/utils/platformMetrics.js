@@ -4,7 +4,7 @@ import { summarizeAliExpressOrders } from '@/utils/aliexpress'
 import { summarizeWalmartOrders, summarizeWalmartListings } from '@/utils/walmart'
 import { summarizeDomesticOrders, summarizeDomesticIssues } from '@/utils/domesticPlatform'
 import { countAmazonPendingAlerts } from '@/utils/amazon'
-import { summarize1688PurchaseOrders } from '@/utils/alibaba1688'
+import { build1688SalesMetrics } from '@/utils/alibaba1688'
 import { formatMoney } from '@/utils/format'
 
 function primaryOwner(employees, platformKey, assigneeMap, storeIds) {
@@ -123,20 +123,22 @@ export function buildPlatformSalesRows(payload) {
   }
 
   if (alibaba1688?.stores?.length) {
-    const summary = alibaba1688.purchaseOrders?.length
-      ? summarize1688PurchaseOrders(alibaba1688.purchaseOrders)
-      : { totalAmount: 0, total: 0, pending: 0, totalAmountText: formatMoney(0) }
-    const alertCount = (alibaba1688.supplierAlerts || []).filter((a) => !a.resolved).length
+    const metrics = build1688SalesMetrics({
+      products: alibaba1688.products || [],
+      purchaseOrders: alibaba1688.purchaseOrders || [],
+      supplierAlerts: alibaba1688.supplierAlerts || [],
+      summary: alibaba1688.summary,
+    })
     const storeIds = alibaba1688.stores.map((store) => store.id)
     rows.push({
       id: '1688',
       name: '1688',
       owner: primaryOwner(employees, '1688', assigneeMap, storeIds),
-      revenue: summary.totalAmount,
-      orders: summary.total,
-      alerts: summary.pending + alertCount,
+      revenue: metrics.revenue,
+      orders: metrics.orders,
+      alerts: metrics.alerts,
       storeCount: storeIds.length,
-      revenueText: summary.totalAmountText,
+      revenueText: metrics.revenueText,
     })
   }
 

@@ -30,14 +30,25 @@ import PageSection from '@/components/common/PageSection.vue'
 import DomesticBossOverview from '@/components/domestic/DomesticBossOverview.vue'
 import DomesticOrdersPanel from '@/components/domestic/DomesticOrdersPanel.vue'
 import DomesticIssuesPanel from '@/components/domestic/DomesticIssuesPanel.vue'
-import DomesticPanelHeader from '@/components/domestic/DomesticPanelHeader.vue'
 import PlatformShipPushDialog from '@/components/domestic/PlatformShipPushDialog.vue'
 import HelperStatusBar from '@/components/helper/HelperStatusBar.vue'
 import TableQueryBar from '@/components/common/TableQueryBar.vue'
 import DouyinSyncLogDrawer from '@/components/douyin/DouyinSyncLogDrawer.vue'
+import BaseChart from '@/components/charts/BaseChart.vue'
 import { FULL_SYNC_STEP_IDS, FULL_SYNC_STEP_LABELS } from '@/api/douyinFullSync'
 import { canUsePlatformUserHelper } from '@/utils/opsSyncPolicy'
 import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
+import {
+  buildDouyinCarrierOption,
+  buildDouyinFunnelOption,
+  buildDouyinTrendOption,
+  pickSnapshotsByPeriod,
+} from '@/utils/douyinChartOptions'
+import { buildTodayHotProducts } from '@/utils/douyinTodayHotProducts'
+import {
+  filterNewListedProducts,
+  filterTodaySalesOrders,
+} from '@/utils/douyinProductListFilters'
 
 const {
   auth,
@@ -111,10 +122,19 @@ const session = ref({
 const sessionLoading = ref(false)
 const helperOnline = ref(false)
 const showHelperBar = computed(() => canUsePlatformUserHelper(auth) && !operationalDemoOnly.value)
+const helperBarRef = ref(null)
 
 function onHelperOnline(online) {
   helperOnline.value = Boolean(online)
   if (online) refreshSession()
+}
+
+function openDouyinBindCode() {
+  if (helperBarRef.value?.openBindDialog) {
+    helperBarRef.value.openBindDialog()
+    return
+  }
+  ElMessage.warning('请先安装并启动 Sync Helper，再在状态栏生成绑定码')
 }
 const products = ref([])
 const productsSyncedAt = ref('')
@@ -125,6 +145,18 @@ const compassSnapshots = ref([])
 const compassSyncedAt = ref('')
 const loadingCompass = ref(false)
 const syncingCompass = ref(false)
+/** 数据时段：realtime(1) | d1(20) | d7(21) | d30(23) */
+const compassPeriodKey = ref('realtime')
+const cockpitVizTab = ref('trend') // trend | funnel | carrier
+
+const COMPASS_PERIOD_OPTIONS = [
+  { value: 'realtime', label: '今日实时', dateType: 1 },
+  { value: 'd1', label: '昨日', dateType: 20 },
+  { value: 'd7', label: '近7天', dateType: 21 },
+  { value: 'd30', label: '近30天', dateType: 23 },
+]
+
+const PERIOD_DATE_TYPE = { realtime: 1, d1: 20, d7: 21, d30: 23 }
 const opportunityProducts = ref([])
 const opportunitySyncedAt = ref('')
 const opportunityCategoryName = ref('')
@@ -321,19 +353,13 @@ const opportunityAnalysisItems = computed(() => {
     if (!name) continue
     items.push({
       tag: String(name),
-      text: String(lab.label_desc || lab.desc || '可关注该标签对应的需求与供给变化'),
+      text: String(lab.label_desc || lab.desc || '').trim() || String(name),
     })
   }
   if (!items.length && Array.isArray(ov.labels) && ov.labels.length) {
     for (const name of ov.labels) {
       items.push({ tag: '标签', text: String(name) })
     }
-  }
-  if (!items.length) {
-    items.push({
-      tag: '提示',
-      text: '暂无更多详细分析文案；可切换上方时间档查看趋势指标。',
-    })
   }
   return items.slice(0, 6)
 })
@@ -360,7 +386,7 @@ const filteredProducts = computed(() => {
   return list.filter((p) => p.storeId === selectedStoreId.value)
 })
 
-/** 数据分析：销量 ≥ 10 列入爆款 */
+/** 数据分析：销量 ≥ 10 列入爆款（累计销量，与「今日爆款」无关） */
 const hotProducts = computed(() =>
   filteredProducts.value
     .filter((p) => Number(p.sales) >= HOT_PRODUCT_SALES_MIN)
@@ -368,9 +394,29 @@ const hotProducts = computed(() =>
     .sort((a, b) => Number(b.sales || 0) - Number(a.sales || 0)),
 )
 
-const productListSource = computed(() =>
-  productListTab.value === 'hot' ? hotProducts.value : filteredProducts.value,
+/** 近 24h 有效订单销量 ≥ 10 → 今日爆款 */
+const todayHotProducts = computed(() =>
+  buildTodayHotProducts(filteredOrders.value || [], filteredProducts.value || [], {
+    minQty: HOT_PRODUCT_SALES_MIN,
+  }),
 )
+
+/** 自然日今日有效销售订单（不含关闭/取消） */
+const todaySalesOrders = computed(() => filterTodaySalesOrders(filteredOrders.value || []))
+
+/** 近 3 个自然日内上架的新品 */
+const newListedProducts = computed(() =>
+  filterNewListedProducts(filteredProducts.value || [], { days: 3 }),
+)
+
+const showProductTable = computed(() => productListTab.value !== 'todayOrders')
+
+const productListSource = computed(() => {
+  if (productListTab.value === 'hot') return hotProducts.value
+  if (productListTab.value === 'todayHot') return todayHotProducts.value
+  if (productListTab.value === 'newSales') return newListedProducts.value
+  return filteredProducts.value
+})
 
 const {
   keyword: productKeyword,
@@ -424,30 +470,145 @@ const {
   fields: ['productName', 'productId', 'shopName', 'categoryPath'],
 })
 
+const compassPeriodLabel = computed(() => {
+  const opt = COMPASS_PERIOD_OPTIONS.find((o) => o.value === compassPeriodKey.value)
+  return opt?.label || '今日实时'
+})
+
+/** 当前时段对应的罗盘 snapshot（随时段 Tab 切换；找不到则空态，禁止回退到其它时段造成「图不变」） */
+const selectedCompassSnapshot = computed(() => {
+  const dt = PERIOD_DATE_TYPE[compassPeriodKey.value] ?? 1
+  const list = compassSnapshots.value || []
+  const hit = list.find((s) => Number(s.dateType) === dt)
+  if (hit) return hit
+  if (compassPeriodKey.value === 'realtime') {
+    return list.find((s) => Number(s.dateType) === 1) || compass.value || null
+  }
+  return null
+})
+
 const compassKpis = computed(() => {
-  const s = compass.value || {}
+  const s = selectedCompassSnapshot.value || {}
   const money = (v) => (v == null || v === '' ? '—' : `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-  const num = (v) => (v == null || v === '' ? '—' : Number(v).toLocaleString('zh-CN'))
-  const pct = (v) => (v == null || v === '' ? '—' : `${Number(v).toFixed(2)}%`)
+  const numFmt = (v) => (v == null || v === '' ? '—' : Number(v).toLocaleString('zh-CN'))
+  const peers = pickSnapshotsByPeriod(compassSnapshots.value, compassPeriodKey.value)
+  const peer = peers.length >= 2 ? peers[1].snapshot : null
+  const peerLabel = peers.length >= 2 ? peers[1].label : ''
+
+  function deltaText(cur, base) {
+    const a = Number(cur)
+    const b = Number(base)
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b === 0) return ''
+    const pct = ((a - b) / Math.abs(b)) * 100
+    const sign = pct > 0 ? '+' : ''
+    return `较${peerLabel} ${sign}${pct.toFixed(1)}%`
+  }
+  function deltaClass(cur, base) {
+    const a = Number(cur)
+    const b = Number(base)
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b === 0) return ''
+    return a >= b ? 'is-up' : 'is-down'
+  }
+
   return [
-    { label: '用户支付金额', value: money(s.payAmt), primary: true },
-    { label: '成交订单数', value: num(s.payCnt), primary: true },
-    { label: '成交人数', value: num(s.payUcnt), primary: true },
-    { label: '客单价', value: money(s.perUsrPayAmt), primary: true },
-    { label: '成交金额', value: money(s.incomeAmt) },
-    { label: '结算金额', value: money(s.settlementAmt) },
-    { label: '退款金额', value: money(s.refundAmt) },
-    { label: '退款率', value: pct(s.refundRate) },
-    { label: '曝光-点击转化', value: pct(s.showClickRate) },
-    { label: '点击-成交转化', value: pct(s.clickPayRate) },
+    {
+      label: '用户支付金额',
+      value: money(s.payAmt),
+      primary: true,
+      delta: deltaText(s.payAmt, peer?.payAmt),
+      deltaClass: deltaClass(s.payAmt, peer?.payAmt),
+    },
+    {
+      label: '成交订单数',
+      value: numFmt(s.payCnt),
+      primary: true,
+      delta: deltaText(s.payCnt, peer?.payCnt),
+      deltaClass: deltaClass(s.payCnt, peer?.payCnt),
+    },
+    {
+      label: '成交人数',
+      value: numFmt(s.payUcnt),
+      primary: true,
+      delta: deltaText(s.payUcnt, peer?.payUcnt),
+      deltaClass: deltaClass(s.payUcnt, peer?.payUcnt),
+    },
+    {
+      label: '客单价',
+      value: money(s.perUsrPayAmt),
+      primary: true,
+      delta: deltaText(s.perUsrPayAmt, peer?.perUsrPayAmt),
+      deltaClass: deltaClass(s.perUsrPayAmt, peer?.perUsrPayAmt),
+    },
   ]
 })
 
 const compassHeroKpis = computed(() => compassKpis.value.filter((k) => k.primary))
-const compassSecondaryKpis = computed(() => compassKpis.value.filter((k) => !k.primary))
+
+const compassSideMetrics = computed(() => {
+  const s = selectedCompassSnapshot.value || {}
+  const periodLabel = compassPeriodLabel.value
+  const money = (v) => (v == null || v === '' ? '—' : `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+  const numFmt = (v) => (v == null || v === '' ? '—' : Number(v).toLocaleString('zh-CN'))
+  const pct = (v) => {
+    const n = Number(v)
+    if (!Number.isFinite(n)) return '—'
+    const shown = n > 0 && n <= 1 ? n * 100 : n
+    return `${shown.toFixed(1)}%`
+  }
+  const rate = (a, b) => {
+    const x = Number(a)
+    const y = Number(b)
+    if (!Number.isFinite(x) || !Number.isFinite(y) || y <= 0) return '—'
+    return `${((x / y) * 100).toFixed(1)}%`
+  }
+
+  if (cockpitVizTab.value === 'funnel') {
+    const show = s.productShowCnt ?? s.productShowUcnt
+    const click = s.productClickCnt ?? s.productClickUcnt
+    const deal = s.payUcnt ?? s.payCnt
+    return [
+      { label: '曝光→点击', value: s.showClickRate != null ? pct(s.showClickRate) : rate(click, show), sub: periodLabel },
+      { label: '点击→成交', value: s.clickPayRate != null ? pct(s.clickPayRate) : rate(deal, click), sub: periodLabel },
+      { label: '曝光', value: numFmt(show), sub: periodLabel },
+      { label: '成交', value: numFmt(deal), sub: periodLabel },
+    ]
+  }
+  if (cockpitVizTab.value === 'carrier') {
+    const list = Array.isArray(s.carriers) ? s.carriers : []
+    const cards = list.slice(0, 3).map((c) => {
+      const pay = c.pay_amt ?? c.payAmt
+      const ratio = Number(c.ratio)
+      return {
+        label: c.name || '载体',
+        value: pay == null || pay === '' ? '—' : money(pay),
+        sub: Number.isFinite(ratio) ? `${ratio.toFixed(1)}%` : periodLabel,
+      }
+    })
+    cards.push({
+      label: '合计',
+      value: money(s.payAmt),
+      sub: periodLabel,
+    })
+    return cards
+  }
+
+  const peers = pickSnapshotsByPeriod(compassSnapshots.value, compassPeriodKey.value)
+  // 成交趋势：旁侧卡仍读当前时段；折线图横轴承担时段对比
+  const compareSub = peers.length > 1
+    ? `折线对比 ${peers.map((p) => p.label).join(' / ')}`
+    : periodLabel
+  return [
+    { label: '支付金额', value: money(s.payAmt), sub: compareSub },
+    { label: '成交订单', value: numFmt(s.payCnt), sub: compareSub },
+    { label: '点击成交率', value: s.clickPayRate != null ? pct(s.clickPayRate) : '—', sub: periodLabel },
+    { label: '退款率', value: s.refundRate != null ? pct(s.refundRate) : '—', sub: periodLabel },
+  ]
+})
 
 const compassExpParts = computed(() => {
-  const s = compass.value
+  // 体验分取实时 snapshot（与时段无关）
+  const realtime = (compassSnapshots.value || []).find((s) => Number(s.dateType) === 1)
+  const s = realtime || compass.value
   if (!s) return []
   return [
     { label: '商品', value: s.expProduct },
@@ -456,53 +617,39 @@ const compassExpParts = computed(() => {
   ]
 })
 
-const compassCarrierBars = computed(() => {
-  const list = compassCarriers.value || []
-  const maxRatio = Math.max(0, ...list.map((c) => Number(c.ratio) || 0))
-  return list.map((c) => {
-    const ratio = Number(c.ratio)
-    const pay = c.pay_amt
-    return {
-      name: c.name || '—',
-      payText: pay == null || pay === '' ? '—' : `¥${Number(pay).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      ratioText: Number.isFinite(ratio) ? `${ratio.toFixed(1)}%` : '—',
-      widthPct: Number.isFinite(ratio) && maxRatio > 0 ? Math.max(6, (ratio / maxRatio) * 100) : 6,
-    }
-  })
+const compassExpScore = computed(() => {
+  const realtime = (compassSnapshots.value || []).find((s) => Number(s.dateType) === 1)
+  const s = realtime || compass.value
+  return s?.expScore ?? '—'
 })
 
-const compassPeriodRows = computed(() => {
-  const order = { 1: 0, 20: 1, 21: 2, 23: 3 }
-  const labelOf = (dt) => ({ 1: '实时', 20: '近1天', 21: '近7天', 23: '近30天' }[Number(dt)] || String(dt))
-  const money = (v) => (v == null || v === '' ? '—' : `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-  const num = (v) => (v == null || v === '' ? '—' : Number(v).toLocaleString('zh-CN'))
-  const pct = (v) => (v == null || v === '' ? '—' : `${Number(v).toFixed(2)}%`)
-  return [...(compassSnapshots.value || [])]
-    .slice()
-    .sort((a, b) => (order[Number(a.dateType)] ?? 9) - (order[Number(b.dateType)] ?? 9))
-    .map((s) => ({
-      ...s,
-      dateLabel: s.dateLabel || labelOf(s.dateType),
-      isRealtime: Number(s.dateType) === 1,
-      payAmtText: money(s.payAmt),
-      payCntText: num(s.payCnt),
-      payUcntText: num(s.payUcnt),
-      incomeAmtText: money(s.incomeAmt),
-      perUsrPayAmtText: money(s.perUsrPayAmt),
-      settlementAmtText: money(s.settlementAmt),
-      refundAmtText: money(s.refundAmt),
-      refundRateText: pct(s.refundRate),
-      showClickRateText: pct(s.showClickRate),
-      clickPayRateText: pct(s.clickPayRate),
-    }))
+const douyinTrendOption = computed(() =>
+  buildDouyinTrendOption(compassSnapshots.value, compassPeriodKey.value),
+)
+const douyinFunnelOption = computed(() =>
+  buildDouyinFunnelOption(compassSnapshots.value, compassPeriodKey.value),
+)
+const douyinCarrierOption = computed(() =>
+  buildDouyinCarrierOption(compassSnapshots.value, compassPeriodKey.value),
+)
+
+/** 图表 Tab 切换时换 option；时段切换时对比集一并重算 */
+const douyinActiveChartOption = computed(() => {
+  if (cockpitVizTab.value === 'funnel') return douyinFunnelOption.value
+  if (cockpitVizTab.value === 'carrier') return douyinCarrierOption.value
+  return douyinTrendOption.value
 })
 
-const compassPeriodTotal = computed(() => compassPeriodRows.value.length)
+const hasCompassData = computed(() =>
+  Boolean(compass.value || (compassSnapshots.value && compassSnapshots.value.length)),
+)
 
-const compassCarriers = computed(() => {
-  const list = compass.value?.carriers
-  return Array.isArray(list) ? list : []
-})
+const opsOverviewCards = computed(() => ({
+  orderTotal: (filteredOrders.value || []).length,
+  orderPending: pendingOrderCount.value || 0,
+  issueOpen: pendingIssueCount.value || 0,
+  storeCount: (overviewStores.value || []).length || (stores.value || []).length || 0,
+}))
 
 async function loadCompass() {
   if (!useBackend()) {
@@ -1013,6 +1160,7 @@ onMounted(() => {
 
     <HelperStatusBar
       v-if="showHelperBar"
+      ref="helperBarRef"
       platform="douyin"
       @update:online="onHelperOnline"
     />
@@ -1029,9 +1177,14 @@ onMounted(() => {
               : '请联系企业管理员分配负责店铺；本机可先下载并绑定 Sync Helper'
           }}
         </el-text>
-        <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
-          前往账户绑定
-        </el-button>
+        <div class="douyin-empty-actions">
+          <el-button v-if="showHelperBar" type="primary" plain @click="openDouyinBindCode">
+            生成绑定码
+          </el-button>
+          <el-button v-if="auth.isBoss" type="primary" @click="goToAccountBinding">
+            前往账户绑定
+          </el-button>
+        </div>
       </el-empty>
     </PageSection>
 
@@ -1047,6 +1200,15 @@ onMounted(() => {
 
       <div v-if="!operationalDemoOnly" class="douyin-sync-bar">
         <div class="douyin-sync-bar__main">
+          <el-button
+            v-if="showHelperBar"
+            type="primary"
+            size="small"
+            plain
+            @click="openDouyinBindCode"
+          >
+            生成绑定码
+          </el-button>
           <el-button
             type="primary"
             size="small"
@@ -1100,15 +1262,12 @@ onMounted(() => {
               {{ syncRunDoneCount }}/{{ syncRunTotalCount || '完成' }}
             </el-tag>
           </el-button>
-          <el-text size="small" type="info" class="douyin-sync-bar__hint">
-            串行同步罗盘 → 商品榜 → 商机 → 商品 → 订单 → 预警
-          </el-text>
         </div>
         <el-collapse v-model="advancedSyncOpen" class="advanced-sync">
           <el-collapse-item title="高级同步" name="1">
             <div class="session-actions">
               <el-button
-                type="success"
+                plain
                 size="small"
                 :loading="syncingProducts"
                 :disabled="!session.agent_online"
@@ -1117,6 +1276,7 @@ onMounted(() => {
                 同步商品
               </el-button>
               <el-button
+                plain
                 size="small"
                 :loading="loadingOrders"
                 :disabled="!session.agent_online"
@@ -1125,7 +1285,7 @@ onMounted(() => {
                 同步近24小时订单
               </el-button>
               <el-button
-                type="warning"
+                plain
                 size="small"
                 :loading="syncingCompass"
                 :disabled="!session.agent_online"
@@ -1134,7 +1294,6 @@ onMounted(() => {
                 同步罗盘（全时段）
               </el-button>
               <el-button
-                type="primary"
                 plain
                 size="small"
                 :loading="syncingRank"
@@ -1144,7 +1303,6 @@ onMounted(() => {
                 同步商品榜
               </el-button>
               <el-button
-                type="primary"
                 plain
                 size="small"
                 :loading="syncingOpportunity"
@@ -1154,7 +1312,6 @@ onMounted(() => {
                 同步商机当前榜
               </el-button>
               <el-button
-                type="danger"
                 plain
                 size="small"
                 :loading="loadingIssues"
@@ -1171,15 +1328,36 @@ onMounted(() => {
       <PageSection
         v-if="!operationalDemoOnly || auth.isBoss"
         title="经营驾驶舱"
-        description="罗盘实时经营概况与近24小时运营待办"
       >
         <div v-loading="loadingCompass || syncingCompass" class="cockpit">
           <template v-if="!operationalDemoOnly">
+            <div class="period-bar">
+              <span class="period-bar__label">数据时段</span>
+              <div class="seg" role="tablist" aria-label="数据时段">
+                <button
+                  v-for="opt in COMPASS_PERIOD_OPTIONS"
+                  :key="opt.value"
+                  type="button"
+                  role="tab"
+                  :aria-selected="compassPeriodKey === opt.value"
+                  :class="{ 'is-active': compassPeriodKey === opt.value }"
+                  @click="compassPeriodKey = opt.value"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+              <span class="period-bar__note">
+                当前：{{ compassPeriodLabel }}<template v-if="compassSyncedAt"> · 同步 {{ compassSyncedAt }}</template>
+              </span>
+            </div>
+
             <div class="cockpit-hero">
-              <div class="cockpit-exp" :class="{ 'is-empty': !compass }">
+              <div class="cockpit-exp" :class="{ 'is-empty': compassExpScore === '—' }">
                 <div class="cockpit-exp__score">
                   <span class="cockpit-exp__score-label">体验分</span>
-                  <span class="cockpit-exp__score-value">{{ compass?.expScore ?? '—' }}</span>
+                  <span class="cockpit-exp__score-value">
+                    {{ compassExpScore }}<em v-if="compassExpScore !== '—'">/100</em>
+                  </span>
                 </div>
                 <div class="cockpit-exp__parts">
                   <div v-for="part in compassExpParts" :key="part.label" class="cockpit-exp__part">
@@ -1187,14 +1365,18 @@ onMounted(() => {
                     <span class="cockpit-exp__part-value">{{ part.value ?? '—' }}</span>
                   </div>
                 </div>
-                <el-text v-if="compassSyncedAt" class="cockpit-exp__sync" size="small" type="info">
-                  同步 {{ compassSyncedAt }}
-                </el-text>
               </div>
               <div class="cockpit-hero-kpis">
                 <div v-for="item in compassHeroKpis" :key="item.label" class="cockpit-hero-kpi">
                   <div class="cockpit-hero-kpi__value">{{ item.value }}</div>
                   <div class="cockpit-hero-kpi__label">{{ item.label }}</div>
+                  <div
+                    v-if="item.delta"
+                    class="cockpit-hero-kpi__delta"
+                    :class="item.deltaClass"
+                  >
+                    {{ item.delta }}
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1215,73 +1397,97 @@ onMounted(() => {
               </div>
             </div>
 
-            <div class="cockpit-grid">
-              <section class="cockpit-card">
-                <header class="cockpit-card__head">
-                  <h5 class="cockpit-card__title">各时段对比</h5>
-                  <el-text size="small" type="info">实时 / 近1天 / 近7天 / 近30天</el-text>
-                </header>
-                <el-table
-                  v-if="compassPeriodTotal"
-                  :data="compassPeriodRows"
-                  size="small"
-                  stripe
-                  class="cockpit-period-table"
-                  :row-class-name="({ row }) => (row.isRealtime ? 'is-realtime' : '')"
-                >
-                  <el-table-column prop="dateLabel" label="时间档" width="88" />
-                  <el-table-column prop="payAmtText" label="支付金额" min-width="108" align="right" />
-                  <el-table-column prop="payCntText" label="成交订单" width="92" align="right" />
-                  <el-table-column prop="payUcntText" label="成交人数" width="92" align="right" />
-                  <el-table-column prop="perUsrPayAmtText" label="客单价" width="96" align="right" />
-                  <el-table-column prop="refundRateText" label="退款率" width="84" align="right" />
-                  <el-table-column prop="clickPayRateText" label="点击成交" width="88" align="right" />
-                </el-table>
-                <el-empty
-                  v-else-if="!loadingCompass && !syncingCompass"
-                  :image-size="64"
-                  description="暂无罗盘时段数据"
-                />
-              </section>
-
-              <section class="cockpit-card">
-                <header class="cockpit-card__head">
-                  <h5 class="cockpit-card__title">更多实时指标</h5>
-                </header>
-                <div class="cockpit-sec-kpis">
-                  <div v-for="item in compassSecondaryKpis" :key="item.label" class="cockpit-sec-kpi">
-                    <div class="cockpit-sec-kpi__value">{{ item.value }}</div>
-                    <div class="cockpit-sec-kpi__label">{{ item.label }}</div>
-                  </div>
-                </div>
-                <div v-if="compassCarrierBars.length" class="cockpit-carriers">
-                  <div class="cockpit-carriers__title">载体分布</div>
-                  <div
-                    v-for="row in compassCarrierBars"
-                    :key="row.name"
-                    class="cockpit-carrier"
+            <div class="viz-panel">
+              <div class="viz-panel__head">
+                <h5 class="viz-panel__title">经营总览图</h5>
+                <span class="viz-panel__period-tag">{{ compassPeriodLabel }}</span>
+                <div class="viz-tabs">
+                  <button
+                    type="button"
+                    :class="{ 'is-active': cockpitVizTab === 'trend' }"
+                    @click="cockpitVizTab = 'trend'"
                   >
-                    <div class="cockpit-carrier__meta">
-                      <span class="cockpit-carrier__name">{{ row.name }}</span>
-                      <span class="cockpit-carrier__pay">{{ row.payText }}</span>
-                      <span class="cockpit-carrier__ratio">{{ row.ratioText }}</span>
-                    </div>
-                    <div class="cockpit-carrier__track">
-                      <div class="cockpit-carrier__fill" :style="{ width: `${row.widthPct}%` }" />
+                    成交趋势
+                  </button>
+                  <button
+                    type="button"
+                    :class="{ 'is-active': cockpitVizTab === 'funnel' }"
+                    @click="cockpitVizTab = 'funnel'"
+                  >
+                    转化漏斗
+                  </button>
+                  <button
+                    type="button"
+                    :class="{ 'is-active': cockpitVizTab === 'carrier' }"
+                    @click="cockpitVizTab = 'carrier'"
+                  >
+                    载体结构
+                  </button>
+                </div>
+              </div>
+              <div class="viz-panel__body">
+                <div class="viz-layout">
+                  <div class="viz-layout__chart">
+                    <BaseChart
+                      :key="`${compassPeriodKey}-${cockpitVizTab}`"
+                      :option="douyinActiveChartOption"
+                      :height="280"
+                      empty-text="暂无数据"
+                    />
+                  </div>
+                  <div class="metric-cards">
+                    <div
+                      v-for="item in compassSideMetrics"
+                      :key="`${cockpitVizTab}-${item.label}`"
+                      class="metric-card"
+                    >
+                      <div class="metric-card__label">{{ item.label }}</div>
+                      <div class="metric-card__value">{{ item.value }}</div>
+                      <div v-if="item.sub" class="metric-card__sub">{{ item.sub }}</div>
                     </div>
                   </div>
                 </div>
-              </section>
+              </div>
             </div>
           </template>
 
-          <section v-if="auth.isBoss" class="cockpit-card cockpit-card--ops">
+          <section class="cockpit-card cockpit-card--ops">
             <header class="cockpit-card__head">
               <h5 class="cockpit-card__title">运营概览</h5>
-              <el-text size="small" type="info">近24小时订单 · 内容预警</el-text>
+              <el-text size="small" type="info">近24小时</el-text>
             </header>
+            <div class="ops-row">
+              <button type="button" class="ops-stat" @click="handleOverviewNavigate('orders')">
+                <strong>{{ opsOverviewCards.orderTotal }}</strong>
+                <span>近24h 订单</span>
+              </button>
+              <button
+                type="button"
+                class="ops-stat"
+                :class="{ 'is-warn': opsOverviewCards.orderPending > 0 }"
+                @click="handleOverviewNavigate('orders')"
+              >
+                <strong>{{ opsOverviewCards.orderPending }}</strong>
+                <span>待发货</span>
+              </button>
+              <button
+                type="button"
+                class="ops-stat"
+                :class="{ 'is-danger': opsOverviewCards.issueOpen > 0 }"
+                @click="handleOverviewNavigate('issues')"
+              >
+                <strong>{{ opsOverviewCards.issueOpen }}</strong>
+                <span>内容预警</span>
+              </button>
+              <div class="ops-stat">
+                <strong>{{ opsOverviewCards.storeCount }}</strong>
+                <span>负责店铺</span>
+              </div>
+            </div>
             <DomesticBossOverview
+              v-if="auth.isBoss"
               compact
+              hide-metrics
               :orders="filteredOrders"
               :issues="filteredIssues"
               :stores="overviewStores"
@@ -1293,8 +1499,8 @@ onMounted(() => {
           </section>
 
           <el-empty
-            v-if="!operationalDemoOnly && !loadingCompass && !syncingCompass && !compassPeriodTotal && !compass && !auth.isBoss"
-            description="暂无罗盘数据，请先登录后点「刷新全部」或在「高级同步」中同步罗盘"
+            v-if="!operationalDemoOnly && !loadingCompass && !syncingCompass && !hasCompassData && !auth.isBoss"
+            description="暂无罗盘数据"
           />
         </div>
       </PageSection>
@@ -1302,68 +1508,84 @@ onMounted(() => {
       <PageSection title="经营明细">
         <el-tabs v-model="detailTab" class="detail-tabs">
           <el-tab-pane v-if="!operationalDemoOnly" label="商品榜" name="rank">
-        <DomesticPanelHeader
-          title="罗盘商品榜 Top200"
-          :description="rankCategoryName
-            ? `默认类目：${rankCategoryName}${rankReportDay ? ` · ${rankReportDay}` : ''}`
-            : 'compass 商品榜单 · 搜索榜 / 商品卡榜 / 总榜 · 今日实时 / 昨日'"
-          :synced-at="rankSyncedAt"
-          action-label="同步商品榜"
-          :loading="syncingRank || loadingRank"
-          @action="handleSyncRank"
-        />
-        <div class="opp-toolbar">
-          <el-radio-group v-model="rankBoard" size="small">
-            <el-radio-button
-              v-for="opt in rankBoardOptions"
-              :key="opt.value"
-              :value="opt.value"
+        <div class="detail-toolbar">
+          <div class="detail-toolbar__filters">
+            <el-radio-group v-model="rankBoard" size="small">
+              <el-radio-button
+                v-for="opt in rankBoardOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ opt.label }}
+              </el-radio-button>
+            </el-radio-group>
+            <el-radio-group v-model="rankDateWindow" size="small">
+              <el-radio-button
+                v-for="opt in rankDateWindowOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ opt.label }}
+              </el-radio-button>
+            </el-radio-group>
+            <el-radio-group v-model="rankTrackFilter" size="small">
+              <el-radio-button value="all">全部</el-radio-button>
+              <el-radio-button value="建议追踪">建议追踪</el-radio-button>
+              <el-radio-button value="可观望">可观望</el-radio-button>
+            </el-radio-group>
+            <el-switch
+              v-model="rankSortByScore"
+              inline-prompt
+              active-text="按综合分"
+              inactive-text="按榜排名"
+            />
+            <el-input
+              v-if="rankProducts.length"
+              v-model="rankKeyword"
+              clearable
+              size="small"
+              placeholder="搜索商品 / 店铺 / 类目"
+              class="detail-toolbar__search"
+            />
+          </div>
+          <div class="detail-toolbar__actions">
+            <el-button
+              type="primary"
+              size="small"
+              :loading="syncingRank || loadingRank"
+              :disabled="!session.agent_online"
+              @click="handleSyncRank"
             >
-              {{ opt.label }}
-            </el-radio-button>
-          </el-radio-group>
-          <el-radio-group v-model="rankDateWindow" size="small">
-            <el-radio-button
-              v-for="opt in rankDateWindowOptions"
-              :key="opt.value"
-              :value="opt.value"
+              同步商品榜
+            </el-button>
+            <el-text
+              v-if="rankCategoryName || rankSyncedAt || rankProducts.length"
+              size="small"
+              type="info"
+              class="detail-toolbar__meta"
             >
-              {{ opt.label }}
-            </el-radio-button>
-          </el-radio-group>
-          <el-radio-group v-model="rankTrackFilter" size="small">
-            <el-radio-button value="all">全部</el-radio-button>
-            <el-radio-button value="建议追踪">建议追踪</el-radio-button>
-            <el-radio-button value="可观望">可观望</el-radio-button>
-          </el-radio-group>
-          <el-switch
-            v-model="rankSortByScore"
-            inline-prompt
-            active-text="按综合分"
-            inactive-text="按榜排名"
-          />
-          <el-button
-            type="primary"
-            :loading="syncingRank"
-            :disabled="!session.agent_online"
-            @click="handleSyncRank"
-          >
-            同步商品榜
-          </el-button>
-          <el-text type="info" size="small">
-            {{ rankProducts.length }} 条
-          </el-text>
+              <template v-if="rankCategoryName">
+                {{ rankCategoryName }}{{ rankReportDay ? ` · ${rankReportDay}` : '' }}
+              </template>
+              <template v-if="rankSyncedAt">
+                <template v-if="rankCategoryName"> · </template>同步 {{ rankSyncedAt }}
+              </template>
+              <template v-if="rankProducts.length">
+                <template v-if="rankCategoryName || rankSyncedAt"> · </template>{{ rankProducts.length }} 条
+              </template>
+            </el-text>
+          </div>
         </div>
         <el-alert
           v-if="rankProducts.length && rankPeerAvailable === false"
           type="warning"
           show-icon
           :closable="false"
-          title="请先同步「昨日」与「今日」后再看追踪分析"
+          title="需同时具备昨日与今日数据后，方可查看追踪分析"
           style="margin-top: 8px"
         />
         <el-alert
-          v-if="rankProducts.length && rankDateWindow === 'yesterday' && (!rankHasShowCnt || !rankHasOrderCnt)"
+          v-if="rankProducts.length && rankDateWindow === 'yesterday' && (!rankHasShowCnt || !rankHasOrderCnt) && rankMetricHint"
           type="info"
           show-icon
           :closable="false"
@@ -1378,6 +1600,7 @@ onMounted(() => {
           :total="rankTotal"
           placeholder="搜索商品 / 店铺 / 类目"
           :show-sizes="false"
+          :show-search="false"
         >
           <el-table
             v-loading="loadingRank || syncingRank"
@@ -1458,7 +1681,7 @@ onMounted(() => {
         </TableQueryBar>
         <el-empty
           v-if="!loadingRank && !syncingRank && !rankProducts.length"
-          description="暂无罗盘商品榜数据，请先登录后点「同步商品榜」"
+          description="暂无商品榜数据"
         />
         <el-drawer
           v-model="rankDrawerVisible"
@@ -1478,84 +1701,106 @@ onMounted(() => {
                 <div class="opp-product-cell__sub">{{ rankDrawerRow.shopName }} · {{ rankDrawerRow.productId }}</div>
               </div>
             </div>
-            <el-descriptions :column="1" size="small" border>
-              <el-descriptions-item label="排名">{{ rankDrawerRow.rankNo }} / 对照 {{ rankDrawerRow.peerRankNo ?? '—' }}</el-descriptions-item>
-              <el-descriptions-item label="支付金额">{{ formatMetricValue(rankDrawerRow.payAmt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.payAmt) }}</el-descriptions-item>
-              <el-descriptions-item label="点击">{{ formatMetricValue(rankDrawerRow.clickCnt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.clickCnt) }}</el-descriptions-item>
-              <el-descriptions-item label="成交件数">{{ formatMetricValue(rankDrawerRow.payCnt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.payCnt) }}</el-descriptions-item>
-              <el-descriptions-item label="转化率">{{ rankDrawerRow.clickPayCvr ?? '—' }} / {{ rankDrawerRow.peerMetrics?.clickPayCvr ?? '—' }}</el-descriptions-item>
-              <el-descriptions-item v-if="rankDrawerRow.showCnt != null || rankHasShowCnt" label="曝光">{{ formatMetricValue(rankDrawerRow.showCnt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.showCnt) }}</el-descriptions-item>
-              <el-descriptions-item label="订单成交">{{ formatMetricValue(rankDrawerRow.orderCnt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.orderCnt ?? rankDrawerRow.peerMetrics?.payCnt ?? rankDrawerRow.peerMetrics?.dealCnt) }}</el-descriptions-item>
-              <el-descriptions-item label="成交额变化">{{ formatDeltaPct(rankDrawerRow.payAmtDeltaPct) }}</el-descriptions-item>
-              <el-descriptions-item label="综合分">{{ rankDrawerRow.trackScore ?? '—' }} · {{ rankDrawerRow.trackLabel }}</el-descriptions-item>
-            </el-descriptions>
-            <ul style="margin-top: 12px; padding-left: 18px">
-              <li v-for="(r, i) in (rankDrawerRow.trackReasons || [])" :key="i">{{ r }}</li>
-            </ul>
-            <p style="margin-top: 12px"><strong>盯梢：</strong>{{ rankDrawerRow.watchHint }}</p>
-            <p><strong>跟卖：</strong>{{ rankDrawerRow.followHint }}</p>
+
+            <div class="drawer-block">
+              <h5 class="drawer-block__title">对照指标</h5>
+              <el-descriptions :column="1" size="small" border>
+                <el-descriptions-item label="排名">{{ rankDrawerRow.rankNo }} / 对照 {{ rankDrawerRow.peerRankNo ?? '—' }}</el-descriptions-item>
+                <el-descriptions-item label="支付金额">{{ formatMetricValue(rankDrawerRow.payAmt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.payAmt) }}</el-descriptions-item>
+                <el-descriptions-item label="点击">{{ formatMetricValue(rankDrawerRow.clickCnt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.clickCnt) }}</el-descriptions-item>
+                <el-descriptions-item label="成交件数">{{ formatMetricValue(rankDrawerRow.payCnt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.payCnt) }}</el-descriptions-item>
+                <el-descriptions-item label="转化率">{{ rankDrawerRow.clickPayCvr ?? '—' }} / {{ rankDrawerRow.peerMetrics?.clickPayCvr ?? '—' }}</el-descriptions-item>
+                <el-descriptions-item v-if="rankDrawerRow.showCnt != null || rankHasShowCnt" label="曝光">{{ formatMetricValue(rankDrawerRow.showCnt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.showCnt) }}</el-descriptions-item>
+                <el-descriptions-item label="订单成交">{{ formatMetricValue(rankDrawerRow.orderCnt) }} / {{ formatMetricValue(rankDrawerRow.peerMetrics?.orderCnt ?? rankDrawerRow.peerMetrics?.payCnt ?? rankDrawerRow.peerMetrics?.dealCnt) }}</el-descriptions-item>
+                <el-descriptions-item label="成交额变化">{{ formatDeltaPct(rankDrawerRow.payAmtDeltaPct) }}</el-descriptions-item>
+              </el-descriptions>
+            </div>
+
+            <div class="drawer-block">
+              <h5 class="drawer-block__title">追踪分析</h5>
+              <el-descriptions :column="1" size="small" border>
+                <el-descriptions-item label="综合分">{{ rankDrawerRow.trackScore ?? '—' }} · {{ rankDrawerRow.trackLabel || '—' }}</el-descriptions-item>
+              </el-descriptions>
+              <ul v-if="rankDrawerRow.trackReasons?.length" class="drawer-reasons">
+                <li v-for="(r, i) in rankDrawerRow.trackReasons" :key="i">{{ r }}</li>
+              </ul>
+            </div>
+
+            <div v-if="rankDrawerRow.watchHint || rankDrawerRow.followHint" class="drawer-block">
+              <h5 class="drawer-block__title">行动建议</h5>
+              <el-descriptions :column="1" size="small" border>
+                <el-descriptions-item v-if="rankDrawerRow.watchHint" label="盯梢">{{ rankDrawerRow.watchHint }}</el-descriptions-item>
+                <el-descriptions-item v-if="rankDrawerRow.followHint" label="跟卖">{{ rankDrawerRow.followHint }}</el-descriptions-item>
+              </el-descriptions>
+            </div>
           </template>
         </el-drawer>
           </el-tab-pane>
 
           <el-tab-pane v-if="!operationalDemoOnly" label="商机中心" name="opportunity">
-        <DomesticPanelHeader
-          title="商机中心 Top100"
-          :description="opportunityCategoryName
-            ? `当前：${opportunityCategoryName}`
-            : '跟潜力爆品 / 追抖音热词 · 可切换排序；留空类目=默认池'"
-          :synced-at="opportunitySyncedAt"
-          action-label="同步当前榜 Top100"
-          :loading="syncingOpportunity || loadingOpportunity"
-          @action="handleSyncOpportunity"
-        />
-        <div class="opp-toolbar">
-          <el-radio-group v-model="opportunityPool" size="small">
-            <el-radio-button
-              v-for="opt in opportunityPoolOptions"
-              :key="opt.value"
-              :value="opt.value"
+        <div class="detail-toolbar">
+          <div class="detail-toolbar__filters">
+            <el-radio-group v-model="opportunityPool" size="small">
+              <el-radio-button
+                v-for="opt in opportunityPoolOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ opt.label }}
+              </el-radio-button>
+            </el-radio-group>
+            <el-radio-group v-model="opportunitySort" size="small">
+              <el-radio-button
+                v-for="opt in opportunitySortOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ opt.label }}
+              </el-radio-button>
+            </el-radio-group>
+            <el-input
+              v-model="opportunityCategoryQuery"
+              clearable
+              size="small"
+              placeholder="类目搜索"
+              class="detail-toolbar__search"
+              @keyup.enter="handleSyncOpportunity"
+            />
+            <el-input
+              v-if="opportunityProducts.length"
+              v-model="opportunityKeyword"
+              clearable
+              size="small"
+              placeholder="搜索标题 / 类目 / 搜索次数 / 成交金额"
+              class="detail-toolbar__search detail-toolbar__search--wide"
+            />
+          </div>
+          <div class="detail-toolbar__actions">
+            <el-button
+              type="primary"
+              size="small"
+              :loading="syncingOpportunity || loadingOpportunity"
+              :disabled="!session.agent_online"
+              @click="handleSyncOpportunity"
             >
-              {{ opt.label }}
-            </el-radio-button>
-          </el-radio-group>
-          <el-radio-group v-model="opportunitySort" size="small">
-            <el-radio-button
-              v-for="opt in opportunitySortOptions"
-              :key="opt.value"
-              :value="opt.value"
+              同步当前榜
+            </el-button>
+            <el-text
+              v-if="opportunityCategoryName || opportunitySyncedAt || opportunityProducts.length"
+              size="small"
+              type="info"
+              class="detail-toolbar__meta"
             >
-              {{ opt.label }}
-            </el-radio-button>
-          </el-radio-group>
+              <template v-if="opportunityCategoryName">{{ opportunityCategoryName }}</template>
+              <template v-if="opportunitySyncedAt">
+                <template v-if="opportunityCategoryName"> · </template>同步 {{ opportunitySyncedAt }}
+              </template>
+              <template v-if="opportunityProducts.length">
+                <template v-if="opportunityCategoryName || opportunitySyncedAt"> · </template>{{ opportunityProducts.length }} 条
+              </template>
+            </el-text>
+          </div>
         </div>
-        <div class="opp-toolbar">
-          <el-input
-            v-model="opportunityCategoryQuery"
-            clearable
-            placeholder="类目搜索 / 填写（留空=默认推荐类目）"
-            style="max-width: 360px"
-            @keyup.enter="handleSyncOpportunity"
-          />
-          <el-button
-            type="primary"
-            :loading="syncingOpportunity"
-            :disabled="!session.agent_online"
-            @click="handleSyncOpportunity"
-          >
-            同步当前榜
-          </el-button>
-          <el-text v-if="opportunityCategoryKey" type="info" size="small">
-            {{ opportunityProducts.length }} 条
-          </el-text>
-        </div>
-        <el-alert
-          class="product-hot-hint"
-          type="info"
-          :closable="false"
-          show-icon
-          title="商机中心列表无独立「当日榜」切换；每行同时展示当日相关 / 近7天 / 近30天可用指标（来自接口字段）"
-        />
         <TableQueryBar
           v-if="opportunityProducts.length"
           v-model:keyword="opportunityKeyword"
@@ -1564,6 +1809,7 @@ onMounted(() => {
           :total="opportunityTotal"
           placeholder="搜索标题 / 类目 / 搜索次数 / 成交金额"
           :show-sizes="false"
+          :show-search="false"
         >
           <el-table
             v-loading="loadingOpportunity || syncingOpportunity"
@@ -1628,7 +1874,7 @@ onMounted(() => {
         </TableQueryBar>
         <el-empty
           v-if="!loadingOpportunity && !syncingOpportunity && !opportunityProducts.length"
-          description="暂无商机数据，请先登录后同步「为你推荐 Top100」"
+          description="暂无商机数据"
         />
         <el-drawer
           v-model="opportunityDrawer"
@@ -1714,45 +1960,100 @@ onMounted(() => {
         <el-tabs v-model="activeTab" class="catalog-sub-tabs">
           <el-tab-pane name="products" label="商品">
             <div class="tab-panel">
-              <DomesticPanelHeader
-                title="商品管理"
-                description="同步抖店商品管理列表可见字段"
-                :synced-at="productsSyncedAt"
-                action-label="同步商品"
-                :loading="syncingProducts || loadingProducts"
-                @action="handleSyncProducts"
-              />
-
-              <el-radio-group v-model="productListTab" size="small" class="product-list-tabs">
-                <el-radio-button value="all">全部商品</el-radio-button>
-                <el-radio-button value="hot">
-                  爆款商品
-                  <el-badge
-                    v-if="hotProducts.length"
-                    :value="hotProducts.length"
-                    type="danger"
-                    class="product-list-tabs__badge"
+              <div class="detail-toolbar">
+                <div class="detail-toolbar__filters">
+                  <el-radio-group v-model="productListTab" size="small">
+                    <el-radio-button value="all">全部商品</el-radio-button>
+                    <el-radio-button value="hot">
+                      爆款商品
+                      <el-badge
+                        v-if="hotProducts.length"
+                        :value="hotProducts.length"
+                        type="danger"
+                        class="product-list-tabs__badge"
+                      />
+                    </el-radio-button>
+                    <el-radio-button value="todayHot">
+                      今日爆款
+                      <el-badge
+                        v-if="todayHotProducts.length"
+                        :value="todayHotProducts.length"
+                        type="danger"
+                        class="product-list-tabs__badge"
+                      />
+                    </el-radio-button>
+                    <el-radio-button value="todayOrders">
+                      今日销售订单
+                      <el-badge
+                        v-if="todaySalesOrders.length"
+                        :value="todaySalesOrders.length"
+                        type="success"
+                        class="product-list-tabs__badge"
+                      />
+                    </el-radio-button>
+                    <el-radio-button value="newSales">
+                      新品销售
+                      <el-badge
+                        v-if="newListedProducts.length"
+                        :value="newListedProducts.length"
+                        type="info"
+                        class="product-list-tabs__badge"
+                      />
+                    </el-radio-button>
+                  </el-radio-group>
+                  <el-input
+                    v-if="showProductTable && productListSource.length"
+                    v-model="productKeyword"
+                    clearable
+                    size="small"
+                    placeholder="搜索标题 / ID / 货号 / 类目"
+                    class="detail-toolbar__search"
                   />
-                </el-radio-button>
-              </el-radio-group>
+                </div>
+                <div class="detail-toolbar__actions">
+                  <template v-if="productListTab !== 'todayOrders'">
+                    <el-button
+                      type="primary"
+                      size="small"
+                      :loading="syncingProducts || loadingProducts"
+                      :disabled="!session.agent_online"
+                      @click="handleSyncProducts"
+                    >
+                      同步商品
+                    </el-button>
+                    <el-text v-if="productsSyncedAt" size="small" type="info" class="detail-toolbar__meta">
+                      同步 {{ productsSyncedAt }}
+                    </el-text>
+                  </template>
+                </div>
+              </div>
 
-              <el-alert
-                v-if="productListTab === 'hot'"
-                class="product-hot-hint"
-                type="warning"
-                :closable="false"
-                show-icon
-                :title="`数据分析：销量 ≥ ${HOT_PRODUCT_SALES_MIN} 的商品列入爆款列表，按销量从高到低排序`"
+              <DomesticOrdersPanel
+                v-if="productListTab === 'todayOrders'"
+                :orders="todaySalesOrders"
+                :synced-at="ordersSyncedAt"
+                :loading="loadingOrders"
+                :show-store-column="showStoreColumn"
+                :store-name-map="storeNameMap"
+                :show-header="false"
+                :show-mini-stats="false"
+                show-channel-column
+                action-label="同步订单"
+                amount-label="今日金额"
+                @refresh="handleSyncOrdersLogged"
+                @ship-push="openShipDialog($event, 'push')"
+                @ship-urge="openShipDialog($event, 'urge')"
               />
 
               <TableQueryBar
-                v-if="productListSource.length"
+                v-if="showProductTable && productListSource.length"
                 v-model:keyword="productKeyword"
                 v-model:page="productPage"
                 v-model:page-size="productPageSize"
                 :total="productTotal"
                 placeholder="搜索标题 / ID / 货号 / 类目"
                 :show-sizes="false"
+                :show-search="false"
               >
                 <el-table :data="pagedProducts" size="small" stripe v-loading="loadingProducts || syncingProducts">
                   <el-table-column label="商品图片" width="72" align="center">
@@ -1782,17 +2083,29 @@ onMounted(() => {
                   <el-table-column label="库存" width="80" align="right">
                     <template #default="{ row }">{{ row.stock == null ? '—' : row.stock }}</template>
                   </el-table-column>
-                  <el-table-column label="销量" width="90" align="right" sortable>
+                  <el-table-column
+                    :label="productListTab === 'todayHot' ? '近24h销量' : '销量'"
+                    width="100"
+                    align="right"
+                    sortable
+                  >
                     <template #default="{ row }">
-                      <el-tag
-                        v-if="Number(row.sales) >= HOT_PRODUCT_SALES_MIN"
-                        type="danger"
-                        size="small"
-                        effect="plain"
-                      >
-                        {{ row.sales }}
-                      </el-tag>
-                      <span v-else>{{ row.sales == null ? '—' : row.sales }}</span>
+                      <template v-if="productListTab === 'todayHot'">
+                        <el-tag type="danger" size="small" effect="plain">
+                          {{ row.todaySales ?? '—' }}
+                        </el-tag>
+                      </template>
+                      <template v-else>
+                        <el-tag
+                          v-if="Number(row.sales) >= HOT_PRODUCT_SALES_MIN"
+                          type="danger"
+                          size="small"
+                          effect="plain"
+                        >
+                          {{ row.sales }}
+                        </el-tag>
+                        <span v-else>{{ row.sales == null ? '—' : row.sales }}</span>
+                      </template>
                     </template>
                   </el-table-column>
                   <el-table-column prop="articleNo" label="货号" min-width="100" show-overflow-tooltip>
@@ -1813,11 +2126,21 @@ onMounted(() => {
                 </el-table>
               </TableQueryBar>
               <el-empty
-                v-if="!loadingProducts && !syncingProducts && !productListSource.length"
+                v-if="
+                  showProductTable
+                    && !loadingProducts
+                    && !syncingProducts
+                    && !(productListTab === 'todayHot' && loadingOrders)
+                    && !productListSource.length
+                "
                 :description="
                   productListTab === 'hot'
                     ? `暂无爆款（销量 ≥ ${HOT_PRODUCT_SALES_MIN}）`
-                    : '暂无商品，请先登录后点「同步商品」'
+                    : productListTab === 'todayHot'
+                      ? `暂无今日爆款（近24h 有效销量 ≥ ${HOT_PRODUCT_SALES_MIN}）`
+                      : productListTab === 'newSales'
+                        ? '暂无近3天上架的新品'
+                        : '暂无商品'
                 "
               />
             </div>
@@ -1835,9 +2158,9 @@ onMounted(() => {
                 :loading="loadingOrders"
                 :show-store-column="showStoreColumn"
                 :store-name-map="storeNameMap"
+                :show-header="false"
+                :show-mini-stats="false"
                 show-channel-column
-                orders-title="近24小时订单"
-                orders-description="同步抖店订单管理：昨日此时至当前时刻"
                 action-label="同步近24小时订单"
                 amount-label="近24小时金额"
                 @refresh="handleSyncOrdersLogged"
@@ -1861,8 +2184,7 @@ onMounted(() => {
                 :show-store-column="showStoreColumn"
                 :store-name-map="storeNameMap"
                 :initial-filter="issuesFilter"
-                issues-title="内容预警"
-                issues-description="平台违规 / 商品问题 / 直播与短视频异常 · 可同步并标记已解决"
+                :show-header="false"
                 @refresh="handleSyncIssuesLogged"
                 @resolve="handleResolveIssue"
               />
@@ -1899,6 +2221,14 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.douyin-empty-actions {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
 .douyin-sync-bar {
   margin-bottom: 12px;
   padding: 10px 12px;
@@ -1912,10 +2242,6 @@ onMounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 10px;
-}
-
-.douyin-sync-bar__hint {
-  margin-left: 2px;
 }
 
 .session-actions {
@@ -1966,14 +2292,62 @@ onMounted(() => {
 
 .cockpit {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   min-height: 120px;
+}
+
+.period-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ch-border, var(--el-border-color-lighter));
+  border-radius: var(--ch-radius-md, 10px);
+  background: var(--ch-surface-muted, var(--el-fill-color-lighter));
+}
+
+.period-bar__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ch-text-secondary, var(--el-text-color-regular));
+}
+
+.period-bar__note {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ch-text-muted, var(--el-text-color-secondary));
+}
+
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--ch-border, var(--el-border-color-lighter));
+}
+
+.seg button {
+  border: none;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ch-text-secondary, var(--el-text-color-regular));
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.seg button.is-active {
+  background: var(--ch-primary-soft, #edf2ff);
+  color: var(--ch-primary, #1f4fd6);
+  font-weight: 600;
 }
 
 .cockpit-hero {
   display: grid;
   grid-template-columns: minmax(200px, 240px) 1fr;
-  gap: 14px;
+  gap: 12px;
   align-items: stretch;
 }
 
@@ -1981,10 +2355,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 16px;
   border: 1px solid var(--ch-border, var(--el-border-color-lighter));
   border-radius: var(--ch-radius-md, 10px);
-  background: linear-gradient(160deg, #f7fafc 0%, #fff 55%);
+  background: linear-gradient(165deg, #f7f9fc 0%, #fff 55%);
 }
 
 .cockpit-exp.is-empty {
@@ -2003,11 +2377,19 @@ onMounted(() => {
 }
 
 .cockpit-exp__score-value {
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 700;
   line-height: 1.1;
   color: var(--ch-text, var(--el-text-color-primary));
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+}
+
+.cockpit-exp__score-value em {
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ch-text-muted, var(--el-text-color-secondary));
+  margin-left: 4px;
 }
 
 .cockpit-exp__parts {
@@ -2022,7 +2404,7 @@ onMounted(() => {
   gap: 2px;
   padding: 6px 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.85);
+  background: #fff;
   border: 1px solid var(--ch-border, var(--el-border-color-extra-light));
 }
 
@@ -2034,10 +2416,6 @@ onMounted(() => {
 .cockpit-exp__part-value {
   font-size: 14px;
   font-weight: 600;
-}
-
-.cockpit-exp__sync {
-  margin-top: auto;
 }
 
 .cockpit-hero-kpis {
@@ -2065,16 +2443,11 @@ onMounted(() => {
 
 .cockpit-hero-kpi--action:hover {
   border-color: var(--ch-primary-muted, #93c5fd);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
-}
-
-.cockpit-hero-kpi--action.is-hot:hover {
-  border-color: #f0a8a8;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.06);
 }
 
 .cockpit-hero-kpi--action.is-hot .cockpit-hero-kpi__value {
-  color: var(--ch-error, #ef4444);
+  color: var(--ch-error, #c81e45);
 }
 
 .cockpit-hero-kpi__value {
@@ -2090,11 +2463,174 @@ onMounted(() => {
   color: var(--ch-text-muted, var(--el-text-color-secondary));
 }
 
-.cockpit-grid {
+.cockpit-hero-kpi__delta {
+  font-size: 11px;
+  color: var(--ch-text-muted, var(--el-text-color-secondary));
+}
+
+.cockpit-hero-kpi__delta.is-up {
+  color: var(--ch-success, #0d8f66);
+}
+
+.cockpit-hero-kpi__delta.is-down {
+  color: var(--ch-error, #c81e45);
+}
+
+.viz-panel {
+  border: 1px solid var(--ch-border, var(--el-border-color-lighter));
+  border-radius: var(--ch-radius-md, 10px);
+  background: var(--ch-surface, #fff);
+  overflow: hidden;
+}
+
+.viz-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ch-border, var(--el-border-color-lighter));
+  background: var(--ch-surface-muted, var(--el-fill-color-lighter));
+}
+
+.viz-panel__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.viz-panel__period-tag {
+  font-size: 12px;
+  color: var(--ch-primary, #1f4fd6);
+  background: var(--ch-primary-soft, #edf2ff);
+  border: 1px solid var(--ch-primary-muted, #c5d4f7);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.viz-tabs {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--ch-border, var(--el-border-color-lighter));
+}
+
+.viz-tabs button {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ch-text-secondary, var(--el-text-color-regular));
+  cursor: pointer;
+}
+
+.viz-tabs button.is-active {
+  background: var(--ch-primary-soft, #edf2ff);
+  color: var(--ch-primary, #1f4fd6);
+  font-weight: 600;
+}
+
+.viz-panel__body {
+  padding: 12px;
+  min-height: 300px;
+}
+
+.viz-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.9fr);
-  gap: 14px;
-  align-items: start;
+  grid-template-columns: 1fr minmax(260px, 320px);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.viz-layout__chart {
+  min-width: 0;
+}
+
+.metric-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-content: start;
+}
+
+.metric-card {
+  padding: 12px;
+  border-radius: var(--ch-radius-sm, 8px);
+  border: 1px solid var(--ch-border, var(--el-border-color-lighter));
+  background: var(--ch-surface-muted, var(--el-fill-color-lighter));
+}
+
+.metric-card__label {
+  font-size: 12px;
+  color: var(--ch-text-muted, var(--el-text-color-secondary));
+  margin-bottom: 4px;
+}
+
+.metric-card__value {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card__sub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ch-text-muted, var(--el-text-color-secondary));
+}
+
+.ops-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ops-stat {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--ch-radius-sm, 8px);
+  background: var(--ch-surface-muted, var(--el-fill-color-lighter));
+  border: 1px solid var(--ch-border, var(--el-border-color-lighter));
+  text-align: left;
+  cursor: default;
+  color: inherit;
+  font: inherit;
+}
+
+button.ops-stat {
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+button.ops-stat:hover {
+  border-color: var(--ch-primary-muted, #c5d4f7);
+}
+
+.ops-stat strong {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ops-stat span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ch-text-muted, var(--el-text-color-secondary));
+}
+
+.ops-stat.is-warn strong {
+  color: var(--ch-warning, #c47a06);
+}
+
+.ops-stat.is-danger strong {
+  color: var(--ch-error, #c81e45);
 }
 
 .cockpit-card {
@@ -2123,109 +2659,73 @@ onMounted(() => {
   color: var(--ch-text, var(--el-text-color-primary));
 }
 
-.cockpit-period-table :deep(.is-realtime) {
-  --el-table-tr-bg-color: #f3f8ff;
-}
-
-.cockpit-sec-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.cockpit-sec-kpi {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--el-fill-color-lighter);
-}
-
-.cockpit-sec-kpi__value {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.cockpit-sec-kpi__label {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--ch-text-muted, var(--el-text-color-secondary));
-}
-
-.cockpit-carriers {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--ch-border, var(--el-border-color-lighter));
-}
-
-.cockpit-carriers__title {
-  margin-bottom: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ch-text-secondary, var(--el-text-color-regular));
-}
-
-.cockpit-carrier + .cockpit-carrier {
-  margin-top: 8px;
-}
-
-.cockpit-carrier__meta {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 4px;
-  font-size: 12px;
-}
-
-.cockpit-carrier__name {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cockpit-carrier__pay,
-.cockpit-carrier__ratio {
-  color: var(--ch-text-muted, var(--el-text-color-secondary));
-  font-variant-numeric: tabular-nums;
-}
-
-.cockpit-carrier__track {
-  height: 6px;
-  border-radius: 999px;
-  background: var(--el-fill-color);
-  overflow: hidden;
-}
-
-.cockpit-carrier__fill {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #5b8def 0%, #3b6fd9 100%);
-}
-
 @media (max-width: 1100px) {
-  .cockpit-hero {
+  .cockpit-hero,
+  .viz-layout {
     grid-template-columns: 1fr;
   }
 
-  .cockpit-hero-kpis {
+  .cockpit-hero-kpis,
+  .ops-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .cockpit-grid {
-    grid-template-columns: 1fr;
+  .viz-tabs,
+  .period-bar__note {
+    margin-left: 0;
   }
 }
 
 @media (max-width: 640px) {
   .cockpit-hero-kpis,
-  .cockpit-sec-kpis {
+  .metric-cards,
+  .ops-row {
     grid-template-columns: 1fr 1fr;
   }
 }
 
 .detail-tabs {
   margin-top: 4px;
+}
+
+.detail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+
+.detail-toolbar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-toolbar__search {
+  width: min(220px, 100%);
+}
+
+.detail-toolbar__search--wide {
+  width: min(280px, 100%);
+}
+
+.detail-toolbar__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.detail-toolbar__meta {
+  text-align: right;
+  line-height: 1.3;
 }
 
 .catalog-sub-tabs {
@@ -2455,6 +2955,31 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.drawer-block {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: var(--ch-radius-md, 10px);
+  border: 1px solid var(--ch-border, var(--el-border-color-lighter));
+  background: var(--ch-surface-muted, var(--el-fill-color-lighter));
+}
+
+.drawer-block__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.drawer-reasons {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ch-text-secondary, var(--el-text-color-regular));
+}
+
+.drawer-reasons li + li {
+  margin-top: 4px;
 }
 
 .rank-delta.is-up {

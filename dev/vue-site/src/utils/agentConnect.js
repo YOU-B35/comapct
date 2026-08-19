@@ -76,6 +76,6 @@ export async function connectLocalHelper(options = {}) {
   return {
     status: 'not_found',
     message:
-      '未检测到本机助手，请先下载安装 Sync Helper。若浏览器拦截了打开提示，请允许打开 CrossHub Sync Helper',
+      '未检测到本机助手。请先解压安装包并双击 SETUP.cmd（或 CrossHub-Sync-Helper.exe）启动；若浏览器弹出打开提示请点允许。启动后再点「连接助手」。',
   }
 }

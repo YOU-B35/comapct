@@ -1,0 +1,57 @@
+{
+  "verified_at": "2026-08-19",
+  "method": "GET",
+  "url": "https://offer.1688.com/offer/manage_mini.vm",
+  "notes": "Params captured from the live seller SPA and confirmed by direct fetch. No cookies, tokens, or buyer info stored.",
+  "categories": {
+    "status_on_sale": {
+      "life_period": "all",
+      "show_type": "valid",
+      "total": 502
+    },
+    "status_pending_list": {
+      "life_period": "all",
+      "show_type": "expired",
+      "total": 9
+    },
+    "status_sold_out": {
+      "life_period": "all",
+      "show_type": "valid",
+      "extra_qs": {
+        "isSellOut": "true"
+      },
+      "total": 5
+    },
+    "status_reviewing": {
+      "life_period": "all",
+      "show_type": "auditing",
+      "total": 0
+    },
+    "status_violation_off": {
+      "life_period": "all",
+      "show_type": "untread",
+      "total": 1
+    },
+    "status_draft": {
+      "life_period": "all",
+      "show_type": "draft",
+      "total": null,
+      "note": "Platform SPA issues no manage_mini list for the draft tab; category stays failed and previous relations are preserved."
+    },
+    "growth_potential": {
+      "life_period": "qlsp",
+      "show_type": "valid",
+      "total": 479
+    },
+    "growth_index": {
+      "life_period": "cgzsspyjg",
+      "show_type": "valid",
+      "total": 2
+    },
+    "growth_yanxuan": {
+      "life_period": "growthyxp",
+      "show_type": "valid",
+      "total": 14
+    }
+  }
+}

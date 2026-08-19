@@ -1,5 +1,5 @@
-import { PURCHASE_ORDER_STATUSES, SUPPLIER_ALERT_TYPES } from '@/constants/alibaba1688'
-import { formatMoney } from '@/utils/format'
+import { PURCHASE_ORDER_STATUSES, SUPPLIER_ALERT_TYPES } from '../constants/alibaba1688.js'
+import { formatMoney } from './format.js'
 
 export function enrichPurchaseOrder(order) {
   const meta = PURCHASE_ORDER_STATUSES[order.status] || PURCHASE_ORDER_STATUSES.pending_payment
@@ -74,4 +74,64 @@ export function summarize1688ByStore(orders, alerts, stores = []) {
       alerts: summarize1688SupplierAlerts(storeAlerts),
     }
   })
+}
+
+export function parse1688Money(value) {
+  if (value == null || value === '') return 0
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  const cleaned = String(value).replace(/[^\d.-]/g, '')
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : 0
+}
+
+export function summarize1688ProductGmv(products = []) {
+  const list = Array.isArray(products) ? products : []
+  let totalGmv = 0
+  let soldCount = 0
+  for (const p of list) {
+    const gmv = parse1688Money(p?.gmv1d ?? p?.gmv_1d)
+    totalGmv += gmv
+    if (gmv > 0) soldCount += 1
+  }
+  return {
+    totalGmv,
+    totalGmvText: formatMoney(totalGmv),
+    productCount: list.length,
+    soldCount,
+    products: list,
+  }
+}
+
+export function filterItemsByStoreIds(items, storeIds) {
+  const list = items || []
+  const set = new Set(storeIds || [])
+  const matched = list.filter((item) => set.has(item.storeId))
+  if (matched.length) return matched
+  if (list.length) return list
+  return []
+}
+
+export function build1688SalesMetrics({ products, purchaseOrders, supplierAlerts, summary } = {}) {
+  const gmv = summarize1688ProductGmv(products || [])
+  const purchaseSummary = summarize1688PurchaseOrders(purchaseOrders || [])
+  const alertCount = (supplierAlerts || []).filter(
+    (a) => a.resolved !== true && a.isOpen !== false,
+  ).length
+  // 平台总览的 1688 销售额必须来自消费者订单聚合，不再使用商品表 gmv_1d。
+  if (summary && typeof summary === 'object') {
+    const netSales = Number(summary.net_sales ?? summary.paid_sales ?? 0)
+    const paidOrders = Number(summary.paid_order_count ?? 0)
+    return {
+      revenue: netSales,
+      orders: paidOrders,
+      alerts: Number(summary.refund_order_count ?? 0) + Number(summary.sold_product_count ?? 0),
+      revenueText: formatMoney(netSales),
+    }
+  }
+  return {
+    revenue: gmv.totalGmv,
+    orders: gmv.soldCount,
+    alerts: purchaseSummary.pending + alertCount,
+    revenueText: gmv.totalGmvText,
+  }
 }

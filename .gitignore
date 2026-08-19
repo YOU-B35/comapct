@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 dist-ssr/
+dev/vue-site/public/downloads/
 
 # Logs
 logs/
@@ -28,6 +29,14 @@ backend/python/crosshub.db
 backend/python/.aliexpress-browser-profile/
 backend/python/.temu-browser-profile/
 backend/data/
+backend/python/.1688-browser-profile/
+backend/python/_tmp_*
+
+# Local scratch / diagnostics (may contain session tokens or probe data)
+.superpowers/
+
+# Local API keys / playground configs
+deploy/gpt-image-playground-hyhacct-config.json
 
 # OS / editor
 .DS_Store

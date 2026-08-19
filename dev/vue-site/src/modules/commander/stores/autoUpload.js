@@ -21,6 +21,8 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
     { value: 'temu', label: 'TEMU' },
     { value: 'aliexpress', label: 'AliExpress' },
     { value: 'ozon', label: 'Ozon' },
+    // Commander 抖店/抖音 Excel 上货平台 id 为 douyin（与线上 /douyin-auto-upload 一致）
+    { value: 'douyin', label: '抖店' },
   ]
 
   const shopList = ref([])
@@ -75,7 +77,16 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
       }
     } catch (e) {
       shopList.value = []
-      shopLoadError.value = e.message || '加载店铺失败'
+      const raw = e.message || '加载店铺失败'
+      // 抖店需桌面 Agent 开启「抖店」模块；离线/未开启时接口常返回泛化失败文案
+      if (platform === 'douyin') {
+        shopLoadError.value =
+          /店铺|Agent|agent|离线|offline|失败|读取/i.test(raw)
+            ? '没有读取到抖店 Agent，请确认桌面 Agent 已开启「抖店」并保持在线后重试'
+            : raw
+      } else {
+        shopLoadError.value = raw
+      }
     } finally {
       shopLoading.value = false
     }
@@ -150,8 +161,11 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
     statusMessage.value = null
     try {
       const platform = selectedPlatform.value || 'temu'
-      if (platform === 'temu') {
-        statusMessage.value = { type: 'info', text: '正在预检…' }
+      if (platform === 'temu' || platform === 'douyin') {
+        statusMessage.value = {
+          type: 'info',
+          text: platform === 'douyin' ? '正在预检抖店登录与店铺…' : '正在预检…',
+        }
         await productIssuePrecheck(agentId, shopId.value, platform)
       }
       const data = new FormData()

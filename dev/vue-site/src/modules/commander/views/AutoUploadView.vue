@@ -78,19 +78,41 @@ function clearFile() {
   store.excelFile = null
 }
 
-/** Temu 批量上货 Excel 模板（public/templates） */
-const TEMU_TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/temu-batch-upload.xlsx`
-const TEMU_TEMPLATE_FILENAME = 'Temu批量上货表单.xlsx'
+/** 批量上货 Excel 模板（public/templates） */
+const PLATFORM_TEMPLATES = {
+  temu: {
+    url: `${import.meta.env.BASE_URL}templates/temu-batch-upload.xlsx`,
+    filename: 'Temu批量上货表单.xlsx',
+  },
+  douyin: {
+    url: `${import.meta.env.BASE_URL}templates/douyin-publish-template.xlsx`,
+    filename: '抖店Excel上货模板.xlsx',
+  },
+}
+
+const canDownloadTemplate = computed(() => Boolean(PLATFORM_TEMPLATES[store.selectedPlatform]))
 
 function downloadTemplate() {
+  const tpl = PLATFORM_TEMPLATES[store.selectedPlatform]
+  if (!tpl) return
   const a = document.createElement('a')
-  a.href = TEMU_TEMPLATE_URL
-  a.download = TEMU_TEMPLATE_FILENAME
+  a.href = tpl.url
+  a.download = tpl.filename
   a.rel = 'noopener'
   document.body.appendChild(a)
   a.click()
   a.remove()
 }
+
+const uploadHint = computed(() => {
+  if (store.selectedPlatform === 'douyin') {
+    return '请按抖店 Excel 上货模板填写后上传；可点右上角「下载模板」获取空白表，并确保抖店 Agent 处于开启状态。'
+  }
+  if (store.selectedPlatform === 'temu') {
+    return '请按 Temu 批量上货表单填写后上传；可点右上角「下载模板」获取空白表。'
+  }
+  return '请按所选平台的 Excel 上货模板填写后上传。'
+})
 
 function agentLabel(agent) {
   return agent?.name || store.agentIdOf(agent) || 'Agent'
@@ -206,6 +228,13 @@ const statusAlertType = computed(() => {
           :title="store.agentListError"
           class="inline-alert"
         />
+        <el-alert
+          v-else-if="store.selectedPlatform === 'douyin' && !store.agentLoading && !store.onlineAgents.length"
+          type="warning"
+          :closable="false"
+          title="未检测到在线 Agent。请打开桌面 Agent、开启「抖店」，并确认已连接到 www.yoto.work"
+          class="inline-alert"
+        />
 
         <div v-loading="store.agentLoading" class="agent-grid-wrap">
           <el-empty
@@ -243,7 +272,12 @@ const statusAlertType = computed(() => {
           </div>
         </template>
         <template #actions>
-          <el-button size="small" :icon="Download" @click="downloadTemplate">
+          <el-button
+            v-if="canDownloadTemplate"
+            size="small"
+            :icon="Download"
+            @click="downloadTemplate"
+          >
             下载模板
           </el-button>
         </template>
@@ -305,7 +339,7 @@ const statusAlertType = computed(() => {
           {{ store.shopLoadError }}
         </el-text>
         <el-text type="info" size="small" class="hint">
-          请按 Temu 批量上货表单填写后上传；可点右上角「下载模板」获取空白表。
+          {{ uploadHint }}
         </el-text>
 
         <el-alert

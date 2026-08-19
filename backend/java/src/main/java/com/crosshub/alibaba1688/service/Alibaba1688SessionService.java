@@ -52,15 +52,24 @@ public class Alibaba1688SessionService {
         boolean agentOnline = agentPresenceService.isAgentOnline(tenantId);
         boolean profileBusy = hasRunningBusy(tenantId);
         Map<String, Object> snapshot = readSessionSnapshot(tenantId);
-        boolean loggedIn = Boolean.TRUE.equals(snapshot.get("logged_in"))
-                || Boolean.TRUE.equals(snapshot.get("ready"));
+        String snapError = String.valueOf(snapshot.getOrDefault("error_code", "")).trim();
+        boolean forceRelogin = AppErrorCode.A1688_NOT_LOGGED_IN.getCode().equals(snapError)
+                || String.valueOf(snapshot.getOrDefault("message", "")).contains("未登录");
+        boolean loggedIn = !forceRelogin && (
+                Boolean.TRUE.equals(snapshot.get("logged_in"))
+                        || Boolean.TRUE.equals(snapshot.get("ready"))
+        );
         Map<String, Object> out = new LinkedHashMap<>(snapshot);
         out.put("tenant_id", tenantId);
         out.put("agent_online", agentOnline);
         out.put("profile_busy", profileBusy || Boolean.TRUE.equals(snapshot.get("profile_busy")));
         out.put("logged_in", loggedIn);
         out.put("ready", loggedIn && agentOnline && !profileBusy);
-        out.putIfAbsent("requires_auth", !loggedIn);
+        out.put("requires_auth", !loggedIn);
+        if (forceRelogin) {
+            out.put("message", AppErrorCode.A1688_NOT_LOGGED_IN.getUserMessage());
+            out.put("error_code", AppErrorCode.A1688_NOT_LOGGED_IN.getCode());
+        }
         if (!agentOnline) {
             out.put("message", AppErrorCode.A1688_AGENT_OFFLINE.getUserMessage());
             out.put("requires_auth", true);
@@ -89,6 +98,7 @@ public class Alibaba1688SessionService {
     public Map<String, Object> enqueueLoginOpen() {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
+        reclaimStaleBusyTasks(tenantId, agent.getId());
         if (hasRunningBusy(tenantId)) {
             return Map.of(
                     "already_open", true,
@@ -119,6 +129,7 @@ public class Alibaba1688SessionService {
     public Map<String, Object> enqueueSessionProbe() {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
+        reclaimStaleBusyTasks(tenantId, agent.getId());
         if (hasRunningBusy(tenantId)) {
             return Map.of(
                     "queued", false,
@@ -145,6 +156,54 @@ public class Alibaba1688SessionService {
     }
 
     @Transactional
+    public Map<String, Object> enqueueOrdersSync() {
+        Long tenantId = dataScopeService.requireTenantId();
+        IntegrationAgent agent = requireOnlineAgent(tenantId);
+        reclaimStaleBusyTasks(tenantId, agent.getId());
+        if (hasRunningBusy(tenantId)) {
+            return Map.of(
+                    "queued", false,
+                    "message", AppErrorCode.A1688_PROFILE_BUSY.getUserMessage()
+            );
+        }
+        String taskId = "agt_" + UUID.randomUUID();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("tenant_id", tenantId);
+        payload.put("scope", "7d");
+        insertAgentTask(tenantId, taskId, Alibaba1688AgentTasks.ORDERS_SYNC, payload, agent.getId());
+        markOrdersSyncQueued(tenantId);
+        return Map.of(
+                "queued", true,
+                "task_id", taskId,
+                "message", "已通知本机助手同步 1688 订单"
+        );
+    }
+
+    @Transactional
+    public Map<String, Object> enqueuePeerBestsellersSync() {
+        Long tenantId = dataScopeService.requireTenantId();
+        IntegrationAgent agent = requireOnlineAgent(tenantId);
+        reclaimStaleBusyTasks(tenantId, agent.getId());
+        if (hasRunningBusy(tenantId)) {
+            return Map.of(
+                    "queued", false,
+                    "message", AppErrorCode.A1688_PROFILE_BUSY.getUserMessage()
+            );
+        }
+        String taskId = "agt_" + UUID.randomUUID();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("tenant_id", tenantId);
+        payload.put("scope", "peer_bestsellers");
+        insertAgentTask(tenantId, taskId, Alibaba1688AgentTasks.PEER_BESTSELLERS_SYNC, payload, agent.getId());
+        markPeerBestsellersSyncQueued(tenantId);
+        return Map.of(
+                "queued", true,
+                "task_id", taskId,
+                "message", "已通知本机助手抓取同行爆款"
+        );
+    }
+
+    @Transactional
     public void onAgentTaskCompleted(
             AgentTask task,
             String status,
@@ -156,6 +215,40 @@ public class Alibaba1688SessionService {
             return;
         }
         Long tenantId = task.getTenantId();
+        // Product sync must not overwrite login session fields from a count-only result.
+        if (Alibaba1688AgentTasks.PRODUCTS_SYNC.equals(task.getTaskType())
+                || Alibaba1688AgentTasks.ORDERS_SYNC.equals(task.getTaskType())
+                || Alibaba1688AgentTasks.PEER_BESTSELLERS_SYNC.equals(task.getTaskType())) {
+            Map<String, Object> snap = new LinkedHashMap<>(readSessionSnapshot(tenantId));
+            snap.put("tenant_id", tenantId);
+            snap.put("profile_busy", false);
+            if (!"success".equalsIgnoreCase(status)) {
+                String syncFailedMessage = Alibaba1688AgentTasks.ORDERS_SYNC.equals(task.getTaskType())
+                        ? AppErrorCode.A1688_ORDERS_SYNC_FAILED.getUserMessage()
+                        : AppErrorCode.A1688_PRODUCTS_SYNC_FAILED.getUserMessage();
+                snap.put("message", errorMessage == null || errorMessage.isBlank()
+                        ? syncFailedMessage
+                        : errorMessage);
+                if (errorCode != null && !errorCode.isBlank()) {
+                    snap.put("error_code", errorCode);
+                }
+                // Product sync discovered expired cookies — force UI back to「打开登录」.
+                if (AppErrorCode.A1688_NOT_LOGGED_IN.getCode().equals(errorCode)
+                        || (errorMessage != null && errorMessage.contains("未登录"))) {
+                    snap.put("logged_in", false);
+                    snap.put("ready", false);
+                    snap.put("requires_auth", true);
+                }
+            } else {
+                Object msg = result == null ? null : result.get("message");
+                if (msg != null && !String.valueOf(msg).isBlank()) {
+                    snap.put("message", String.valueOf(msg));
+                }
+                snap.remove("error_code");
+            }
+            writeSessionSnapshot(tenantId, snap);
+            return;
+        }
         Map<String, Object> session = result == null ? Map.of() : result;
         Object nested = session.get("session");
         if (nested instanceof Map<?, ?> map) {
@@ -190,6 +283,45 @@ public class Alibaba1688SessionService {
         writeSessionSnapshot(tenantId, snap);
     }
 
+    @Transactional
+    public void markProductsSyncQueued(Long tenantId) {
+        if (tenantId == null || tenantId <= 0) {
+            return;
+        }
+        Map<String, Object> snap = new LinkedHashMap<>(readSessionSnapshot(tenantId));
+        snap.put("tenant_id", tenantId);
+        snap.put("profile_busy", true);
+        snap.put("message", "正在同步 1688 商品…");
+        snap.remove("error_code");
+        writeSessionSnapshot(tenantId, snap);
+    }
+
+    @Transactional
+    public void markOrdersSyncQueued(Long tenantId) {
+        if (tenantId == null || tenantId <= 0) {
+            return;
+        }
+        Map<String, Object> snap = new LinkedHashMap<>(readSessionSnapshot(tenantId));
+        snap.put("tenant_id", tenantId);
+        snap.put("profile_busy", true);
+        snap.put("message", "正在同步 1688 订单…");
+        snap.remove("error_code");
+        writeSessionSnapshot(tenantId, snap);
+    }
+
+    @Transactional
+    public void markPeerBestsellersSyncQueued(Long tenantId) {
+        if (tenantId == null || tenantId <= 0) {
+            return;
+        }
+        Map<String, Object> snap = new LinkedHashMap<>(readSessionSnapshot(tenantId));
+        snap.put("tenant_id", tenantId);
+        snap.put("profile_busy", true);
+        snap.put("message", "正在抓取 1688 同行爆款…");
+        snap.remove("error_code");
+        writeSessionSnapshot(tenantId, snap);
+    }
+
     public void onAgentTaskStarted(AgentTask task) {
         // Login/probe only — no sync job to mark running yet.
     }
@@ -205,13 +337,83 @@ public class Alibaba1688SessionService {
         return agent;
     }
 
+    /**
+     * Drop zombie 1688 browser tasks so a dead/restarted Helper cannot block「打开登录」forever.
+     * Orphans: claimed by another agent id. Stale: pending &gt;2m, probe running &gt;3m, login running &gt;12m.
+     */
+    public void reclaimStaleBusyTasks(Long tenantId, String onlineAgentId) {
+        String nowTs = now();
+        LocalDateTime nowDt = LocalDateTime.now();
+        String pendingCutoff = nowDt.minusMinutes(2).format(TS);
+        String probeCutoff = nowDt.minusMinutes(3).format(TS);
+        String loginCutoff = nowDt.minusMinutes(12).format(TS);
+        String agentId = onlineAgentId == null ? "" : onlineAgentId;
+
+        int orphaned = jdbc.update(
+                """
+                UPDATE agent_task
+                SET status = 'failed',
+                    error_code = 'A1688_LOGIN_FAILED',
+                    error_message = '助手已重启，旧登录任务已取消，请重新打开登录',
+                    finished_at = ?
+                WHERE tenant_id = ?
+                  AND status IN ('pending', 'running')
+                  AND task_type IN ('1688_session_probe', '1688_login_open', '1688_products_sync')
+                  AND (agent_id IS NULL OR agent_id = '' OR agent_id <> ?)
+                """,
+                nowTs,
+                tenantId,
+                agentId
+        );
+        int stale = jdbc.update(
+                """
+                UPDATE agent_task
+                SET status = 'failed',
+                    error_code = 'A1688_LOGIN_FAILED',
+                    error_message = '登录任务已过期，请重新打开登录',
+                    finished_at = ?
+                WHERE tenant_id = ?
+                  AND status IN ('pending', 'running')
+                  AND task_type IN ('1688_session_probe', '1688_login_open', '1688_products_sync')
+                  AND (
+                    (status = 'pending' AND created_at <> '' AND created_at < ?)
+                    OR (
+                      task_type = '1688_session_probe'
+                      AND status = 'running'
+                      AND CASE WHEN started_at IS NULL OR started_at = '' THEN created_at ELSE started_at END < ?
+                    )
+                    OR (
+                      task_type IN ('1688_login_open', '1688_products_sync')
+                      AND status = 'running'
+                      AND CASE WHEN started_at IS NULL OR started_at = '' THEN created_at ELSE started_at END < ?
+                    )
+                  )
+                """,
+                nowTs,
+                tenantId,
+                pendingCutoff,
+                probeCutoff,
+                loginCutoff
+        );
+        if (orphaned + stale > 0) {
+            Map<String, Object> snap = readSessionSnapshot(tenantId);
+            snap.put("profile_busy", false);
+            snap.put("ready", false);
+            snap.putIfAbsent("logged_in", false);
+            snap.put("requires_auth", true);
+            snap.put("message", "请重新打开登录窗口完成 1688 登录");
+            snap.remove("error_code");
+            writeSessionSnapshot(tenantId, snap);
+        }
+    }
+
     private boolean hasRunningBusy(Long tenantId) {
         Integer count = jdbc.queryForObject(
                 """
                 SELECT COUNT(1) FROM agent_task
                 WHERE tenant_id = ?
                   AND status IN ('pending', 'running')
-                  AND task_type IN ('1688_session_probe', '1688_login_open')
+                  AND task_type IN ('1688_session_probe', '1688_login_open', '1688_products_sync')
                 """,
                 Integer.class,
                 tenantId

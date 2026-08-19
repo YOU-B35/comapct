@@ -16,7 +16,7 @@ def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def login_probe(*, tenant_id: int, headed: bool = True) -> dict[str, Any]:
+def login_probe(*, tenant_id: int, headed: bool = False) -> dict[str, Any]:
     """Open 1688 and report need_login vs success. Does not invent selectors."""
     try:
         from playwright.sync_api import sync_playwright
@@ -35,7 +35,7 @@ def login_probe(*, tenant_id: int, headed: bool = True) -> dict[str, Any]:
             viewport={"width": 1280, "height": 800},
         )
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto("https://www.1688.com/", wait_until="domcontentloaded", timeout=60000)
+        page.goto("https://work.1688.com/", wait_until="domcontentloaded", timeout=60000)
         page.wait_for_timeout(2500)
         url = page.url or ""
         content = ""
@@ -55,7 +55,7 @@ def login_probe(*, tenant_id: int, headed: bool = True) -> dict[str, Any]:
         return {"status": "success", "message": "session ok", "rows": 0}
 
 
-def crawl_purchase_orders(*, tenant_id: int, headed: bool = True) -> dict[str, Any]:
+def crawl_purchase_orders(*, tenant_id: int, headed: bool = False) -> dict[str, Any]:
     """Live crawl blocked until Day0 fills PURCHASE_LIST_URL. Optional fixture via env."""
     import os
 

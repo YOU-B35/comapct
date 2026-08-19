@@ -35,6 +35,8 @@ def is_login_page(url: str) -> bool:
         "login.1688.com" in lowered
         or "passport.alibaba.com" in lowered
         or "passport.taobao.com" in lowered
+        or "signin.htm" in lowered
+        or "/member/signin" in lowered
         or "/login" in lowered
     )
 

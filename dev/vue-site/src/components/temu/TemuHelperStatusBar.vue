@@ -17,6 +17,7 @@ import {
 import { getAppErrorMessage, resolveAppError } from '@/utils/appErrorCode'
 import { fetchLocalHelperBind, getHelperPanelUrl } from '@/utils/agentProbe'
 import { useAuthStore } from '@/stores/auth'
+import HelperOpsGuideDialog from '@/components/helper/HelperOpsGuideDialog.vue'
 
 const emit = defineEmits(['update:online', 'update:sessionReady', 'status'])
 const auth = useAuthStore()
@@ -39,6 +40,7 @@ const bindDialogVisible = ref(false)
 const bindLoading = ref(false)
 const bindInfo = ref(null)
 const stepsDialogVisible = ref(false)
+const guideDialogVisible = ref(false)
 const sellersDialogVisible = ref(false)
 
 async function onConnectHelper() {
@@ -335,7 +337,12 @@ async function startSessionPoll() {
 function onDownloadHelper() {
   if (!canDownload.value || !openHelperDownload(downloadUrl.value)) {
     ElMessage.warning('请联系管理员获取安装包')
+    return
   }
+  ElMessage.success({
+    message: '开始下载。解压后请双击 SETUP.cmd 启动助手，再回本页生成绑定码并「打开登录」',
+    duration: 8000,
+  })
 }
 
 async function openBindDialog() {
@@ -566,6 +573,10 @@ defineExpose({
           刷新状态
         </el-button>
       </template>
+
+      <el-button text type="primary" size="small" @click="guideDialogVisible = true">
+        操作指南
+      </el-button>
     </div>
   </div>
 
@@ -610,9 +621,14 @@ defineExpose({
       <li>回到本页点击 <strong>我已完成登录</strong>，再点 <strong>刷新数据</strong></li>
     </ol>
     <template #footer>
-      <el-button type="primary" @click="stepsDialogVisible = false">知道了</el-button>
+      <el-button @click="stepsDialogVisible = false">关闭</el-button>
+      <el-button type="primary" @click="stepsDialogVisible = false; guideDialogVisible = true">
+        完整操作指南
+      </el-button>
     </template>
   </el-dialog>
+
+  <HelperOpsGuideDialog v-model="guideDialogVisible" />
 
   <el-dialog
     v-model="sellersDialogVisible"

@@ -22,13 +22,16 @@ import { PDD_ISSUE_TYPES } from '@/constants/pddDemo'
 import { DOUYIN_ISSUE_TYPES } from '@/constants/douyinDemo'
 import { CHANNELS_ISSUE_TYPES } from '@/constants/channelsDemo'
 import { loadCachedPddOrders, loadPddIssues, loadCachedDouyinOrders, loadDouyinIssues, loadCachedChannelsOrders, loadChannelsIssues } from './domesticPlatforms'
+import { canUseDouyinBackend, fetchDouyinOrdersToday } from './douyinApi'
 import { ensureAliexpressDemoData } from './aliexpressDemoLocal'
 import { loadAlibaba1688DemoData } from './alibaba1688DemoLocal'
 import {
   canUseAlibaba1688Backend,
   fetchAlibaba1688Operational,
+  fetchAlibaba1688OrderSummary,
+  fetchAlibaba1688Products,
 } from './alibaba1688Api'
-import { enrichPurchaseOrder, enrichSupplierAlert } from '@/utils/alibaba1688'
+import { filterItemsByStoreIds, enrichPurchaseOrder, enrichSupplierAlert } from '@/utils/alibaba1688'
 import { isPlatformOperationalDemoOnly } from '@/utils/platformOperationalMode'
 import { ensureAmazonDailyData } from './amazonDailyLocal'
 import { loadAmazonDailyWorkflow } from './amazon'
@@ -42,6 +45,15 @@ import { loadTodayOpsFeedback } from '@/api/opsFeedback'
 function filterByStoreIds(items, storeIds) {
   const set = new Set(storeIds)
   return (items || []).filter((item) => set.has(item.storeId))
+}
+
+function normalizeDouyinOrder(row) {
+  return {
+    ...row,
+    storeId: row.storeId || row.store_id || '',
+    amount: Number(row.amount ?? row.pay_amount ?? row.payAmount ?? 0) || 0,
+    status: row.status || row.order_status || row.orderStatus || '',
+  }
 }
 
 /** 账户绑定店铺 + 爬虫 shop_id 合并，便于总览展示运营数据 */
@@ -220,18 +232,38 @@ export async function loadOperationsOverview(auth = null) {
       )
     : []
 
-  const douyinOrders = demoMode && douyinStores.length
-    ? filterByStoreIds(loadCachedDouyinOrders(douyinStores).data.orders, douyinStoreIds)
-    : []
-  const douyinIssuesRes = demoMode && douyinStores.length
-    ? await Promise.resolve(loadDouyinIssues(douyinStores))
-    : { data: { issues: [] } }
-  const douyinIssues = demoMode && douyinStores.length
-    ? filterByStoreIds(
+  let douyinOrders = []
+  let douyinIssues = []
+  if (demoMode && douyinStores.length) {
+    douyinOrders = filterItemsByStoreIds(
+      (loadCachedDouyinOrders(douyinStores).data.orders || []).map(normalizeDouyinOrder),
+      douyinStoreIds,
+    )
+    const douyinIssuesRes = await loadDouyinIssues(douyinStores)
+    douyinIssues = filterItemsByStoreIds(
+      (douyinIssuesRes?.data?.issues || []).map((issue) => enrichDomesticIssue(issue, DOUYIN_ISSUE_TYPES)),
+      douyinStoreIds,
+    )
+  } else if (canUseDouyinBackend(auth) && douyinStores.length) {
+    try {
+      const data = await fetchDouyinOrdersToday()
+      douyinOrders = filterItemsByStoreIds(
+        (data.items || []).map(normalizeDouyinOrder),
+        douyinStoreIds,
+      )
+    } catch {
+      douyinOrders = []
+    }
+    try {
+      const douyinIssuesRes = await loadDouyinIssues(douyinStores)
+      douyinIssues = filterItemsByStoreIds(
         (douyinIssuesRes?.data?.issues || []).map((issue) => enrichDomesticIssue(issue, DOUYIN_ISSUE_TYPES)),
         douyinStoreIds,
       )
-    : []
+    } catch {
+      douyinIssues = []
+    }
+  }
 
   const channelsOrders = demoMode && channelsStores.length
     ? filterByStoreIds(loadCachedChannelsOrders(channelsStores).data.orders, channelsStoreIds)
@@ -259,6 +291,8 @@ export async function loadOperationsOverview(auth = null) {
 
   let purchaseOrders = []
   let supplierAlerts = []
+  let products1688 = []
+  let summary1688 = null
   const use1688Backend =
     !demoMode &&
     stores1688.length > 0 &&
@@ -267,11 +301,11 @@ export async function loadOperationsOverview(auth = null) {
   if (use1688Backend) {
     try {
       const op = await fetchAlibaba1688Operational()
-      purchaseOrders = filterByStoreIds(
+      purchaseOrders = filterItemsByStoreIds(
         (op.purchaseOrders || []).map(enrichPurchaseOrder),
         stores1688Ids,
       )
-      supplierAlerts = filterByStoreIds(
+      supplierAlerts = filterItemsByStoreIds(
         (op.supplierAlerts || []).map(enrichSupplierAlert),
         stores1688Ids,
       )
@@ -279,10 +313,25 @@ export async function loadOperationsOverview(auth = null) {
       purchaseOrders = []
       supplierAlerts = []
     }
+    try {
+      const prod = await fetchAlibaba1688Products({ tab: 'all', status: 'all' })
+      products1688 = filterItemsByStoreIds(prod.items || [], stores1688Ids)
+    } catch {
+      products1688 = []
+    }
+    try {
+      const today = new Date()
+      const dateText = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      const data = await fetchAlibaba1688OrderSummary({ startDate: dateText, endDate: dateText })
+      summary1688 = data || null
+    } catch {
+      summary1688 = null
+    }
   } else if (demoMode && stores1688.length) {
     const demo1688 = loadAlibaba1688DemoData(stores1688)
-    purchaseOrders = filterByStoreIds(demo1688.purchaseOrders, stores1688Ids)
-    supplierAlerts = filterByStoreIds(demo1688.supplierAlerts, stores1688Ids)
+    purchaseOrders = filterItemsByStoreIds(demo1688.purchaseOrders, stores1688Ids)
+    supplierAlerts = filterItemsByStoreIds(demo1688.supplierAlerts, stores1688Ids)
+    products1688 = []
   }
 
   const dtcOrders = demoMode ? filterByStoreIds(loadDtcTodayOrders(dtcStores), dtcStoreIds) : []
@@ -331,6 +380,8 @@ export async function loadOperationsOverview(auth = null) {
     stores: stores1688,
     purchaseOrders,
     supplierAlerts,
+    products: products1688,
+    summary: summary1688,
   }
   const dtcPayload = {
     stores: dtcStores,

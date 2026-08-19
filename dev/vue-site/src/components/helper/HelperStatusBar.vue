@@ -27,6 +27,7 @@ import {
 import {
   enqueueAlibaba1688Login,
   fetchAlibaba1688Session,
+  fetchAlibaba1688SyncLogs,
   pollAlibaba1688SessionUntilReady,
 } from '@/api/alibaba1688Api'
 import { getAppErrorMessage, resolveAppError } from '@/utils/appErrorCode'
@@ -37,6 +38,7 @@ import {
   helperApiMismatchHint,
 } from '@/utils/agentProbe'
 import { useAuthStore } from '@/stores/auth'
+import HelperOpsGuideDialog from '@/components/helper/HelperOpsGuideDialog.vue'
 
 const props = defineProps({
   /** temu | aliexpress | amazon | douyin | 1688 */
@@ -66,6 +68,10 @@ const bindDialogVisible = ref(false)
 const bindLoading = ref(false)
 const bindInfo = ref(null)
 const stepsDialogVisible = ref(false)
+const guideDialogVisible = ref(false)
+const syncLogVisible = ref(false)
+const syncLogs = ref([])
+const syncLogLoading = ref(false)
 
 async function onConnectHelper() {
   if (connecting.value) return
@@ -361,7 +367,12 @@ async function startSessionPoll() {
 function onDownloadHelper() {
   if (!canDownload.value || !openHelperDownload(downloadUrl.value)) {
     ElMessage.warning('请联系管理员获取安装包')
+    return
   }
+  ElMessage.success({
+    message: '开始下载。解压后请双击 SETUP.cmd 启动助手，再回本页生成绑定码并「打开登录」',
+    duration: 8000,
+  })
 }
 
 async function openBindDialog() {
@@ -408,18 +419,26 @@ async function handleOpenLogin() {
   }
   openingKey.value = 'default'
   try {
+    let openRes = null
     if (props.platform === 'aliexpress') {
-      await openAliExpressSellerLogin()
+      openRes = await openAliExpressSellerLogin()
     } else if (props.platform === 'douyin') {
-      await enqueueDouyinLogin()
+      openRes = await enqueueDouyinLogin()
     } else if (props.platform === '1688') {
-      await enqueueAlibaba1688Login()
+      openRes = await enqueueAlibaba1688Login()
     } else {
-      await enqueueTemuLogin({
+      openRes = await enqueueTemuLogin({
         tenantId: currentTenantId.value,
       })
     }
-    ElMessage.success('请在本机弹出的浏览器中完成登录')
+    if (openRes?.already_open || openRes?.queued === false) {
+      ElMessage.warning(
+        openRes?.message
+          || '登录任务仍在进行；若本机没有弹出浏览器：请重启 Sync Helper（或双击 SETUP.cmd）后再点「打开登录」',
+      )
+    } else {
+      ElMessage.success(openRes?.message || '请在本机弹出的浏览器中完成登录（看任务栏是否已打开 Chrome）')
+    }
     void loadSessionStatus()
     void startSessionPoll()
   } catch (err) {
@@ -438,6 +457,55 @@ async function handleConfirmLogin() {
   if (!sessionStatus.value.ready) void startSessionPoll()
 }
 
+async function openSyncLog() {
+  if (props.platform !== '1688') return
+  syncLogVisible.value = true
+  await loadSyncLog()
+}
+
+async function loadSyncLog() {
+  syncLogLoading.value = true
+  try {
+    const data = await fetchAlibaba1688SyncLogs({ limit: 30 })
+    syncLogs.value = Array.isArray(data?.items) ? data.items : []
+  } catch {
+    syncLogs.value = []
+  } finally {
+    syncLogLoading.value = false
+  }
+}
+
+function durationText(ms) {
+  const value = Number(ms)
+  if (!Number.isFinite(value) || value < 0) return '—'
+  if (value < 1000) return `${value}ms`
+  const sec = Math.round(value / 1000)
+  if (sec < 60) return `${sec} 秒`
+  return `${Math.floor(sec / 60)} 分 ${sec % 60} 秒`
+}
+
+function logStatusType(status) {
+  if (status === 'success') return 'success'
+  if (status === 'failed') return 'danger'
+  if (status === 'running') return 'warning'
+  return 'info'
+}
+
+function logSummaryText(summary) {
+  if (!summary || typeof summary !== 'object') return ''
+  const parts = []
+  if (summary.orders_count != null) parts.push(`订单 ${summary.orders_count}`)
+  if (summary.items_count != null) parts.push(`行 ${summary.items_count}`)
+  if (summary.refunds_count != null) parts.push(`退款 ${summary.refunds_count}`)
+  if (summary.products_count != null) parts.push(`商品 ${summary.products_count}`)
+  if (summary.count != null) parts.push(`商品 ${summary.count}`)
+  if (summary.category_failed != null && Number(summary.category_failed) > 0) {
+    parts.push(`分类失败 ${summary.category_failed}`)
+  }
+  if (summary.partial === true) parts.push('部分完成')
+  return parts.join(' · ')
+}
+
 watch(online, () => {
   // Online alone must not start live session probes.
 })
@@ -452,7 +520,7 @@ onUnmounted(() => {
   stopSessionPoll()
 })
 
-defineExpose({ reload, online, sessionReady })
+defineExpose({ reload, online, sessionReady, openBindDialog })
 </script>
 
 <template>
@@ -470,6 +538,9 @@ defineExpose({ reload, online, sessionReady })
         <el-button type="primary" size="small" @click="openHelperPanel">
           打开助手面板
         </el-button>
+        <el-button type="primary" size="small" plain :icon="Link" @click="openBindDialog">
+          生成绑定码
+        </el-button>
         <el-button size="small" :icon="Refresh" :loading="helperLoading" @click="reload">
           刷新状态
         </el-button>
@@ -485,13 +556,7 @@ defineExpose({ reload, online, sessionReady })
         >
           连接助手
         </el-button>
-        <el-button
-          v-if="barMode === 'rebind'"
-          type="primary"
-          size="small"
-          :icon="Link"
-          @click="openBindDialog"
-        >
+        <el-button type="primary" size="small" :icon="Link" @click="openBindDialog">
           生成绑定码
         </el-button>
         <el-button size="small" @click="openHelperPanel">
@@ -539,18 +604,39 @@ defineExpose({ reload, online, sessionReady })
         <el-button text type="primary" size="small" :loading="connecting" @click="onConnectHelper">
           连接助手
         </el-button>
+        <el-button text type="primary" size="small" :icon="Link" @click="openBindDialog">
+          生成绑定码
+        </el-button>
         <el-button text type="primary" size="small" @click="stepsDialogVisible = true">
           查看步骤
         </el-button>
-        <el-button text size="small" :icon="Link" @click="openBindDialog">绑定码</el-button>
       </template>
 
       <template v-else>
+        <el-button
+          v-if="supportsSessionLogin"
+          type="primary"
+          size="small"
+          plain
+          :icon="Monitor"
+          :loading="Boolean(openingKey)"
+          @click="handleOpenLogin"
+        >
+          重新登录
+        </el-button>
+        <el-button
+          v-if="supportsSessionLogin"
+          size="small"
+          :loading="sessionLoading"
+          @click="handleConfirmLogin"
+        >
+          刷新登录状态
+        </el-button>
         <el-button text type="primary" size="small" :loading="connecting" @click="onConnectHelper">
           连接助手
         </el-button>
         <el-button text type="primary" size="small" :icon="Link" @click="openBindDialog">
-          绑定码
+          生成绑定码
         </el-button>
         <el-button
           text
@@ -562,6 +648,13 @@ defineExpose({ reload, online, sessionReady })
           刷新
         </el-button>
       </template>
+
+      <el-button text type="primary" size="small" @click="guideDialogVisible = true">
+        操作指南
+      </el-button>
+      <el-button v-if="platform === '1688'" text type="primary" size="small" @click="openSyncLog">
+        同步日志
+      </el-button>
     </div>
   </div>
 
@@ -595,9 +688,41 @@ defineExpose({ reload, online, sessionReady })
       <li>回到本页点击 <strong>我已完成登录</strong>，再点 <strong>刷新数据</strong></li>
     </ol>
     <template #footer>
-      <el-button type="primary" @click="stepsDialogVisible = false">知道了</el-button>
+      <el-button @click="stepsDialogVisible = false">关闭</el-button>
+      <el-button type="primary" @click="stepsDialogVisible = false; guideDialogVisible = true">
+        完整操作指南
+      </el-button>
     </template>
   </el-dialog>
+
+  <HelperOpsGuideDialog v-model="guideDialogVisible" />
+
+  <el-drawer v-model="syncLogVisible" title="1688 同步日志" size="520px" append-to-body>
+    <div class="sync-log-toolbar">
+      <el-text type="info" size="small">最近 30 次商品/订单同步记录</el-text>
+      <el-button size="small" :loading="syncLogLoading" @click="loadSyncLog">刷新</el-button>
+    </div>
+    <el-table v-loading="syncLogLoading" :data="syncLogs" size="small" empty-text="暂无同步记录">
+      <el-table-column prop="label" label="类型" width="90" />
+      <el-table-column label="状态" width="90">
+        <template #default="{ row }">
+          <el-tag :type="logStatusType(row.status)" size="small">
+            {{ row.status === 'success' ? '成功' : row.status === 'failed' ? '失败' : row.status }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="startedAt" label="开始时间" width="150" />
+      <el-table-column label="耗时" width="90">
+        <template #default="{ row }">{{ durationText(row.durationMs) }}</template>
+      </el-table-column>
+      <el-table-column label="结果 / 错误" min-width="160">
+        <template #default="{ row }">
+          <span v-if="row.status === 'success'">{{ logSummaryText(row.summary) || '成功' }}</span>
+          <span v-else>{{ row.errorMessage || row.errorCode || '失败' }}</span>
+        </template>
+      </el-table-column>
+    </el-table>
+  </el-drawer>
 </template>
 
 <style scoped>
@@ -646,4 +771,5 @@ defineExpose({ reload, online, sessionReady })
 }
 .bind-ttl { margin: 12px 0 0; font-size: 13px; color: var(--el-text-color-secondary); text-align: center; }
 .guide-steps { margin: 0 0 0 18px; padding: 0; line-height: 1.8; }
+.sync-log-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 </style>

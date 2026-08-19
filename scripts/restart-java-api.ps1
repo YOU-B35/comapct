@@ -22,7 +22,7 @@ Start-CrosshubLauncherWindow -Name "java" -LauncherPath $javaLauncher -ScriptLin
     "`$env:SPRING_PROFILES_ACTIVE='dev'"
     # Pin main DB — avoid inheriting a worktree CROSSHUB_DB_PATH from the parent shell
     "`$env:CROSSHUB_DB_PATH='$Root\backend\data\crosshub.db'"
-    "mvn -q spring-boot:run"
+    "mvn -q -DskipTests spring-boot:run"
 )
 
 Start-Sleep -Seconds 12

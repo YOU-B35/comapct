@@ -1,6 +1,6 @@
 import { nextTick, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import * as echarts from 'echarts/core'
-import { BarChart, LineChart, PieChart } from 'echarts/charts'
+import { BarChart, FunnelChart, LineChart, PieChart } from 'echarts/charts'
 import {
   GridComponent,
   LegendComponent,
@@ -11,6 +11,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 echarts.use([
   BarChart,
+  FunnelChart,
   LineChart,
   PieChart,
   GridComponent,

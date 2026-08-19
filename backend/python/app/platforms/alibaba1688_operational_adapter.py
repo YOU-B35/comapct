@@ -23,7 +23,7 @@ class Alibaba1688OperationalAdapter(PlatformOperationalAdapter):
             raise RuntimeError("1688 seed mode disabled")
         scope_key = (scope or "sync").strip().lower()
         if scope_key in ("login_probe",):
-            result = login_probe(tenant_id=tenant_id, headed=True)
+            result = login_probe(tenant_id=tenant_id, headed=False)
             return {
                 "platform": self.platform,
                 "tenant_id": tenant_id,
@@ -33,7 +33,7 @@ class Alibaba1688OperationalAdapter(PlatformOperationalAdapter):
             }
 
         # crawl / sync / all / operational → sync purchases
-        result = crawl_purchase_orders(tenant_id=tenant_id, headed=True)
+        result = crawl_purchase_orders(tenant_id=tenant_id, headed=False)
         rows = result.get("rows") or []
         if isinstance(rows, list) and rows:
             written = upsert_purchase_orders(tenant_id, rows)

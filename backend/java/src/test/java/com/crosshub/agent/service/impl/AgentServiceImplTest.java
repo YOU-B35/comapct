@@ -63,6 +63,7 @@ class AgentServiceImplTest {
                 amazonSyncBridge,
                 amazonWriteBridge,
                 temuBridge,
+                null,
                 null
         );
 

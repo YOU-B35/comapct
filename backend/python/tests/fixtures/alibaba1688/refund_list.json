@@ -1,0 +1,631 @@
+[
+  {
+    "applyTime": "2026-08-13 14:14:38",
+    "buyerInfo": {
+      "companyName": "MASKED",
+      "companyUrl": "https://m.1688.com/winport/b2b-679151196.html?memberId=b2b-679151196",
+      "companyUrlPc": "https://www.1688.com/company/b2b-679151196.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "48000",
+    "disputeRequest": "1",
+    "disputeType": "1",
+    "disputeTypeText": "售中",
+    "forwardLogisticInfoVO": {
+      "refundListDesc": "已签收",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "goodsStatus": "2",
+    "orderId": "5127251402284040047",
+    "proxy": "false",
+    "refundGoodsFee": "6400",
+    "refundId": "TQ403086961085151196",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01GbHcGE274LtPPUdu6_!!6000000007743-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "跨境碳素线路亚前导线专用双环扣快速锁扣抗咬强拉力多规格鱼线"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "false",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "false",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "false",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "0",
+    "refundStatusEnum": "REFUND_SUCCESS",
+    "refundStatusText": "退款成功",
+    "reverseLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "totalRefundFee": "6400"
+  },
+  {
+    "applyTime": "2026-08-12 18:08:55",
+    "buyerInfo": {
+      "companyUrl": "https://m.1688.com/winport/b2b-221980529899647e72.html?memberId=b2b-221980529899647e72",
+      "companyUrlPc": "https://www.1688.com/company/b2b-221980529899647e72.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "7300",
+    "disputeRequest": "3",
+    "disputeType": "2",
+    "disputeTypeText": "售后",
+    "forwardLogisticInfoVO": {
+      "refundListDesc": "已签收",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "goodsStatus": "3",
+    "orderId": "3313012803702062096",
+    "proxy": "false",
+    "refundGoodsFee": "7300",
+    "refundId": "TQ280117599841298996",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01OcK3xf27Kq9LxVXoD_!!6000000007779-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "户外钓鱼袋 折叠网眼鱼袋 重量吊带 大鱼量鱼袋 海钓渔具配件"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "true",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "true",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "true",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "0",
+    "refundStatusEnum": "WAIT_SELLER_RECEIVE",
+    "refundStatusText": "买家已退货，等待卖家确认收货",
+    "reverseLogisticInfoVO": {
+      "refundListDesc": "已揽件",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "timeOutModel": {
+      "day": "05",
+      "hour": "21",
+      "min": "45",
+      "second": "53",
+      "timeOutDate": "2026-08-25 10:38:20"
+    },
+    "totalRefundFee": "7300"
+  },
+  {
+    "applyTime": "2026-08-11 22:25:53",
+    "buyerInfo": {
+      "companyUrl": "https://m.1688.com/winport/b2b-22150737230831b174.html?memberId=b2b-22150737230831b174",
+      "companyUrlPc": "https://www.1688.com/company/b2b-22150737230831b174.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "7500",
+    "disputeRequest": "3",
+    "disputeType": "1",
+    "disputeTypeText": "售中",
+    "forwardLogisticInfoVO": {
+      "refundListDesc": "已签收",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "goodsStatus": "3",
+    "orderId": "5127667633008008721",
+    "proxy": "false",
+    "refundGoodsFee": "7500",
+    "refundId": "TQ402889214486723083",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01sKIzr6nsamC0d1W0_!!6000000000036-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "欧式钓丸饵上饵螺丝钉浮球配件库钓鱼饵转环反底钓组配件"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "true",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "true",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "true",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "0",
+    "refundStatusEnum": "WAIT_SELLER_RECEIVE",
+    "refundStatusText": "买家已退货，等待卖家确认收货",
+    "reverseLogisticInfoVO": {
+      "refundListDesc": "已退货",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "timeOutModel": {
+      "day": "06",
+      "hour": "20",
+      "min": "12",
+      "second": "42",
+      "timeOutDate": "2026-08-26 09:05:09"
+    },
+    "totalRefundFee": "7500"
+  },
+  {
+    "applyTime": "2026-08-11 16:20:03",
+    "buyerInfo": {
+      "companyUrl": "https://m.1688.com/winport/b2b-2979458915449bb.html?memberId=b2b-2979458915449bb",
+      "companyUrlPc": "https://www.1688.com/company/b2b-2979458915449bb.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "4070",
+    "disputeRequest": "1",
+    "disputeType": "1",
+    "disputeTypeText": "售中",
+    "forwardLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "goodsStatus": "4",
+    "orderId": "3316798056101297550",
+    "proxy": "false",
+    "refundGoodsFee": "4070",
+    "refundId": "TQ279964886401458915",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01SNJGNM1HjFDng63ap_!!6000000000793-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "欧鲤钓8字环连接器 带圈美式转环 焊接单圈 连接环渔具小配件 批"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "false",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "false",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "false",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "800",
+    "refundStatusEnum": "REFUND_SUCCESS",
+    "refundStatusText": "退款成功",
+    "reverseLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "totalRefundFee": "4870"
+  },
+  {
+    "applyTime": "2026-08-09 16:30:54",
+    "buyerInfo": {
+      "companyUrl": "https://m.1688.com/winport/b2b-2200638826671e0626.html?memberId=b2b-2200638826671e0626",
+      "companyUrlPc": "https://www.1688.com/company/b2b-2200638826671e0626.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "75000",
+    "disputeRequest": "3",
+    "disputeType": "1",
+    "disputeTypeText": "售中",
+    "forwardLogisticInfoVO": {
+      "refundListDesc": "已签收",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "goodsStatus": "3",
+    "orderId": "3315876349034007174",
+    "proxy": "false",
+    "refundGoodsFee": "75000",
+    "refundId": "TQ279685238772826671",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN018I0lXD1Mbz1YKMdCi_!!6000000001454-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "锁鱼碳素线路亚前导线专用扣锁器 淡水防咬线导线绑好成品假饵别"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "false",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "false",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "false",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "0",
+    "refundStatusEnum": "REFUND_SUCCESS",
+    "refundStatusText": "退款成功",
+    "reverseLogisticInfoVO": {
+      "refundListDesc": "已揽件",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "totalRefundFee": "75000"
+  },
+  {
+    "applyTime": "2026-08-06 10:57:51",
+    "buyerInfo": {
+      "companyUrl": "https://m.1688.com/winport/b2b-2219406304248e87f4.html?memberId=b2b-2219406304248e87f4",
+      "companyUrlPc": "https://www.1688.com/company/b2b-2219406304248e87f4.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "420",
+    "disputeRequest": "1",
+    "disputeType": "1",
+    "disputeTypeText": "售中",
+    "forwardLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "goodsStatus": "1",
+    "orderId": "5127213780449004411",
+    "proxy": "false",
+    "refundGoodsFee": "420",
+    "refundId": "TQ402204564242304248",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01cl0AKj1mSzFowZn5V_!!6000000004954-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "飞德饵笼打窝器系列5+1铅坠快速打窝托饵器组合附饵工具垂钓用品"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "false",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "false",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "false",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "0",
+    "refundStatusEnum": "REFUND_CLOSED",
+    "refundStatusText": "退款关闭",
+    "reverseLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "totalRefundFee": "420"
+  },
+  {
+    "applyTime": "2026-08-05 16:51:42",
+    "buyerInfo": {
+      "companyUrl": "https://m.1688.com/winport/b2b-295644965721e2d.html?memberId=b2b-295644965721e2d",
+      "companyUrlPc": "https://www.1688.com/company/b2b-295644965721e2d.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "8310",
+    "disputeRequest": "3",
+    "disputeType": "1",
+    "disputeTypeText": "售中",
+    "forwardLogisticInfoVO": {
+      "refundListDesc": "已签收",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "goodsStatus": "3",
+    "orderId": "3315422282605018154",
+    "proxy": "false",
+    "refundGoodsFee": "8310",
+    "refundId": "TQ279135951286449657",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01l19Hny28JkonaQgHV_!!6000000007912-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "渔具欧鲤钓钓组 前导铅坠套装 光滑铅坠反吹钩 防缠绕管垂钓用品"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "false",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "false",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "false",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "1600",
+    "refundStatusEnum": "REFUND_SUCCESS",
+    "refundStatusText": "退款成功",
+    "reverseLogisticInfoVO": {
+      "refundListDesc": "已签收",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "totalRefundFee": "9910"
+  },
+  {
+    "applyTime": "2026-08-05 07:48:57",
+    "buyerInfo": {
+      "companyUrl": "https://m.1688.com/winport/b2b-2311018778.html?memberId=b2b-2311018778",
+      "companyUrlPc": "https://www.1688.com/company/b2b-2311018778.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "4350",
+    "disputeRequest": "1",
+    "disputeType": "1",
+    "disputeTypeText": "售中",
+    "forwardLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "goodsStatus": "4",
+    "orderId": "3315626582892027069",
+    "proxy": "false",
+    "refundGoodsFee": "4350",
+    "refundId": "TQ279074496509018778",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN010DmmTmuB81E0d1W0_!!6000000001579-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "飞德饵笼打窝器钓组 锌合金预绑鱼钩饵笼钓组 打窝器垂钓用品"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "false",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "false",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "false",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "1100",
+    "refundStatusEnum": "REFUND_SUCCESS",
+    "refundStatusText": "退款成功",
+    "reverseLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "totalRefundFee": "5450"
+  },
+  {
+    "applyTime": "2026-07-30 10:37:28",
+    "buyerInfo": {
+      "companyName": "MASKED",
+      "companyUrl": "https://m.1688.com/winport/b2b-22097353262920a89a.html?memberId=b2b-22097353262920a89a",
+      "companyUrlPc": "https://www.1688.com/company/b2b-22097353262920a89a.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "50000",
+    "disputeRequest": "1",
+    "disputeType": "2",
+    "disputeTypeText": "售后",
+    "forwardLogisticInfoVO": {
+      "refundListDesc": "已签收",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "goodsStatus": "2",
+    "orderId": "3307770878928329262",
+    "proxy": "false",
+    "refundGoodsFee": "50000",
+    "refundId": "TQ278303739488326292",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01ZETptV1craL0SPp2A_!!6000000003654-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "欧美浮漂欧式库钓立式远投渔漂浮标钓鱼海竿配件批发跨镜大浮力"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "false",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "false",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "false",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "800",
+    "refundStatusEnum": "REFUND_SUCCESS",
+    "refundStatusText": "售后成功",
+    "remarkTagColor": "blue",
+    "reverseLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "totalRefundFee": "50800"
+  },
+  {
+    "applyTime": "2026-07-28 10:49:50",
+    "buyerInfo": {
+      "companyName": "MASKED",
+      "companyUrl": "https://m.1688.com/winport/b2b-22211093510979c1d3.html?memberId=b2b-22211093510979c1d3",
+      "companyUrlPc": "https://www.1688.com/company/b2b-22211093510979c1d3.html",
+      "loginId": "MASKED"
+    },
+    "canRefundPayment": "486700",
+    "disputeRequest": "1",
+    "disputeType": "2",
+    "disputeTypeText": "售后",
+    "forwardLogisticInfoVO": {
+      "refundListDesc": "已签收",
+      "supportQueryLogisticsTraceForList": "true"
+    },
+    "goodsStatus": "2",
+    "orderId": "5119327728942177308",
+    "proxy": "false",
+    "refundGoodsFee": "486700",
+    "refundId": "TQ400836458902351097",
+    "refundItemInfoList": [
+      {
+        "skuImageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN019giLP424p7SsClrYQ_!!6000000007439-0-cib.jpg?_copy_by_ibank_",
+        "skuName": "欧鲤钓组飞德饵笼饵笼打窝器铅坠配重贝壳铅锌合金附饵飞德渔具垂"
+      }
+    ],
+    "refundPermissionModel": {
+      "accessSpeedRefund": "false",
+      "agreeRefundNeedSecondPop": "false",
+      "allowBuyerApplyRefund": "false",
+      "allowBuyerConfirmGoods": "false",
+      "allowComment": "false",
+      "allowDelete": "false",
+      "allowModifyGoodsCount": "true",
+      "allowNegotiate": "false",
+      "allowPlatformIntervention": "false",
+      "allowReturnFree": "false",
+      "allowSellerAgreeRefund": "false",
+      "allowSellerAgreeReturnGoods": "false",
+      "allowSellerRefuseRefund": "false",
+      "allowSellerReturnReshipping": "false",
+      "allowSellerSendGoods": "true",
+      "allowUploadVoucher": "false",
+      "canModifyReturnGoods": "false",
+      "canSupplementReturnGoods": "false",
+      "checkOrderEntryId": "false",
+      "fixedCarriage": "false",
+      "fixedGoodsFee": "false",
+      "fixedRefundReason": "false",
+      "lengthenReceiverTime": "false",
+      "modifyReturnGoodsInvalidRemind": "false",
+      "requiredRefundOrderIdList": []
+    },
+    "refundPostFee": "0",
+    "refundStatusEnum": "REFUND_SUCCESS",
+    "refundStatusText": "售后成功",
+    "reverseLogisticInfoVO": {
+      "supportQueryLogisticsTraceForList": "false"
+    },
+    "totalRefundFee": "486700"
+  }
+]

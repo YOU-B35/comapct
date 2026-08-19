@@ -100,6 +100,39 @@ class AgentApiClient:
             body = resp.json()
             return body.get("data") if isinstance(body, dict) else {}
 
+    def ingest_1688_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=180.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/1688/products/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_1688_orders(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=180.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/1688/orders/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_1688_peer_bestsellers(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=180.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/1688/peer-bestsellers/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
     def ingest_douyin_compass(self, payload: dict[str, Any]) -> dict[str, Any]:
         with httpx.Client(timeout=120.0) as client:
             resp = client.post(

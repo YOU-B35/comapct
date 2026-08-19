@@ -131,6 +131,9 @@ export const APP_ERROR_MESSAGES = {
   A1688_AGENT_OFFLINE: '本机同步助手未在线，请先启动 CrossHub-Sync-Helper',
   A1688_NOT_LOGGED_IN: '1688 买家后台未登录，请打开登录窗口完成登录',
   A1688_LOGIN_FAILED: '1688 登录失败，请重试打开登录窗口',
+  A1688_PRODUCTS_NEED_DAY0: '1688 商品接口尚未完成 Day0 探测，暂不可同步',
+  A1688_PRODUCTS_SYNC_FAILED: '1688 商品同步失败，请重试',
+  A1688_PROFILE_BUSY: '1688 浏览器任务进行中，请稍候',
 }
 
 const CRAWL_ERROR_UI = {

@@ -46,6 +46,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/amazon/**",
                         "/api/aliexpress/**",
                         "/api/douyin/**",
+                        "/api/1688/**",
                         "/api/monitor/**",
                         "/api/sau/**",
                         "/api/commander/**"
@@ -58,6 +59,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/agent/temu/**",
                         "/api/agent/aliexpress/**",
                         "/api/agent/douyin/**",
+                        "/api/agent/1688/**",
                         "/api/agent/tenants",
                         "/api/agent/platform-accounts",
                         "/api/agent/platform-accounts/**",

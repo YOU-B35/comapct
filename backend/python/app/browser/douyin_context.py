@@ -3,12 +3,32 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from playwright.sync_api import BrowserContext, Page
 
 DOUYIN_SELLER_HOME = "https://fxg.jinritemai.com/"
+
+_LOCK_NAMES = (
+    "lockfile",
+    "SingletonLock",
+    "SingletonCookie",
+    "SingletonSocket",
+    "DevToolsActivePort",
+)
+
+_PROFILE_BUSY_TOKENS = (
+    "target page, context or browser has been closed",
+    "singleton",
+    "user data directory",
+    "already in use",
+    "browser has been closed",
+)
 
 _RESTORE_OPEN_URLS = 4
 _SESSION_FILE_NAMES = (
@@ -23,6 +43,127 @@ _DOUYIN_FLOW_HOST_MARKERS = (
     "douyin.com",
     "bytedance.com",
 )
+
+
+def is_douyin_profile_busy_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(token in text for token in _PROFILE_BUSY_TOKENS)
+
+
+def clear_douyin_profile_locks(profile_dir: Path) -> None:
+    root = Path(profile_dir)
+    for name in _LOCK_NAMES:
+        try:
+            (root / name).unlink(missing_ok=True)
+        except OSError:
+            pass
+    default_lock = root / "Default" / "LOCK"
+    try:
+        default_lock.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def close_douyin_profile_browsers(
+    profile_dir: Path,
+    *,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> int:
+    """Force-close Chrome processes using this Douyin tenant profile, then drop singleton locks."""
+    root = Path(profile_dir)
+    killed = 0
+    if sys.platform.startswith("win"):
+        profile_text = str(root.resolve())
+        tenant_needle = root.name.lower()
+        script = f"""
+$profile = {json.dumps(profile_text)}
+$profileBack = $profile.ToLowerInvariant()
+$profileSlash = $profileBack.Replace('\\', '/')
+$tenantNeedle = {json.dumps(tenant_needle)}
+$names = @('chrome.exe', 'chromium.exe', 'msedge.exe')
+$count = 0
+for ($i = 0; $i -lt 8; $i += 1) {{
+  $matches = Get-CimInstance Win32_Process |
+    Where-Object {{
+      $cmd = if ($_.CommandLine) {{ $_.CommandLine.ToLowerInvariant() }} else {{ '' }}
+      $cmdSlash = $cmd.Replace('\\', '/')
+      $_.Name -in $names -and
+      $cmd -and
+      (
+        $cmd.Contains($profileBack) -or
+        $cmdSlash.Contains($profileSlash) -or
+        ($cmd.Contains('.douyin-browser-profile') -and $cmd.Contains($tenantNeedle))
+      )
+    }}
+  if (-not $matches) {{ break }}
+  foreach ($proc in $matches) {{
+    try {{
+      Stop-Process -Id $proc.ProcessId -Force -ErrorAction Stop
+      $count += 1
+    }} catch {{}}
+  }}
+  Start-Sleep -Milliseconds 300
+}}
+Write-Output $count
+"""
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            lines = [ln.strip() for ln in (result.stdout or "").splitlines() if ln.strip()]
+            if lines:
+                try:
+                    killed = int(lines[-1])
+                except ValueError:
+                    killed = 0
+        except Exception:
+            killed = 0
+    clear_douyin_profile_locks(root)
+    sleeper(1.0 if killed else 0.3)
+    return killed
+
+
+def launch_douyin_persistent_context(
+    playwright: Any,
+    profile_dir: Path,
+    launch_kwargs: dict[str, Any],
+    *,
+    attempts: int = 3,
+    launch_fn: Callable[[], Any] | None = None,
+    reclaim_fn: Callable[[], int] | None = None,
+    sleeper: Callable[[float], None] = time.sleep,
+):
+    """Launch persistent Chrome; on SingletonLock / closed-browser clash, reclaim profile and retry."""
+    last_error: BaseException | None = None
+    launcher = launch_fn
+    if launcher is None:
+        def launcher():
+            return playwright.chromium.launch_persistent_context(
+                user_data_dir=str(profile_dir),
+                **launch_kwargs,
+            )
+
+    for attempt in range(max(1, attempts)):
+        try:
+            return launcher()
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            if not is_douyin_profile_busy_error(exc) or attempt + 1 >= attempts:
+                break
+            print(
+                f"[DouyinBrowser] launch busy (attempt {attempt + 1}/{attempts}), reclaiming profile…",
+                flush=True,
+            )
+            if reclaim_fn is not None:
+                reclaim_fn()
+            else:
+                close_douyin_profile_browsers(profile_dir, sleeper=sleeper)
+            sleeper(1.2)
+    assert last_error is not None
+    raise last_error
 
 
 def is_allowed_douyin_flow_url(url: str) -> bool:

@@ -72,6 +72,7 @@ function shouldSkipPythonDeploy(name, rel) {
     name === '.aliexpress-browser-profile' ||
     name === '.amazon-browser-profile' ||
     name === '.douyin-browser-profile' ||
+    name === '.1688-browser-profile' ||
     name === '.sync-helper-local' ||
     name === 'helper_app' ||
     name === 'exports' ||
@@ -88,6 +89,7 @@ function shouldSkipPythonDeploy(name, rel) {
   if (parts.includes('.aliexpress-browser-profile')) return true;
   if (parts.includes('.amazon-browser-profile')) return true;
   if (parts.includes('.douyin-browser-profile')) return true;
+  if (parts.includes('.1688-browser-profile')) return true;
   if (parts.includes('.sync-helper-local')) return true;
   if (parts.includes('helper_app')) return true;
   if (parts.includes('exports')) return true;
@@ -168,13 +170,15 @@ async function main() {
   await sftpEnsureDir(sftp, `${REMOTE_ROOT}/scripts`);
   await sftpPut(sftp, path.join(ROOT, 'scripts/monitor-api-smoke.js'), `${REMOTE_ROOT}/scripts/monitor-api-smoke.js`);
 
+  // 默认不覆盖线上 SQLite；仅当显式 CROSSHUB_UPLOAD_DB=true 才上传
   const dbLocal = path.join(ROOT, 'backend/data/crosshub.db');
-  if (!process.env.CROSSHUB_SKIP_DB_UPLOAD && fs.existsSync(dbLocal)) {
+  const uploadDb = String(process.env.CROSSHUB_UPLOAD_DB || '').toLowerCase() === 'true';
+  if (uploadDb && fs.existsSync(dbLocal)) {
     await sftpEnsureDir(sftp, `${REMOTE_ROOT}/data`);
     await sftpPut(sftp, dbLocal, `${REMOTE_ROOT}/data/crosshub.db`);
-    console.log('  uploaded crosshub.db');
-  } else if (process.env.CROSSHUB_SKIP_DB_UPLOAD) {
-    console.log('  skip crosshub.db upload (CROSSHUB_SKIP_DB_UPLOAD)');
+    console.log('  uploaded crosshub.db (CROSSHUB_UPLOAD_DB=true)');
+  } else {
+    console.log('  skip crosshub.db upload (set CROSSHUB_UPLOAD_DB=true to override)');
   }
 
   const expressDir = path.join(ROOT, 'script/api-server');

@@ -1,19 +1,23 @@
 """1688 buyer login / session probe for Sync Helper agent tasks."""
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
-from app.browser.alibaba1688_context import profile_dir
+from app.browser.alibaba1688_context import clear_stale_profile_locks, crawl_headless_enabled, profile_dir
 from app.browser.alibaba1688_session import (
     is_login_page,
     persist_1688_session,
     session_ready,
 )
 
-LOGIN_URL = "https://login.1688.com/member/signin.htm?Done=https%3A%2F%2Fwww.1688.com%2F"
-HOME_URL = "https://www.1688.com/"
-
+# 采购工作台；未登录时会落到登录页，登录后回到 work.1688.com
+HOME_URL = "https://work.1688.com/"
+LOGIN_URL = (
+    "https://login.1688.com/member/signin.htm?"
+    "Done=https%3A%2F%2Fwork.1688.com%2F"
+)
 
 def _looks_logged_in(page, context) -> bool:
     try:
@@ -32,24 +36,44 @@ def _looks_logged_in(page, context) -> bool:
         content = page.content()[:5000]
     except Exception:
         content = ""
-    return "退出" in content or "我的阿里" in content or "采购车" in content
+    # work.1688.com 未登录也可能在同域展示登录框，需页面文案佐证已登录
+    markers = ("退出", "我的阿里", "采购车", "采购工作台", "我的进货单", "进货单")
+    return any(m in content for m in markers) and "密码登录" not in content and "扫码登录" not in content
 
 
-def _launch(tenant_id: int, *, headless: bool = False, goto: str | None = HOME_URL):
+def _launch(tenant_id: int, *, headless: bool = True, goto: str | None = HOME_URL):
     from playwright.sync_api import sync_playwright
 
+    clear_stale_profile_locks(tenant_id)
     user_data = str(profile_dir(tenant_id))
+    print(f"[1688] launch profile={user_data} headless={headless} goto={goto!r}", flush=True)
+    args = [
+        "--disable-blink-features=AutomationControlled",
+        "--no-first-run",
+        "--no-default-browser-check",
+    ]
+    if headless:
+        args.append("--headless=new")
+    else:
+        args.append("--start-maximized")
     pw = sync_playwright().start()
     context = pw.chromium.launch_persistent_context(
         user_data,
         headless=headless,
         viewport={"width": 1280, "height": 900},
-        args=["--disable-blink-features=AutomationControlled"],
+        locale="zh-CN",
+        args=args,
     )
     page = context.pages[0] if context.pages else context.new_page()
+    if not headless:
+        try:
+            page.bring_to_front()
+        except Exception:
+            pass
     if goto:
         page.goto(goto, wait_until="domcontentloaded", timeout=90_000)
         page.wait_for_timeout(1500)
+    print(f"[1688] page url={getattr(page, 'url', '')!r}", flush=True)
     return pw, context, page
 
 
@@ -82,7 +106,7 @@ def _session_payload(tenant_id: int, *, logged_in: bool, message: str) -> dict[s
 def probe_session(tenant_id: int) -> dict[str, Any]:
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=False, goto=HOME_URL)
+        pw, context, page = _launch(tenant_id, headless=crawl_headless_enabled(), goto=HOME_URL)
         logged_in = _looks_logged_in(page, context)
         persist_1688_session(tenant_id, page, context)
         print(

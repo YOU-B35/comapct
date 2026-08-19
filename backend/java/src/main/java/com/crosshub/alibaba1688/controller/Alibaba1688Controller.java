@@ -5,6 +5,8 @@ import com.crosshub.alibaba1688.entity.Alibaba1688CrawlJob;
 import com.crosshub.alibaba1688.service.Alibaba1688CrawlConflictException;
 import com.crosshub.alibaba1688.service.Alibaba1688CrawlService;
 import com.crosshub.alibaba1688.service.Alibaba1688OperationalService;
+import com.crosshub.alibaba1688.service.Alibaba1688ProductService;
+import com.crosshub.alibaba1688.service.Alibaba1688RetailOpsService;
 import com.crosshub.alibaba1688.service.Alibaba1688SessionService;
 import com.crosshub.alibaba1688.service.impl.Alibaba1688CrawlServiceImpl;
 import com.crosshub.common.ApiResult;
@@ -22,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,17 +36,23 @@ public class Alibaba1688Controller {
     private final Alibaba1688CrawlService crawlService;
     private final Alibaba1688OperationalService operationalService;
     private final Alibaba1688SessionService sessionService;
+    private final Alibaba1688ProductService productService;
+    private final Alibaba1688RetailOpsService retailOpsService;
     private final DataScopeService dataScopeService;
 
     public Alibaba1688Controller(
             Alibaba1688CrawlService crawlService,
             Alibaba1688OperationalService operationalService,
             Alibaba1688SessionService sessionService,
+            Alibaba1688ProductService productService,
+            Alibaba1688RetailOpsService retailOpsService,
             DataScopeService dataScopeService
     ) {
         this.crawlService = crawlService;
         this.operationalService = operationalService;
         this.sessionService = sessionService;
+        this.productService = productService;
+        this.retailOpsService = retailOpsService;
         this.dataScopeService = dataScopeService;
     }
 
@@ -66,6 +76,151 @@ public class Alibaba1688Controller {
             return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueSessionProbe()));
         } catch (ResponseStatusException ex) {
             return mapSessionError(ex);
+        }
+    }
+
+    @PostMapping("/products/sync")
+    public ResponseEntity<Map<String, Object>> syncProducts() {
+        try {
+            return ResponseEntity.ok(ApiResult.ok(productService.enqueueProductsSync()));
+        } catch (ResponseStatusException ex) {
+            return mapSessionError(ex);
+        }
+    }
+
+    @PostMapping("/orders/sync")
+    public ResponseEntity<Map<String, Object>> syncOrders() {
+        try {
+            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueOrdersSync()));
+        } catch (ResponseStatusException ex) {
+            return mapSessionError(ex);
+        }
+    }
+
+    @GetMapping("/products")
+    public Map<String, Object> products(
+            @RequestParam(required = false, defaultValue = "all") String tab,
+            @RequestParam(required = false, defaultValue = "all") String status,
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
+        String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+        return ApiResult.ok(productService.listProducts(tab, status, sid));
+    }
+
+    @GetMapping("/operations/summary")
+    public Map<String, Object> operationsSummary(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
+        Long tenantId = dataScopeService.requireTenantId();
+        LocalDate[] range = parseRange(startDate, endDate);
+        return ApiResult.ok(retailOpsService.summary(
+                tenantId,
+                range[0],
+                range[1],
+                storeId != null && !storeId.isBlank() ? storeId : storeIdSnake
+        ));
+    }
+
+    @GetMapping("/operations/trend")
+    public Map<String, Object> operationsTrend(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
+        Long tenantId = dataScopeService.requireTenantId();
+        LocalDate[] range = parseRange(startDate, endDate);
+        return ApiResult.ok(retailOpsService.trend(
+                tenantId,
+                range[0],
+                range[1],
+                storeId != null && !storeId.isBlank() ? storeId : storeIdSnake
+        ));
+    }
+
+    @GetMapping("/orders")
+    public Map<String, Object> orders(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake,
+            @RequestParam(required = false, defaultValue = "1") int page,
+            @RequestParam(required = false, defaultValue = "20") int pageSize
+    ) {
+        Long tenantId = dataScopeService.requireTenantId();
+        LocalDate start = null;
+        LocalDate end = null;
+        if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
+            LocalDate[] range = parseRange(startDate, endDate);
+            start = range[0];
+            end = range[1];
+        }
+        return ApiResult.ok(retailOpsService.listOrders(
+                tenantId,
+                start,
+                end,
+                status,
+                keyword,
+                storeId != null && !storeId.isBlank() ? storeId : storeIdSnake,
+                page,
+                pageSize
+        ));
+    }
+
+    @GetMapping("/products/analytics")
+    public Map<String, Object> productAnalytics(
+            @RequestParam String type,
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
+        Long tenantId = dataScopeService.requireTenantId();
+        return ApiResult.ok(retailOpsService.productAnalytics(
+                type,
+                tenantId,
+                storeId != null && !storeId.isBlank() ? storeId : storeIdSnake
+        ));
+    }
+
+    @GetMapping("/sync-logs")
+    public Map<String, Object> syncLogs(@RequestParam(required = false, defaultValue = "20") int limit) {
+        Long tenantId = dataScopeService.requireTenantId();
+        return ApiResult.ok(retailOpsService.listSyncLogs(tenantId, limit));
+    }
+
+    @GetMapping("/peer-bestsellers")
+    public Map<String, Object> peerBestsellers(
+            @RequestParam(required = false, defaultValue = "1") int page,
+            @RequestParam(required = false, defaultValue = "10") int pageSize
+    ) {
+        Long tenantId = dataScopeService.requireTenantId();
+        return ApiResult.ok(retailOpsService.listPeerBestsellers(tenantId, page, pageSize));
+    }
+
+    @PostMapping("/peer-bestsellers/sync")
+    public ResponseEntity<Map<String, Object>> syncPeerBestsellers() {
+        try {
+            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueuePeerBestsellersSync()));
+        } catch (ResponseStatusException ex) {
+            return mapSessionError(ex);
+        }
+    }
+
+    private static LocalDate[] parseRange(String startDate, String endDate) {
+        try {
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+            if (end.isBefore(start)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "endDate 不能早于 startDate");
+            }
+            return new LocalDate[]{start, end};
+        } catch (DateTimeParseException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "日期格式应为 yyyy-MM-dd");
         }
     }
 

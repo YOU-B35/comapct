@@ -1,0 +1,34 @@
+{
+  "id": "9",
+  "idStr": "9",
+  "status": "waitbuyerpay",
+  "statusLabel": "waitbuyerpay",
+  "gmtCreate": "2026-08-19 10:00:00",
+  "sumPayment": "0",
+  "sumProductPayment": "0",
+  "originalSumPayment": "1000",
+  "orderEntries": [
+    {
+      "entryId": "e1",
+      "entryStatus": "waitbuyerpay",
+      "productName": "????",
+      "productNumber": "offer-1",
+      "specId": "s1",
+      "specInfo": "??",
+      "quantity": "1",
+      "price": "1000",
+      "actualUnitPrice": "1000",
+      "amount": "1000"
+    }
+  ],
+  "newStepOrders": [
+    {
+      "stepStatus": "waitbuyerpay",
+      "gmtPay": null,
+      "goodsFee": "1000",
+      "paidFee": "0",
+      "payFee": "0",
+      "postFee": "0"
+    }
+  ]
+}

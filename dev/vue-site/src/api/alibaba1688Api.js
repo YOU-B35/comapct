@@ -138,6 +138,84 @@ export async function enqueueAlibaba1688SessionProbe() {
   return res?.data ?? res ?? {}
 }
 
+export async function enqueueAlibaba1688ProductsSync() {
+  const res = await service.post('/api/1688/products/sync', {}, { skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function fetchAlibaba1688Products({ tab = 'all', status = 'all', storeId } = {}) {
+  const params = { tab, status }
+  if (storeId && storeId !== 'all') params.storeId = storeId
+  const res = await service.get('/api/1688/products', { params, skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function enqueueAlibaba1688OrdersSync() {
+  const res = await service.post('/api/1688/orders/sync', {}, { skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function fetchAlibaba1688OrderSummary({ startDate, endDate, storeId } = {}) {
+  const params = { startDate, endDate }
+  if (storeId && storeId !== 'all') params.storeId = storeId
+  const res = await service.get('/api/1688/operations/summary', { params, skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function fetchAlibaba1688OrderTrend({ startDate, endDate, storeId } = {}) {
+  const params = { startDate, endDate }
+  if (storeId && storeId !== 'all') params.storeId = storeId
+  const res = await service.get('/api/1688/operations/trend', { params, skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function fetchAlibaba1688Orders({
+  startDate,
+  endDate,
+  status = '',
+  keyword = '',
+  storeId,
+  page = 1,
+  pageSize = 20,
+} = {}) {
+  const params = { status, keyword, page, pageSize }
+  if (startDate && endDate) {
+    params.startDate = startDate
+    params.endDate = endDate
+  }
+  if (storeId && storeId !== 'all') params.storeId = storeId
+  const res = await service.get('/api/1688/orders', { params, skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function fetchAlibaba1688ProductAnalytics({ type, storeId } = {}) {
+  const params = { type }
+  if (storeId && storeId !== 'all') params.storeId = storeId
+  const res = await service.get('/api/1688/products/analytics', { params, skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function fetchAlibaba1688SyncLogs({ limit = 20 } = {}) {
+  const res = await service.get('/api/1688/sync-logs', {
+    params: { limit },
+    skipGlobalErrorToast: true,
+  })
+  return res?.data ?? res ?? {}
+}
+
+export async function fetchAlibaba1688PeerBestsellers({ page = 1, pageSize = 10 } = {}) {
+  const res = await service.get('/api/1688/peer-bestsellers', {
+    params: { page, pageSize },
+    skipGlobalErrorToast: true,
+  })
+  return res?.data ?? res ?? {}
+}
+
+export async function enqueueAlibaba1688PeerBestsellersSync() {
+  const res = await service.post('/api/1688/peer-bestsellers/sync', {}, { skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
 /** Poll 1688 buyer session until ready (HelperStatusBar). */
 export async function pollAlibaba1688SessionUntilReady({
   timeoutMs = 90000,

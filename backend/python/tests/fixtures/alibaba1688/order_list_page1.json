@@ -1,0 +1,5220 @@
+[
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "0",
+    "bizType": "cn",
+    "buyerFeedBack": "贴标自提",
+    "buyerInfo": {
+      "is1688Plus": true,
+      "level": "L6",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED",
+      "vipLevel": 0
+    },
+    "carriage": "0",
+    "gmtCreate": "2026-08-19 11:55:42",
+    "gmtPayment": 1787112193000,
+    "id": "5127694417065003612",
+    "idStr": "5127694417065003612",
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "0",
+        "gmtPay": 1787112193000,
+        "gmtStart": 1787111743000,
+        "goodsFee": "5325",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": false,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": false,
+        "isStepWaitSellerSend": true,
+        "paidFee": "5325",
+        "payFee": "5325",
+        "postFee": "0",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitsellersend"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "85",
+        "amount": "3825",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "25",
+          "afterSaleComplaintDoing": false,
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "45",
+            "realAmount": 45.0,
+            "realAmountStr": "45"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127694417065030440",
+        "entryStatus": "waitsellersend",
+        "industrySecurities": [
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "jqbz",
+            "description": "该卖家已开通交期保障服务，承诺会在双方确定的交期内发货。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/508/605/2506805_1964054271.png",
+            "name": "交期保障",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "J",
+            "type": "protect"
+          },
+          {
+            "code": "kjwy",
+            "description": "包含三大服务类型：售后时限58天，少发/漏发赔，退货包运费，未按订单发货时间发货可向三方保险机构申请理赔，具体服务范围以规则为准。",
+            "name": "跨境无忧",
+            "shortCode": "KW",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          },
+          {
+            "code": "psbp_s",
+            "description": "收到的商品存在破裂、水渍、撕裂或者其他损坏的情形，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01D1FvCh1op5KRuyDNw_!!6000000005273-0-tps-16-16.jpg",
+            "name": "破损包赔",
+            "shortCode": "psbp_s",
+            "type": "insurance"
+          },
+          {
+            "code": "hmyzx_s",
+            "description": "在订单确认收货前，通过第三方质检公司进行货物检验（简称“验货”），如验货报告显示实际交付商品与约定商品不一致，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01Z4tFXo1TccQ1MOBo1_!!6000000002403-2-tps-16-16.png",
+            "name": "品质保障",
+            "shortCode": "hmyzx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "jqx_s",
+            "description": "当订单实际发货时间晚于约定发货时间，可获得理赔。",
+            "groupId": "s1",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01KxySNK1PiKtvY3t6D_!!6000000001874-2-tps-16-16.png",
+            "name": "延期必赔",
+            "shortCode": "jqx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "zsgc_p",
+            "description": "该商家属于具备生产制造能力的工厂",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01RTTsKO1f9YqfE7Lq5_!!6000000003964-0-tps-16-16.jpg",
+            "name": "真实工厂",
+            "shortCode": "zsgc_p",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN016aXBbm1P4UuwSADaH_!!6000000001787-0-cib.80x80.jpg",
+        "price": "85",
+        "productName": "单刀串钩线组钓鱼天平渔具跨境海钓天平船钓配件小型铜管天平海竿",
+        "productNumber": "铜管天平",
+        "promotionsFee": "0",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "45",
+          "realAmount": 45.0,
+          "realAmountStr": "45"
+        },
+        "sourceId": "1001446821859",
+        "specId": "3931b44dc431bd1c8c08ee84a85461d2",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "颜色",
+              "specValue": "1"
+            },
+            {
+              "specName": "规格",
+              "specValue": "管径2.0(长度70mm)"
+            }
+          ]
+        }
+      },
+      {
+        "actualUnitPrice": "100",
+        "amount": "1500",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "25",
+          "afterSaleComplaintDoing": false,
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "15",
+            "realAmount": 15.0,
+            "realAmountStr": "15"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127694417065049621",
+        "entryStatus": "waitsellersend",
+        "industrySecurities": [
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "jqbz",
+            "description": "该卖家已开通交期保障服务，承诺会在双方确定的交期内发货。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/508/605/2506805_1964054271.png",
+            "name": "交期保障",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "J",
+            "type": "protect"
+          },
+          {
+            "code": "kjwy",
+            "description": "包含三大服务类型：售后时限58天，少发/漏发赔，退货包运费，未按订单发货时间发货可向三方保险机构申请理赔，具体服务范围以规则为准。",
+            "name": "跨境无忧",
+            "shortCode": "KW",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          },
+          {
+            "code": "psbp_s",
+            "description": "收到的商品存在破裂、水渍、撕裂或者其他损坏的情形，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01D1FvCh1op5KRuyDNw_!!6000000005273-0-tps-16-16.jpg",
+            "name": "破损包赔",
+            "shortCode": "psbp_s",
+            "type": "insurance"
+          },
+          {
+            "code": "hmyzx_s",
+            "description": "在订单确认收货前，通过第三方质检公司进行货物检验（简称“验货”），如验货报告显示实际交付商品与约定商品不一致，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01Z4tFXo1TccQ1MOBo1_!!6000000002403-2-tps-16-16.png",
+            "name": "品质保障",
+            "shortCode": "hmyzx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "jqx_s",
+            "description": "当订单实际发货时间晚于约定发货时间，可获得理赔。",
+            "groupId": "s1",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01KxySNK1PiKtvY3t6D_!!6000000001874-2-tps-16-16.png",
+            "name": "延期必赔",
+            "shortCode": "jqx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "zsgc_p",
+            "description": "该商家属于具备生产制造能力的工厂",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01RTTsKO1f9YqfE7Lq5_!!6000000003964-0-tps-16-16.jpg",
+            "name": "真实工厂",
+            "shortCode": "zsgc_p",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN016aXBbm1P4UuwSADaH_!!6000000001787-0-cib.80x80.jpg",
+        "price": "100",
+        "productName": "单刀串钩线组钓鱼天平渔具跨境海钓天平船钓配件小型铜管天平海竿",
+        "productNumber": "铜管天平",
+        "promotionsFee": "0",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "15",
+          "realAmount": 15.0,
+          "realAmountStr": "15"
+        },
+        "sourceId": "1001446821859",
+        "specId": "d1383bea1119748667de167cbb1f43b5",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "颜色",
+              "specValue": "1"
+            },
+            {
+              "specName": "规格",
+              "specValue": "管径2.0(长度90mm)"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "general",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": true,
+      "closeOperateType": "",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "fenxiao",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "0",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "0",
+      "orderPiaoJuPaidForSingleStep": true,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {},
+          "bALink": false,
+          "bizOrderId": "5127694417065003612",
+          "bizOrderIdStr": "5127694417065003612",
+          "buyerId": "1912771284",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "0",
+          "firstStep": true,
+          "gmtCreate": 1787111742000,
+          "gmtModified": 1787112192000,
+          "gmtPay": 1787112193000,
+          "gmtStart": 1787111743000,
+          "goodsFee": "5325",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 1,
+          "onlyAlink": false,
+          "paidFee": "5325",
+          "paidPostFee": "0",
+          "payFee": "5325",
+          "payStatus": 2,
+          "postFee": "0",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": false,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "107351820815778412"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": true,
+      "waitbuyerreceive": false,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": true,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": true,
+      "batchNumber": "440f6221-89a4-4c1f-8398-7c55e32c00c2",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": true,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitsellersend",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "107351820815778412": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1787111743000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1787112193000
+          },
+          {
+            "actionName": "waitbuyerreceive"
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "51",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "订货",
+        "tips": "订货"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": false,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": true,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": false,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "actionUrl": "https://trade.1688.com/order/trade_flow.htm?alipayAction=announce_send_goods&fromType=fromOrderList&tradeType=50060&userType=seller&orderId=5127694417065003612",
+        "highlight": false,
+        "name": "发货",
+        "permissionKey": "canSellerSendGoods"
+      },
+      {
+        "actionUrl": "https://air.1688.com/app/ctf-m-page/official-logistics/dadan-bridge.html?from=trade&tid=5127694417065003612",
+        "highlight": false,
+        "name": "卖家官方打单按钮",
+        "permissionKey": "canSellerShowGFDD"
+      }
+    ],
+    "originalSumPayment": "8790",
+    "promotionFeeMap": {},
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "psbp_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127694417065003612&code=psbp_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "psbp_s",
+            "id": "5127694417065030440",
+            "payerDesc": "",
+            "productName": "破损包赔"
+          },
+          {
+            "bizType": "psbp_s",
+            "id": "5127694417065049621",
+            "payerDesc": "",
+            "productName": "破损包赔"
+          }
+        ],
+        "orderId": "5127694417065003612",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "破损包赔",
+        "role": "2",
+        "serviceCode": "psbp_s",
+        "serviceShortCode": "psbp_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "5127694417065030440"
+          },
+          {
+            "id": "5127694417065049621"
+          }
+        ],
+        "orderId": "5127694417065003612",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "hmyzx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127694417065003612&code=hmyzx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "hmyzx_s",
+            "id": "5127694417065030440",
+            "payerDesc": "",
+            "productName": "品质保障"
+          },
+          {
+            "bizType": "hmyzx_s",
+            "id": "5127694417065049621",
+            "payerDesc": "",
+            "productName": "品质保障"
+          }
+        ],
+        "orderId": "5127694417065003612",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "品质保障",
+        "role": "2",
+        "serviceCode": "hmyzx_s",
+        "serviceShortCode": "hmyzx_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "jqx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127694417065003612&code=jqx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "jqx_s",
+            "id": "5127694417065030440",
+            "payerDesc": "",
+            "productName": "延期必赔"
+          },
+          {
+            "bizType": "jqx_s",
+            "id": "5127694417065049621",
+            "payerDesc": "",
+            "productName": "延期必赔"
+          }
+        ],
+        "orderId": "5127694417065003612",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "延期必赔",
+        "role": "2",
+        "serviceCode": "jqx_s",
+        "serviceShortCode": "jqx_s",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "waitsellersend",
+    "statusLabel": "waitsellersend",
+    "sumPayment": "5325",
+    "sumProductPayment": "5325",
+    "track": {}
+  },
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "0",
+    "bizType": "cn",
+    "buyerFeedBack": "1.包裹请附上发货清单及采购单号：PO26081902484 (很重要!)\r\n2.散货帮包装下，颜色/型号不一请做好标识区分\r\n3.临期产品拒收\r\n4.少发补发请备注清单上",
+    "buyerInfo": {
+      "companyName": "MASKED",
+      "is1688Plus": true,
+      "level": "L6",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED",
+      "vipLevel": 0
+    },
+    "carriage": "1000",
+    "gmtCreate": "2026-08-19 11:27:55",
+    "gmtPayment": 1787110528000,
+    "id": "3316802557018088760",
+    "idStr": "3316802557018088760",
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "0",
+        "gmtPay": 1787110528000,
+        "gmtStart": 1787110075000,
+        "goodsFee": "5200",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": false,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": false,
+        "isStepWaitSellerSend": true,
+        "paidFee": "6200",
+        "payFee": "6200",
+        "postFee": "1000",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitsellersend"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "2600",
+        "amount": "5200",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "logisticsStepTime": ";sg:6;fb:1;ps:6;",
+          "expectedArrivalHour": "55",
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "2",
+          "afterSaleComplaintDoing": false,
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "2",
+            "realAmount": 2.0,
+            "realAmountStr": "2"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "3316802557018088760",
+        "entryStatus": "waitsellersend",
+        "industrySecurities": [
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "ssbxsfh",
+            "description": "该商家已开通48小时发货延必赔服务，承诺在支付成功起48小时内为您发货，如商家未能如约发货，您可在此笔订单中申请违约赔付。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/177/505/2505771_1964054271.png",
+            "name": "48小时发货",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "D",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01cNtYmt1IxjMyXYtOe_!!6000000000960-0-cib.80x80.jpg",
+        "price": "2600",
+        "productName": "跨境热销欧鲤钓铝合金支架横杆地插组合套装炮台钓鱼报警器支架竿",
+        "productNumber": "横杆支架",
+        "promotionsFee": "0",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "2",
+          "realAmount": 2.0,
+          "realAmountStr": "2"
+        },
+        "sourceId": "927507497157",
+        "specId": "fa37e19644c0ffeb36ef0f6db019de53",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "颜色",
+              "specValue": "可调节高度（31-50CM）"
+            },
+            {
+              "specName": "规格",
+              "specValue": "可调节",
+              "unit": "cm"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "general",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": true,
+      "closeOperateType": "",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "general",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "0",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "1000",
+      "orderPiaoJuPaidForSingleStep": true,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {},
+          "bALink": false,
+          "bizOrderId": "3316802557018088760",
+          "bizOrderIdStr": "3316802557018088760",
+          "buyerId": "3497536647",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "0",
+          "firstStep": true,
+          "gmtCreate": 1787110075000,
+          "gmtModified": 1787110527000,
+          "gmtPay": 1787110528000,
+          "gmtStart": 1787110075000,
+          "goodsFee": "5200",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 1,
+          "onlyAlink": false,
+          "paidFee": "6200",
+          "paidPostFee": "1000",
+          "payFee": "6200",
+          "payStatus": 2,
+          "postFee": "1000",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": false,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "75944894362534766"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": true,
+      "waitbuyerreceive": false,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": false,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": true,
+      "batchNumber": "9f75b9fc-aacd-4800-a94c-e0485022a87b",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": true,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitsellersend",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "75944894362534766": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1787110075000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1787110528000
+          },
+          {
+            "actionName": "waitbuyerreceive"
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "53",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "跨境",
+        "tips": "跨境"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": false,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": true,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": false,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "actionUrl": "https://trade.1688.com/order/trade_flow.htm?alipayAction=announce_send_goods&fromType=fromOrderList&tradeType=50060&userType=seller&orderId=3316802557018088760",
+        "highlight": false,
+        "name": "发货",
+        "permissionKey": "canSellerSendGoods"
+      },
+      {
+        "actionUrl": "https://air.1688.com/app/ctf-m-page/official-logistics/dadan-bridge.html?from=trade&tid=3316802557018088760",
+        "highlight": false,
+        "name": "卖家官方打单按钮",
+        "permissionKey": "canSellerShowGFDD"
+      }
+    ],
+    "originalSumPayment": "6200",
+    "promotionFeeMap": {},
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "3316802557018088760"
+          }
+        ],
+        "orderId": "3316802557018088760",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "waitsellersend",
+    "statusLabel": "waitsellersend",
+    "sumPayment": "6200",
+    "sumProductPayment": "5200",
+    "track": {}
+  },
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "0",
+    "bizType": "cn",
+    "buyerInfo": {
+      "companyName": "MASKED",
+      "is1688Plus": true,
+      "level": "L6",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED"
+    },
+    "carriage": "800",
+    "gmtCreate": "2026-08-18 18:48:36",
+    "gmtPayment": 1787112294000,
+    "id": "5127636636041005527",
+    "idStr": "5127636636041005527",
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "0",
+        "gmtPay": 1787112294000,
+        "gmtStart": 1787050117000,
+        "goodsFee": "1000",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": false,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": false,
+        "isStepWaitSellerSend": true,
+        "paidFee": "1800",
+        "payFee": "1800",
+        "postFee": "800",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitsellersend"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "1000",
+        "amount": "1000",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "logisticsStepTime": ";fb:1;",
+          "expectedArrivalHour": "51",
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "2",
+          "afterSaleComplaintDoing": false,
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "1",
+            "realAmount": 1.0,
+            "realAmountStr": "1"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127636636041005527",
+        "entryStatus": "waitsellersend",
+        "industrySecurities": [
+          {
+            "code": "ssbxsls_fx",
+            "description": "该商家已开通揽收保障服务，承诺在支付成功后按照约定时间内为您揽收，若商家未能如约揽收，您可在此笔订单中申请违约赔付。",
+            "groupId": "11",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01FJRz9D22UqaF8cCUR_!!6000000007124-2-tps-16-16.png",
+            "name": "48小时揽收·晚揽必赔",
+            "shortCode": "ssbxsls_fx",
+            "type": "protect"
+          },
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "ssbxsfh",
+            "description": "该商家已开通48小时发货延必赔服务，承诺在支付成功起48小时内为您发货，如商家未能如约发货，您可在此笔订单中申请违约赔付。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/177/505/2505771_1964054271.png",
+            "name": "48小时发货",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "D",
+            "type": "protect"
+          },
+          {
+            "code": "kjwy",
+            "description": "包含三大服务类型：售后时限58天，少发/漏发赔，退货包运费，未按订单发货时间发货可向三方保险机构申请理赔，具体服务范围以规则为准。",
+            "name": "跨境无忧",
+            "shortCode": "KW",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01Cb8hofuOUkI0d1W0_!!6000000003581-0-cib.80x80.jpg",
+        "price": "1000",
+        "productName": "欧鲤钓组 反底钓大力码线组 尾尖管水滴铅 玉米鲤鱼钩 配件套装",
+        "productNumber": "80g水滴铅钓组",
+        "promotionsFee": "0",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "1",
+          "realAmount": 1.0,
+          "realAmountStr": "1"
+        },
+        "sourceId": "1016752963177",
+        "specId": "85a3c77cb9d90ca9bac5ffe62b59e398",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "颜色",
+              "specValue": "4#"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "fenxiaonew",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": false,
+      "closeOperateType": "",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "general",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "800",
+      "orderPiaoJuPaidForSingleStep": false,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {},
+          "bALink": false,
+          "bizOrderId": "5127636636041005527",
+          "bizOrderIdStr": "5127636636041005527",
+          "buyerId": "2206850633539",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "0",
+          "firstStep": true,
+          "gmtCreate": 1787050116000,
+          "gmtModified": 1787112293000,
+          "gmtPay": 1787112294000,
+          "gmtStart": 1787050117000,
+          "goodsFee": "1000",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 1,
+          "onlyAlink": false,
+          "paidFee": "1800",
+          "paidPostFee": "800",
+          "payFee": "1800",
+          "payStatus": 2,
+          "postFee": "800",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": false,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "107213762306633935"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": false,
+      "waitbuyerreceive": false,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": false,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": false,
+      "batchNumber": "b2c712b9-0394-45a5-af50-dfd137f9e3f4",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "fxChannel": "1",
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": false,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitsellersend",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "107213762306633935": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1787050117000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1787112294000
+          },
+          {
+            "actionName": "waitbuyerreceive"
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "41",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "分销",
+        "tips": "分销"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": false,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": true,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": false,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "actionUrl": "https://trade.1688.com/order/trade_flow.htm?alipayAction=announce_send_goods&fromType=fromOrderList&tradeType=50060&userType=seller&orderId=5127636636041005527",
+        "highlight": false,
+        "name": "发货",
+        "permissionKey": "canSellerSendGoods"
+      },
+      {
+        "actionUrl": "https://air.1688.com/app/ctf-m-page/official-logistics/dadan-bridge.html?from=trade&tid=5127636636041005527",
+        "highlight": false,
+        "name": "卖家官方打单按钮",
+        "permissionKey": "canSellerShowGFDD"
+      }
+    ],
+    "originalSumPayment": "1800",
+    "promotionFeeMap": {},
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "5127636636041005527"
+          }
+        ],
+        "orderId": "5127636636041005527",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "waitsellersend",
+    "statusLabel": "waitsellersend",
+    "sumPayment": "1800",
+    "sumProductPayment": "1000",
+    "track": {}
+  },
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "0",
+    "bizType": "cn",
+    "buyerInfo": {
+      "is1688Plus": false,
+      "level": "L5",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED",
+      "vipLevel": 0
+    },
+    "carriage": "700",
+    "gmtCreate": "2026-08-18 17:15:15",
+    "gmtPayment": 1787046830000,
+    "id": "5127367538636004411",
+    "idStr": "5127367538636004411",
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "0",
+        "gmtPay": 1787046830000,
+        "gmtShip": 1787104048000,
+        "gmtStart": 1787044515000,
+        "goodsFee": "420",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": true,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": true,
+        "isStepWaitSellerSend": false,
+        "paidFee": "1120",
+        "payFee": "1120",
+        "postFee": "700",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitbuyerreceive"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "420",
+        "amount": "420",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "lgType": "CONSIGN",
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "logisticsStepTime": ";fb:1;",
+          "expectedArrivalHour": "51",
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "2",
+          "afterSaleComplaintDoing": false,
+          "trackingNo": "YT7639173242625",
+          "sendgt": "1787104048403",
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "1",
+            "realAmount": 1.0,
+            "realAmountStr": "1"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127367538636004411",
+        "entryStatus": "waitbuyerreceive",
+        "industrySecurities": [
+          {
+            "code": "ssbxsls_fx",
+            "description": "该商家已开通揽收保障服务，承诺在支付成功后按照约定时间内为您揽收，若商家未能如约揽收，您可在此笔订单中申请违约赔付。",
+            "groupId": "11",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01FJRz9D22UqaF8cCUR_!!6000000007124-2-tps-16-16.png",
+            "name": "48小时揽收·晚揽必赔",
+            "shortCode": "ssbxsls_fx",
+            "type": "protect"
+          },
+          {
+            "code": "ssbxsfh",
+            "description": "该商家已开通48小时发货延必赔服务，承诺在支付成功起48小时内为您发货，如商家未能如约发货，您可在此笔订单中申请违约赔付。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/177/505/2505771_1964054271.png",
+            "name": "48小时发货",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "D",
+            "type": "protect"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01cl0AKj1mSzFowZn5V_!!6000000004954-0-cib.80x80.jpg",
+        "price": "420",
+        "productName": "飞德饵笼打窝器系列5+1铅坠快速打窝托饵器组合附饵工具垂钓用品",
+        "productNumber": "B型乌龟",
+        "promotionsFee": "0",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "1",
+          "realAmount": 1.0,
+          "realAmountStr": "1"
+        },
+        "sourceId": "935920571390",
+        "specId": "81f167872b263839f9a68833b96a796a",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "规格",
+              "specValue": "40g"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "fenxiaonew",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": true,
+      "closeOperateType": "",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "fenxiao",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "700",
+      "orderPiaoJuPaidForSingleStep": false,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {
+            "started_ship": "1"
+          },
+          "bALink": false,
+          "bizOrderId": "5127367538636004411",
+          "bizOrderIdStr": "5127367538636004411",
+          "buyerId": "2219406304248",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "0",
+          "firstStep": true,
+          "gmtCreate": 1787044515000,
+          "gmtModified": 1787104048000,
+          "gmtPay": 1787046830000,
+          "gmtShip": 1787104048000,
+          "gmtStart": 1787044515000,
+          "goodsFee": "420",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 2,
+          "onlyAlink": false,
+          "paidFee": "1120",
+          "paidPostFee": "700",
+          "payFee": "1120",
+          "payStatus": 2,
+          "postFee": "700",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": true,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "107354991882304842"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": false,
+      "waitbuyerreceive": true,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": false,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": false,
+      "batchNumber": "9ff08297-bb24-48c8-b6c6-1dd8e057f22c",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": true,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "fxChannel": "jingdong",
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": false,
+      "hasInvoice": false,
+      "downStreamId": "3594443012342916",
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitbuyerreceive",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "107354991882304842": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1787044515000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1787046830000
+          },
+          {
+            "actionName": "waitbuyerreceive",
+            "actionTime": 1787104048000
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "img",
+        "group": "before",
+        "id": "64",
+        "link": "",
+        "logo": "https://img.alicdn.com/imgextra/i3/O1CN01jBpml51j4Iux9pRGY_!!6000000004494-2-tps-132-132.png",
+        "sortNum": 3,
+        "textBackgroundColor": "",
+        "textColor": "",
+        "textContent": "",
+        "tips": "京东"
+      },
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "52",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "站外分销",
+        "tips": "站外分销"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": true,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": false,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": true,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "highlight": false,
+        "name": "延长收货时间",
+        "permissionKey": "canSellerExtendReceiveTime"
+      },
+      {
+        "actionUrl": "https://trade.1688.com/order/order_detail.htm?tracelog=20120313bscentertologisticsseller&to=logisticsTabTitle&order_id=5127367538636004411",
+        "highlight": false,
+        "name": "查看物流",
+        "permissionKey": "canSellerViewLogistics"
+      }
+    ],
+    "originalSumPayment": "1420",
+    "promotionFeeMap": {},
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "status": "waitbuyerreceive",
+    "statusLabel": "waitbuyerreceive",
+    "sumPayment": "1120",
+    "sumProductPayment": "420",
+    "track": {}
+  },
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "0",
+    "bizType": "cn",
+    "buyerInfo": {
+      "companyName": "MASKED",
+      "is1688Plus": true,
+      "level": "L6",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED",
+      "vipLevel": 0
+    },
+    "carriage": "950",
+    "gmtCreate": "2026-08-18 16:06:23",
+    "gmtPayment": 1787046804000,
+    "id": "5127192399554100931",
+    "idStr": "5127192399554100931",
+    "memo": {
+      "remark": "30个一包，共5包",
+      "remarkIcon": "1"
+    },
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "0",
+        "gmtPay": 1787046804000,
+        "gmtStart": 1787040383000,
+        "goodsFee": "2700",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": false,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": false,
+        "isStepWaitSellerSend": true,
+        "paidFee": "3650",
+        "payFee": "3650",
+        "postFee": "950",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitsellersend"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "18",
+        "amount": "2700",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "45",
+          "afterSaleComplaintDoing": false,
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "150",
+            "realAmount": 150.0,
+            "realAmountStr": "150"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127192399554100931",
+        "entryStatus": "waitsellersend",
+        "industrySecurities": [
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "jqbz",
+            "description": "该卖家已开通交期保障服务，承诺会在双方确定的交期内发货。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/508/605/2506805_1964054271.png",
+            "name": "交期保障",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "J",
+            "type": "protect"
+          },
+          {
+            "code": "kjwy",
+            "description": "包含三大服务类型：售后时限58天，少发/漏发赔，退货包运费，未按订单发货时间发货可向三方保险机构申请理赔，具体服务范围以规则为准。",
+            "name": "跨境无忧",
+            "shortCode": "KW",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          },
+          {
+            "code": "psbp_s",
+            "description": "收到的商品存在破裂、水渍、撕裂或者其他损坏的情形，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01D1FvCh1op5KRuyDNw_!!6000000005273-0-tps-16-16.jpg",
+            "name": "破损包赔",
+            "shortCode": "psbp_s",
+            "type": "insurance"
+          },
+          {
+            "code": "hmyzx_s",
+            "description": "在订单确认收货前，通过第三方质检公司进行货物检验（简称“验货”），如验货报告显示实际交付商品与约定商品不一致，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01Z4tFXo1TccQ1MOBo1_!!6000000002403-2-tps-16-16.png",
+            "name": "品质保障",
+            "shortCode": "hmyzx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "jqx_s",
+            "description": "当订单实际发货时间晚于约定发货时间，可获得理赔。",
+            "groupId": "s1",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01KxySNK1PiKtvY3t6D_!!6000000001874-2-tps-16-16.png",
+            "name": "延期必赔",
+            "shortCode": "jqx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "zsgc_p",
+            "description": "该商家属于具备生产制造能力的工厂",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01RTTsKO1f9YqfE7Lq5_!!6000000003964-0-tps-16-16.jpg",
+            "name": "真实工厂",
+            "shortCode": "zsgc_p",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01Pcaf0S1n45KOTQA2B_!!6000000005035-0-cib.80x80.jpg",
+        "price": "18",
+        "productName": "欧鲤钓锥形管 飞德钓防缠绕导管 渔线连接保护套 库钓渔具配件批",
+        "productNumber": "00005",
+        "promotionsFee": "0",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "150",
+          "realAmount": 150.0,
+          "realAmountStr": "150"
+        },
+        "sourceId": "967567464260",
+        "specId": "77ae7ed9b1f00eff3fcc94b124fbfef4",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "颜色",
+              "specValue": "绿色"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "general",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": false,
+      "closeOperateType": "",
+      "kjpayOrder": true,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "general",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "950",
+      "orderPiaoJuPaidForSingleStep": false,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {},
+          "bALink": false,
+          "bizOrderId": "5127192399554100931",
+          "bizOrderIdStr": "5127192399554100931",
+          "buyerId": "2214131840389",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "0",
+          "firstStep": true,
+          "gmtCreate": 1787040383000,
+          "gmtModified": 1787046804000,
+          "gmtPay": 1787046804000,
+          "gmtStart": 1787040383000,
+          "goodsFee": "2700",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 1,
+          "onlyAlink": false,
+          "paidFee": "3650",
+          "paidPostFee": "950",
+          "payFee": "3650",
+          "payStatus": 2,
+          "postFee": "950",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": false,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "107352255536848903"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": false,
+      "waitbuyerreceive": false,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": true,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": false,
+      "batchNumber": "225697b3-b99f-4261-ba92-ac78d7888be2",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": false,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitsellersend",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "107352255536848903": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1787040383000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1787046804000
+          },
+          {
+            "actionName": "waitbuyerreceive"
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "51",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "订货",
+        "tips": "订货"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": false,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": true,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": false,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "actionUrl": "https://trade.1688.com/order/trade_flow.htm?alipayAction=announce_send_goods&fromType=fromOrderList&tradeType=50060&userType=seller&orderId=5127192399554100931",
+        "highlight": false,
+        "name": "发货",
+        "permissionKey": "canSellerSendGoods"
+      },
+      {
+        "actionUrl": "https://air.1688.com/app/ctf-m-page/official-logistics/dadan-bridge.html?from=trade&tid=5127192399554100931",
+        "highlight": false,
+        "name": "卖家官方打单按钮",
+        "permissionKey": "canSellerShowGFDD"
+      }
+    ],
+    "originalSumPayment": "7425",
+    "promotionFeeMap": {},
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "psbp_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127192399554100931&code=psbp_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "psbp_s",
+            "id": "5127192399554100931",
+            "payerDesc": "",
+            "productName": "破损包赔"
+          }
+        ],
+        "orderId": "5127192399554100931",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "破损包赔",
+        "role": "2",
+        "serviceCode": "psbp_s",
+        "serviceShortCode": "psbp_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "5127192399554100931"
+          }
+        ],
+        "orderId": "5127192399554100931",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "hmyzx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127192399554100931&code=hmyzx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "hmyzx_s",
+            "id": "5127192399554100931",
+            "payerDesc": "",
+            "productName": "品质保障"
+          }
+        ],
+        "orderId": "5127192399554100931",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "品质保障",
+        "role": "2",
+        "serviceCode": "hmyzx_s",
+        "serviceShortCode": "hmyzx_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "jqx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127192399554100931&code=jqx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "jqx_s",
+            "id": "5127192399554100931",
+            "payerDesc": "",
+            "productName": "延期必赔"
+          }
+        ],
+        "orderId": "5127192399554100931",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "延期必赔",
+        "role": "2",
+        "serviceCode": "jqx_s",
+        "serviceShortCode": "jqx_s",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "waitsellersend",
+    "statusLabel": "waitsellersend",
+    "sumPayment": "3650",
+    "sumProductPayment": "2700",
+    "track": {}
+  },
+  {
+    "adjustFee": "-9500",
+    "allPromotionFee": "500",
+    "bizType": "cn",
+    "buyerFeedBack": "需要绿色1000个",
+    "buyerInfo": {
+      "is1688Plus": true,
+      "level": "L6",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED",
+      "vipLevel": 0
+    },
+    "carriage": "0",
+    "gmtCreate": "2026-08-18 15:15:36",
+    "gmtPayment": 1787041462000,
+    "id": "3316798957192002399",
+    "idStr": "3316798957192002399",
+    "memo": {
+      "remark": "需要绿色1000个",
+      "remarkIcon": "1"
+    },
+    "newStepOrders": [
+      {
+        "adjustFee": "-9500",
+        "discountFee": "500",
+        "gmtPay": 1787041463000,
+        "gmtStart": 1787037337000,
+        "goodsFee": "110000",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": false,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": false,
+        "isStepWaitSellerSend": true,
+        "paidFee": "100000",
+        "payFee": "100000",
+        "postFee": "0",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitsellersend"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "100",
+        "amount": "110000",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "25",
+          "afterSaleComplaintDoing": false,
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "1000",
+            "realAmount": 1000.0,
+            "realAmountStr": "1000"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "3316798957192002399",
+        "entryStatus": "waitsellersend",
+        "industrySecurities": [
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "jqbz",
+            "description": "该卖家已开通交期保障服务，承诺会在双方确定的交期内发货。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/508/605/2506805_1964054271.png",
+            "name": "交期保障",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "J",
+            "type": "protect"
+          },
+          {
+            "code": "kjwy",
+            "description": "包含三大服务类型：售后时限58天，少发/漏发赔，退货包运费，未按订单发货时间发货可向三方保险机构申请理赔，具体服务范围以规则为准。",
+            "name": "跨境无忧",
+            "shortCode": "KW",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          },
+          {
+            "code": "psbp_s",
+            "description": "收到的商品存在破裂、水渍、撕裂或者其他损坏的情形，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01D1FvCh1op5KRuyDNw_!!6000000005273-0-tps-16-16.jpg",
+            "name": "破损包赔",
+            "shortCode": "psbp_s",
+            "type": "insurance"
+          },
+          {
+            "code": "hmyzx_s",
+            "description": "在订单确认收货前，通过第三方质检公司进行货物检验（简称“验货”），如验货报告显示实际交付商品与约定商品不一致，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01Z4tFXo1TccQ1MOBo1_!!6000000002403-2-tps-16-16.png",
+            "name": "品质保障",
+            "shortCode": "hmyzx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "jqx_s",
+            "description": "当订单实际发货时间晚于约定发货时间，可获得理赔。",
+            "groupId": "s1",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01KxySNK1PiKtvY3t6D_!!6000000001874-2-tps-16-16.png",
+            "name": "延期必赔",
+            "shortCode": "jqx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "zsgc_p",
+            "description": "该商家属于具备生产制造能力的工厂",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01RTTsKO1f9YqfE7Lq5_!!6000000003964-0-tps-16-16.jpg",
+            "name": "真实工厂",
+            "shortCode": "zsgc_p",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01SChh0on8cDH0d1W0_!!6000000001040-0-cib.80x80.jpg",
+        "price": "110",
+        "productName": "欧鲤反底钓组穿饵配件 丸型硅胶钩针可穿防缠管玉米丸饵浮球",
+        "productNumber": "钩针",
+        "promotionsFee": "500",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "1000",
+          "realAmount": 1000.0,
+          "realAmountStr": "1000"
+        },
+        "sourceId": "999311137983",
+        "specId": "5cafafa05dbe3216bcff9075c4b88ed4",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "颜色",
+              "specValue": "钩针颜色随机！！"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "general",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": true,
+      "closeOperateType": "",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "general",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "0",
+      "orderPiaoJuPaidForSingleStep": false,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "-9500",
+          "attributes": {},
+          "bALink": false,
+          "bizOrderId": "3316798957192002399",
+          "bizOrderIdStr": "3316798957192002399",
+          "buyerId": "2217495026307",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "500",
+          "firstStep": true,
+          "gmtCreate": 1787037336000,
+          "gmtModified": 1787041462000,
+          "gmtPay": 1787041463000,
+          "gmtStart": 1787037337000,
+          "goodsFee": "110000",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 1,
+          "onlyAlink": false,
+          "paidFee": "100000",
+          "paidPostFee": "0",
+          "payFee": "100000",
+          "payStatus": 2,
+          "postFee": "0",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": false,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "75912818861020763"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": false,
+      "waitbuyerreceive": false,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": true,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": false,
+      "batchNumber": "12422a66-2f8c-4153-8ab9-0862d27cac6e",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": false,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitsellersend",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "75912818861020763": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1787037337000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1787041463000
+          },
+          {
+            "actionName": "waitbuyerreceive"
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "51",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "订货",
+        "tips": "订货"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": false,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": true,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": false,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "actionUrl": "https://trade.1688.com/order/trade_flow.htm?alipayAction=announce_send_goods&fromType=fromOrderList&tradeType=50060&userType=seller&orderId=3316798957192002399",
+        "highlight": false,
+        "name": "发货",
+        "permissionKey": "canSellerSendGoods"
+      },
+      {
+        "actionUrl": "https://air.1688.com/app/ctf-m-page/official-logistics/dadan-bridge.html?from=trade&tid=3316798957192002399",
+        "highlight": false,
+        "name": "卖家官方打单按钮",
+        "permissionKey": "canSellerShowGFDD"
+      }
+    ],
+    "originalSumPayment": "110000",
+    "promotionFeeMap": {
+      "allPromotion": "40500",
+      "shopPromotion": "500",
+      "sumWholeSalePromotion": "40000"
+    },
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "psbp_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=3316798957192002399&code=psbp_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "psbp_s",
+            "id": "3316798957192002399",
+            "payerDesc": "",
+            "productName": "破损包赔"
+          }
+        ],
+        "orderId": "3316798957192002399",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "破损包赔",
+        "role": "2",
+        "serviceCode": "psbp_s",
+        "serviceShortCode": "psbp_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "3316798957192002399"
+          }
+        ],
+        "orderId": "3316798957192002399",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "hmyzx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=3316798957192002399&code=hmyzx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "hmyzx_s",
+            "id": "3316798957192002399",
+            "payerDesc": "",
+            "productName": "品质保障"
+          }
+        ],
+        "orderId": "3316798957192002399",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "品质保障",
+        "role": "2",
+        "serviceCode": "hmyzx_s",
+        "serviceShortCode": "hmyzx_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "jqx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=3316798957192002399&code=jqx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "jqx_s",
+            "id": "3316798957192002399",
+            "payerDesc": "",
+            "productName": "延期必赔"
+          }
+        ],
+        "orderId": "3316798957192002399",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "延期必赔",
+        "role": "2",
+        "serviceCode": "jqx_s",
+        "serviceShortCode": "jqx_s",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "waitsellersend",
+    "statusLabel": "waitsellersend",
+    "sumPayment": "100000",
+    "sumProductPayment": "110000",
+    "track": {}
+  },
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "300",
+    "bizType": "cn",
+    "buyerInfo": {
+      "is1688Plus": false,
+      "level": "L2",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED"
+    },
+    "carriage": "0",
+    "gmtCreate": "2026-08-18 12:35:33",
+    "id": "5127635088515039712",
+    "idStr": "5127635088515039712",
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "300",
+        "gmtEnd": 1787030608000,
+        "gmtStart": 1787027733000,
+        "goodsFee": "7700",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": false,
+        "isStepCancel": true,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": false,
+        "isStepWaitSellerSend": false,
+        "paidFee": "0",
+        "payFee": "7400",
+        "postFee": "0",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "cancel"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "7400",
+        "amount": "7700",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "expectedArrivalHour": "97",
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "2",
+          "afterSaleComplaintDoing": false,
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "1",
+            "realAmount": 1.0,
+            "realAmountStr": "1"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127635088515039712",
+        "entryStatus": "cancel",
+        "industrySecurities": [
+          {
+            "code": "qtwlybt",
+            "description": "满足相应条件下，卖家需支持7天无理由，其中定制订单不支持“7天无理由退货”。",
+            "groupId": "4",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01YIe8Lk1vxyDWgdkPQ_!!6000000006240-2-tps-16-16.png",
+            "name": "7天无理由退货",
+            "shortCode": "qtwlybt",
+            "type": "protect"
+          },
+          {
+            "code": "yxwfbp",
+            "description": "若商家未按订单约定的时间发货，您可以在订单详情申请赔付<span style=\"color:#BC8136;\">【享受升级赔付标准】</span>（在通用理赔基础之上，特定违规场景额外加码：单笔可多赔，或赔付上限最高提升250元）",
+            "name": "严选晚发必赔",
+            "shortCode": "yxwfbp",
+            "type": "protect"
+          },
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "ssbxsfh",
+            "description": "该商家已开通48小时发货延必赔服务，承诺在支付成功起48小时内为您发货，如商家未能如约发货，您可在此笔订单中申请违约赔付。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/177/505/2505771_1964054271.png",
+            "name": "48小时发货",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "D",
+            "type": "protect"
+          },
+          {
+            "code": "yxpzbf",
+            "description": "“品质不符包赔”服务是指当买家在1688x严选购买带有<span style=\"color:#BC8136;\">“品质不符包赔”</span>标识的商品后，依照规范发起商品问题退货退款的，经平台认定可支持问题商品退货退款并支付部分赔偿，赔偿金额将以赔付红包的形式进行发放",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01lJPwkj1fLTR8Rgu7r_!!6000000003990-2-tps-16-16.png",
+            "name": "严选品质不符包赔",
+            "serviceLink": "https://pages-fast.1688.com/wow/cbu/default/defaultv1/TQCfKypffJ/index.html?wh_pid=4305327",
+            "shortCode": "yxpzbf",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01FgEqL41ZwfuJXO9qQ_!!6000000003259-0-cib.80x80.jpg",
+        "price": "7700",
+        "productName": "欧鲤钓内联前导铅坠反低钓欧式钓法抗扰流中通铅坠欧鲤钓铅坠专用",
+        "productNumber": "PGL+QC前导线",
+        "promotionsFee": "300",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "1",
+          "realAmount": 1.0,
+          "realAmountStr": "1"
+        },
+        "sourceId": "1031608753994",
+        "specId": "b87b1a8b57a6463dc1b408eea98d5354",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "形状",
+              "specValue": "99g(拍1发10组)"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "general",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": false,
+      "closeOperateType": "4",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "0",
+      "orderPiaoJuPaidForSingleStep": false,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {},
+          "bALink": false,
+          "bizOrderId": "5127635088515039712",
+          "bizOrderIdStr": "5127635088515039712",
+          "buyerId": "3473154177",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "300",
+          "firstStep": true,
+          "gmtCreate": 1787027733000,
+          "gmtEnd": 1787030608000,
+          "gmtModified": 1787030607000,
+          "gmtStart": 1787027733000,
+          "goodsFee": "7700",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 1,
+          "onlyAlink": false,
+          "paidFee": "0",
+          "paidPostFee": "0",
+          "payFee": "7400",
+          "payStatus": 8,
+          "postFee": "0",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": false,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "107342031243157741"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": false,
+      "waitbuyerreceive": false,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": false,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": false,
+      "batchNumber": "3847243c-0a0d-4231-9938-09ef390f6878",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": false,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "cancel",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "107342031243157741": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1787027733000
+          },
+          {
+            "actionName": "waitsellersend"
+          },
+          {
+            "actionName": "waitbuyerreceive"
+          },
+          {
+            "actionName": "success",
+            "actionTime": 1787030608000
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "trade-icon-phone",
+        "displayType": "img",
+        "group": "before",
+        "id": "2",
+        "link": "http://3g.1688.com/?tracelog=wireless_tradelist_seller",
+        "logo": "https://gw.alipayobjects.com/zos/rmsportal/IAEcfUEtTcQxMVZozfDR.png",
+        "sortNum": 1,
+        "textBackgroundColor": "",
+        "textColor": "",
+        "textContent": "",
+        "tips": "手机订单"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": false,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": false,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": false,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [],
+    "originalSumPayment": "7700",
+    "promotionFeeMap": {
+      "allPromotion": "300",
+      "shopPromotion": "300"
+    },
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "5127635088515039712"
+          }
+        ],
+        "orderId": "5127635088515039712",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "cancel",
+    "statusLabel": "cancel",
+    "sumPayment": "7400",
+    "sumProductPayment": "7700",
+    "track": {}
+  },
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "0",
+    "bizType": "cn",
+    "buyerInfo": {
+      "is1688Plus": true,
+      "level": "L5",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED",
+      "vipLevel": 0
+    },
+    "carriage": "1000",
+    "gmtCreate": "2026-08-17 15:21:45",
+    "gmtPayment": 1787033175000,
+    "id": "5127369734418026244",
+    "idStr": "5127369734418026244",
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "0",
+        "gmtPay": 1787033175000,
+        "gmtShip": 1787104048000,
+        "gmtStart": 1786951306000,
+        "goodsFee": "8000",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": true,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": true,
+        "isStepWaitSellerSend": false,
+        "paidFee": "9000",
+        "payFee": "9000",
+        "postFee": "1000",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitbuyerreceive"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "1600",
+        "amount": "8000",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "lgType": "CONSIGN",
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "45",
+          "afterSaleComplaintDoing": false,
+          "trackingNo": "YT7639173242616",
+          "sendgt": "1787104048478",
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "5",
+            "realAmount": 5.0,
+            "realAmountStr": "5"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127369734418026244",
+        "entryStatus": "waitbuyerreceive",
+        "industrySecurities": [
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "jqbz",
+            "description": "该卖家已开通交期保障服务，承诺会在双方确定的交期内发货。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/508/605/2506805_1964054271.png",
+            "name": "交期保障",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "J",
+            "type": "protect"
+          },
+          {
+            "code": "kjwy",
+            "description": "包含三大服务类型：售后时限58天，少发/漏发赔，退货包运费，未按订单发货时间发货可向三方保险机构申请理赔，具体服务范围以规则为准。",
+            "name": "跨境无忧",
+            "shortCode": "KW",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          },
+          {
+            "code": "psbp_s",
+            "description": "收到的商品存在破裂、水渍、撕裂或者其他损坏的情形，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01D1FvCh1op5KRuyDNw_!!6000000005273-0-tps-16-16.jpg",
+            "name": "破损包赔",
+            "shortCode": "psbp_s",
+            "type": "insurance"
+          },
+          {
+            "code": "hmyzx_s",
+            "description": "在订单确认收货前，通过第三方质检公司进行货物检验（简称“验货”），如验货报告显示实际交付商品与约定商品不一致，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01Z4tFXo1TccQ1MOBo1_!!6000000002403-2-tps-16-16.png",
+            "name": "品质保障",
+            "shortCode": "hmyzx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "jqx_s",
+            "description": "当订单实际发货时间晚于约定发货时间，可获得理赔。",
+            "groupId": "s1",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01KxySNK1PiKtvY3t6D_!!6000000001874-2-tps-16-16.png",
+            "name": "延期必赔",
+            "shortCode": "jqx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "zsgc_p",
+            "description": "该商家属于具备生产制造能力的工厂",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01RTTsKO1f9YqfE7Lq5_!!6000000003964-0-tps-16-16.jpg",
+            "name": "真实工厂",
+            "shortCode": "zsgc_p",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01GbHcGE274LtPPUdu6_!!6000000007743-0-cib.80x80.jpg",
+        "price": "1600",
+        "productName": "跨境碳素线路亚前导线专用双环扣快速锁扣抗咬强拉力多规格鱼线",
+        "productNumber": "美国碳素线",
+        "promotionsFee": "0",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "5",
+          "realAmount": 5.0,
+          "realAmountStr": "5"
+        },
+        "sourceId": "905706578606",
+        "specId": "2556e424bad0683d9960205918c5aec8",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "颜色",
+              "specValue": "透明"
+            },
+            {
+              "specName": "线号",
+              "specValue": "12in-35LB(12个装）"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "general",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": false,
+      "closeOperateType": "",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "general",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "1000",
+      "orderPiaoJuPaidForSingleStep": false,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {
+            "started_ship": "1"
+          },
+          "bALink": false,
+          "bizOrderId": "5127369734418026244",
+          "bizOrderIdStr": "5127369734418026244",
+          "buyerId": "2219385810894",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "0",
+          "firstStep": true,
+          "gmtCreate": 1786951305000,
+          "gmtModified": 1787104048000,
+          "gmtPay": 1787033175000,
+          "gmtShip": 1787104048000,
+          "gmtStart": 1786951306000,
+          "goodsFee": "8000",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 2,
+          "onlyAlink": false,
+          "paidFee": "9000",
+          "paidPostFee": "1000",
+          "payFee": "9000",
+          "payStatus": 2,
+          "postFee": "1000",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": true,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "107157962952819408"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": false,
+      "waitbuyerreceive": true,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": true,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": false,
+      "batchNumber": "82356636-d049-4947-99e4-1271aee07372",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": false,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitbuyerreceive",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "107157962952819408": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1786951306000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1787033175000
+          },
+          {
+            "actionName": "waitbuyerreceive",
+            "actionTime": 1787104048000
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "51",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "订货",
+        "tips": "订货"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": true,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": false,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": true,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "highlight": false,
+        "name": "延长收货时间",
+        "permissionKey": "canSellerExtendReceiveTime"
+      },
+      {
+        "actionUrl": "https://trade.1688.com/order/order_detail.htm?tracelog=20120313bscentertologisticsseller&to=logisticsTabTitle&order_id=5127369734418026244",
+        "highlight": false,
+        "name": "查看物流",
+        "permissionKey": "canSellerViewLogistics"
+      }
+    ],
+    "originalSumPayment": "9000",
+    "promotionFeeMap": {},
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "psbp_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127369734418026244&code=psbp_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "psbp_s",
+            "id": "5127369734418026244",
+            "payerDesc": "",
+            "productName": "破损包赔"
+          }
+        ],
+        "orderId": "5127369734418026244",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "破损包赔",
+        "role": "2",
+        "serviceCode": "psbp_s",
+        "serviceShortCode": "psbp_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "5127369734418026244"
+          }
+        ],
+        "orderId": "5127369734418026244",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "hmyzx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127369734418026244&code=hmyzx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "hmyzx_s",
+            "id": "5127369734418026244",
+            "payerDesc": "",
+            "productName": "品质保障"
+          }
+        ],
+        "orderId": "5127369734418026244",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "品质保障",
+        "role": "2",
+        "serviceCode": "hmyzx_s",
+        "serviceShortCode": "hmyzx_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "jqx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127369734418026244&code=jqx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "jqx_s",
+            "id": "5127369734418026244",
+            "payerDesc": "",
+            "productName": "延期必赔"
+          }
+        ],
+        "orderId": "5127369734418026244",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "延期必赔",
+        "role": "2",
+        "serviceCode": "jqx_s",
+        "serviceShortCode": "jqx_s",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "waitbuyerreceive",
+    "statusLabel": "waitbuyerreceive",
+    "sumPayment": "9000",
+    "sumProductPayment": "8000",
+    "track": {}
+  },
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "0",
+    "bizType": "cn",
+    "buyerFeedBack": "麻烦打包时清点清楚，不要漏发少发！谢谢！(拒收：放快递柜，存放点) PO260817034 30个一包，+0.3元/包",
+    "buyerInfo": {
+      "companyName": "MASKED",
+      "is1688Plus": true,
+      "level": "L6",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED",
+      "vipLevel": 0
+    },
+    "carriage": "1700",
+    "gmtCreate": "2026-08-17 14:46:51",
+    "gmtPayment": 1786953940000,
+    "id": "5127634224414050728",
+    "idStr": "5127634224414050728",
+    "memo": {
+      "remark": "30个一包 共30包",
+      "remarkIcon": "1"
+    },
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "0",
+        "gmtPay": 1786953941000,
+        "gmtShip": 1787029861000,
+        "gmtStart": 1786949212000,
+        "goodsFee": "31500",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": true,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": true,
+        "isStepWaitSellerSend": false,
+        "paidFee": "33200",
+        "payFee": "33200",
+        "postFee": "1700",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitbuyerreceive"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "35",
+        "amount": "31500",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "lgType": "TRANSPORT",
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "45",
+          "afterSaleComplaintDoing": false,
+          "trackingNo": "YT7638996130302",
+          "sendgt": "1787029861112",
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "900",
+            "realAmount": 900.0,
+            "realAmountStr": "900"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127634224414050728",
+        "entryStatus": "waitbuyerreceive",
+        "industrySecurities": [
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "jqbz",
+            "description": "该卖家已开通交期保障服务，承诺会在双方确定的交期内发货。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/508/605/2506805_1964054271.png",
+            "name": "交期保障",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "J",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          },
+          {
+            "code": "psbp_s",
+            "description": "收到的商品存在破裂、水渍、撕裂或者其他损坏的情形，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01D1FvCh1op5KRuyDNw_!!6000000005273-0-tps-16-16.jpg",
+            "name": "破损包赔",
+            "shortCode": "psbp_s",
+            "type": "insurance"
+          },
+          {
+            "code": "hmyzx_s",
+            "description": "在订单确认收货前，通过第三方质检公司进行货物检验（简称“验货”），如验货报告显示实际交付商品与约定商品不一致，可获得理赔。",
+            "logoUrl": "https://img.alicdn.com/imgextra/i3/O1CN01Z4tFXo1TccQ1MOBo1_!!6000000002403-2-tps-16-16.png",
+            "name": "品质保障",
+            "shortCode": "hmyzx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "jqx_s",
+            "description": "当订单实际发货时间晚于约定发货时间，可获得理赔。",
+            "groupId": "s1",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01KxySNK1PiKtvY3t6D_!!6000000001874-2-tps-16-16.png",
+            "name": "延期必赔",
+            "shortCode": "jqx_s",
+            "type": "insurance"
+          },
+          {
+            "code": "zsgc_p",
+            "description": "该商家属于具备生产制造能力的工厂",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01RTTsKO1f9YqfE7Lq5_!!6000000003964-0-tps-16-16.jpg",
+            "name": "真实工厂",
+            "shortCode": "zsgc_p",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01obE60F1LVk1Mi3lxL_!!6000000001305-0-cib.80x80.jpg",
+        "price": "35",
+        "productName": "欧鲤钓组快速连接器组件飞德饵笼渔具垂钓用品",
+        "productNumber": "墨绿无台阶小锤子",
+        "promotionsFee": "0",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "900",
+          "realAmount": 900.0,
+          "realAmountStr": "900"
+        },
+        "sourceId": "904241863160",
+        "specId": "ede0505fbaccdadf0aef05a59a840401",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "颜色",
+              "specValue": "墨绿色"
+            },
+            {
+              "specName": "规格",
+              "specValue": "墨绿"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "general",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": false,
+      "closeOperateType": "",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "general",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "1700",
+      "orderPiaoJuPaidForSingleStep": false,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {
+            "started_ship": "1"
+          },
+          "bALink": false,
+          "bizOrderId": "5127634224414050728",
+          "bizOrderIdStr": "5127634224414050728",
+          "buyerId": "2218965134727",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "0",
+          "firstStep": true,
+          "gmtCreate": 1786949211000,
+          "gmtModified": 1787029861000,
+          "gmtPay": 1786953941000,
+          "gmtShip": 1787029861000,
+          "gmtStart": 1786949212000,
+          "goodsFee": "31500",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 2,
+          "onlyAlink": false,
+          "paidFee": "33200",
+          "paidPostFee": "1700",
+          "payFee": "33200",
+          "payStatus": 2,
+          "postFee": "1700",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": true,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "107270280558132747"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": false,
+      "waitbuyerreceive": true,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": true,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": false,
+      "batchNumber": "9fb7739d-0a2f-4455-990f-0545837e0138",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": false,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitbuyerreceive",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "107270280558132747": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1786949212000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1786953941000
+          },
+          {
+            "actionName": "waitbuyerreceive",
+            "actionTime": 1787029861000
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "51",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "订货",
+        "tips": "订货"
+      },
+      {
+        "cssClass": "order-biz-type-link",
+        "displayType": "text",
+        "group": "before",
+        "id": "53",
+        "link": "",
+        "logo": "",
+        "sortNum": 11,
+        "textBackgroundColor": "#ff7300",
+        "textColor": "#fff",
+        "textContent": "跨境",
+        "tips": "跨境"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": true,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": false,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": true,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "highlight": false,
+        "name": "延长收货时间",
+        "permissionKey": "canSellerExtendReceiveTime"
+      },
+      {
+        "actionUrl": "https://trade.1688.com/order/order_detail.htm?tracelog=20120313bscentertologisticsseller&to=logisticsTabTitle&order_id=5127634224414050728",
+        "highlight": false,
+        "name": "查看物流",
+        "permissionKey": "canSellerViewLogistics"
+      }
+    ],
+    "originalSumPayment": "32500",
+    "promotionFeeMap": {},
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "psbp_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127634224414050728&code=psbp_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "psbp_s",
+            "id": "5127634224414050728",
+            "payerDesc": "",
+            "productName": "破损包赔"
+          }
+        ],
+        "orderId": "5127634224414050728",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "破损包赔",
+        "role": "2",
+        "serviceCode": "psbp_s",
+        "serviceShortCode": "psbp_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "5127634224414050728"
+          }
+        ],
+        "orderId": "5127634224414050728",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "hmyzx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127634224414050728&code=hmyzx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "hmyzx_s",
+            "id": "5127634224414050728",
+            "payerDesc": "",
+            "productName": "品质保障"
+          }
+        ],
+        "orderId": "5127634224414050728",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "品质保障",
+        "role": "2",
+        "serviceCode": "hmyzx_s",
+        "serviceShortCode": "hmyzx_s",
+        "sumPayment": "0"
+      },
+      {
+        "bizType": "jqx_s",
+        "category": "insurance",
+        "detailLink": "https://bao.1688.com/insurance/detail.htm?biz_id=5127634224414050728&code=jqx_s",
+        "displayMode": 1,
+        "entryList": [
+          {
+            "bizType": "jqx_s",
+            "id": "5127634224414050728",
+            "payerDesc": "",
+            "productName": "延期必赔"
+          }
+        ],
+        "orderId": "5127634224414050728",
+        "payer": "seller",
+        "payerDesc": "",
+        "payerHighlight": false,
+        "productName": "延期必赔",
+        "role": "2",
+        "serviceCode": "jqx_s",
+        "serviceShortCode": "jqx_s",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "waitbuyerreceive",
+    "statusLabel": "waitbuyerreceive",
+    "sumPayment": "33200",
+    "sumProductPayment": "31500",
+    "track": {}
+  },
+  {
+    "adjustFee": "0",
+    "allPromotionFee": "300",
+    "bizType": "cn",
+    "buyerInfo": {
+      "is1688Plus": true,
+      "level": "L2",
+      "loginId": "MASKED",
+      "nick": "MASKED",
+      "orderPlaceName": "MASKED",
+      "shopNewUser": false,
+      "userId": "MASKED"
+    },
+    "carriage": "800",
+    "gmtCreate": "2026-08-17 11:48:40",
+    "gmtPayment": 1786938536000,
+    "id": "5127367934393025138",
+    "idStr": "5127367934393025138",
+    "newStepOrders": [
+      {
+        "adjustFee": "0",
+        "discountFee": "300",
+        "gmtPay": 1786938536000,
+        "gmtShip": 1787029852000,
+        "gmtStart": 1786938521000,
+        "goodsFee": "630",
+        "isABLink": true,
+        "isBALink": false,
+        "isFirstStep": true,
+        "isHadMoreOrLess": false,
+        "isHasDelivery": true,
+        "isLastStep": true,
+        "isStartedShip": true,
+        "isStepCancel": false,
+        "isStepSuccess": false,
+        "isStepWaitActivate": false,
+        "isStepWaitBuyerPay": false,
+        "isStepWaitBuyerReceive": true,
+        "isStepWaitSellerSend": false,
+        "paidFee": "1130",
+        "payFee": "1130",
+        "postFee": "800",
+        "stepName": "全款交易",
+        "stepNo": 1,
+        "stepOrderId": "0",
+        "stepStatus": "waitbuyerreceive"
+      }
+    ],
+    "orderEntries": [
+      {
+        "actualUnitPrice": "157",
+        "amount": "300",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "lgType": "TRANSPORT",
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "logisticsStepTime": ";fb:1;",
+          "expectedArrivalHour": "34",
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "2",
+          "afterSaleComplaintDoing": false,
+          "trackingNo": "YT7638996130292",
+          "sendgt": "1787029852167",
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "1",
+            "realAmount": 1.0,
+            "realAmountStr": "1"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127367934393034320",
+        "entryStatus": "waitbuyerreceive",
+        "industrySecurities": [
+          {
+            "code": "qtwlybt",
+            "description": "满足相应条件下，卖家需支持7天无理由，其中定制订单不支持“7天无理由退货”。",
+            "groupId": "4",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01YIe8Lk1vxyDWgdkPQ_!!6000000006240-2-tps-16-16.png",
+            "name": "7天无理由退货",
+            "shortCode": "qtwlybt",
+            "type": "protect"
+          },
+          {
+            "code": "yxwfbp",
+            "description": "若商家未按订单约定的时间发货，您可以在订单详情申请赔付<span style=\"color:#BC8136;\">【享受升级赔付标准】</span>（在通用理赔基础之上，特定违规场景额外加码：单笔可多赔，或赔付上限最高提升250元）",
+            "name": "严选晚发必赔",
+            "shortCode": "yxwfbp",
+            "type": "protect"
+          },
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "ssbxsfh",
+            "description": "该商家已开通48小时发货延必赔服务，承诺在支付成功起48小时内为您发货，如商家未能如约发货，您可在此笔订单中申请违约赔付。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/177/505/2505771_1964054271.png",
+            "name": "48小时发货",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "D",
+            "type": "protect"
+          },
+          {
+            "code": "yxpzbf",
+            "description": "“品质不符包赔”服务是指当买家在1688x严选购买带有<span style=\"color:#BC8136;\">“品质不符包赔”</span>标识的商品后，依照规范发起商品问题退货退款的，经平台认定可支持问题商品退货退款并支付部分赔偿，赔偿金额将以赔付红包的形式进行发放",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01lJPwkj1fLTR8Rgu7r_!!6000000003990-2-tps-16-16.png",
+            "name": "严选品质不符包赔",
+            "serviceLink": "https://pages-fast.1688.com/wow/cbu/default/defaultv1/TQCfKypffJ/index.html?wh_pid=4305327",
+            "shortCode": "yxpzbf",
+            "type": "protect"
+          },
+          {
+            "code": "kjwy",
+            "description": "包含三大服务类型：售后时限58天，少发/漏发赔，退货包运费，未按订单发货时间发货可向三方保险机构申请理赔，具体服务范围以规则为准。",
+            "name": "跨境无忧",
+            "shortCode": "KW",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01kE8ivF1EK6dwZGJ6i_!!6000000000332-0-cib.80x80.jpg",
+        "price": "300",
+        "productName": "欧美浮漂欧式库钓立式远投渔漂浮标钓鱼海竿配件批发跨镜大浮力",
+        "productNumber": "小黑漂",
+        "promotionsFee": "143",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "1",
+          "realAmount": 1.0,
+          "realAmountStr": "1"
+        },
+        "sourceId": "927544763909",
+        "specId": "00ecdf55885e8b0ea4b7ff7fb6935f11",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "规格",
+              "specValue": "浮力4g"
+            }
+          ]
+        }
+      },
+      {
+        "actualUnitPrice": "173",
+        "amount": "330",
+        "entryExtension": {
+          "showReceivedQuantity": false,
+          "lgType": "TRANSPORT",
+          "waitSellerConfirmQuantity": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "logisticsStepTime": ";fb:1;",
+          "expectedArrivalHour": "34",
+          "confirmGoodsAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "0",
+            "realAmount": 0.0,
+            "realAmountStr": "0"
+          },
+          "settleFailReason": "该笔订单无法向您的买家发起扣款，请联系客服处理",
+          "b_dl": "2",
+          "afterSaleComplaintDoing": false,
+          "trackingNo": "YT7638996130292",
+          "sendgt": "1787029852167",
+          "refundComplaintDoing": false,
+          "receivedQuantity": "0",
+          "surplusAmountModel": {
+            "amountFactor": 1.0,
+            "calAmount": "1",
+            "realAmount": 1.0,
+            "realAmountStr": "1"
+          },
+          "plusPriceTag": false
+        },
+        "entryId": "5127367934393043502",
+        "entryStatus": "waitbuyerreceive",
+        "industrySecurities": [
+          {
+            "code": "qtwlybt",
+            "description": "满足相应条件下，卖家需支持7天无理由，其中定制订单不支持“7天无理由退货”。",
+            "groupId": "4",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01YIe8Lk1vxyDWgdkPQ_!!6000000006240-2-tps-16-16.png",
+            "name": "7天无理由退货",
+            "shortCode": "qtwlybt",
+            "type": "protect"
+          },
+          {
+            "code": "yxwfbp",
+            "description": "若商家未按订单约定的时间发货，您可以在订单详情申请赔付<span style=\"color:#BC8136;\">【享受升级赔付标准】</span>（在通用理赔基础之上，特定违规场景额外加码：单笔可多赔，或赔付上限最高提升250元）",
+            "name": "严选晚发必赔",
+            "shortCode": "yxwfbp",
+            "type": "protect"
+          },
+          {
+            "code": "lsjst_s",
+            "description": "满足相应条件时，用户在退货寄出后，享受极速退款到账。<span style=\"color:#BC8136;\">您是超级买家，专享更高退款额度</span>",
+            "groupId": "7",
+            "logoUrl": "https://img.alicdn.com/imgextra/i4/O1CN01tnZSFq1Gfk8BH5kkH_!!6000000000650-2-tps-16-16.png",
+            "name": "极速退款",
+            "shortCode": "lsjst_s",
+            "type": "protect"
+          },
+          {
+            "code": "ssbxsfh",
+            "description": "该商家已开通48小时发货延必赔服务，承诺在支付成功起48小时内为您发货，如商家未能如约发货，您可在此笔订单中申请违约赔付。",
+            "groupId": "1",
+            "logoUrl": "https://cbu01.alicdn.com/cms/upload/2015/177/505/2505771_1964054271.png",
+            "name": "48小时发货",
+            "serviceLink": "https://air.1688.com/app/ctf-page/protection-air/claim-rule.html",
+            "shortCode": "D",
+            "type": "protect"
+          },
+          {
+            "code": "yxpzbf",
+            "description": "“品质不符包赔”服务是指当买家在1688x严选购买带有<span style=\"color:#BC8136;\">“品质不符包赔”</span>标识的商品后，依照规范发起商品问题退货退款的，经平台认定可支持问题商品退货退款并支付部分赔偿，赔偿金额将以赔付红包的形式进行发放",
+            "logoUrl": "https://img.alicdn.com/imgextra/i1/O1CN01lJPwkj1fLTR8Rgu7r_!!6000000003990-2-tps-16-16.png",
+            "name": "严选品质不符包赔",
+            "serviceLink": "https://pages-fast.1688.com/wow/cbu/default/defaultv1/TQCfKypffJ/index.html?wh_pid=4305327",
+            "shortCode": "yxpzbf",
+            "type": "protect"
+          },
+          {
+            "code": "kjwy",
+            "description": "包含三大服务类型：售后时限58天，少发/漏发赔，退货包运费，未按订单发货时间发货可向三方保险机构申请理赔，具体服务范围以规则为准。",
+            "name": "跨境无忧",
+            "shortCode": "KW",
+            "type": "protect"
+          },
+          {
+            "code": "thbyf_s",
+            "description": "选择上门取件，<span style=\"color:#86521B;\">超级买家每单最高可抵扣200元运费</span>，退货包运费不代表商品支持 7 天无理由退货。",
+            "groupId": "9",
+            "logoUrl": "//cbu01.alicdn.com/cms/upload/2016/504/795/2597405_532208266.gif",
+            "name": "退货包运费",
+            "serviceLink": "https://peixun.1688.com/space/WVJqzq3VdLKmYEKZ2Amon56AWkwZEXdb/detail/QG53mjyd80RjkKPPSd1EgKG0V6zbX04v?spm=a26eo.10621435.6266857930.2.7b497d0b3rpzXL",
+            "shortCode": "HH",
+            "type": "insurance"
+          }
+        ],
+        "mainSummImageUrl": "http://cbu01.alicdn.com/img/ibank/O1CN01kE8ivF1EK6dwZGJ6i_!!6000000000332-0-cib.80x80.jpg",
+        "price": "330",
+        "productName": "欧美浮漂欧式库钓立式远投渔漂浮标钓鱼海竿配件批发跨镜大浮力",
+        "productNumber": "小黑漂",
+        "promotionsFee": "157",
+        "quantity": {
+          "amountFactor": 1.0,
+          "calAmount": "1",
+          "realAmount": 1.0,
+          "realAmountStr": "1"
+        },
+        "sourceId": "927544763909",
+        "specId": "b8f40d50c5b8f129caaddce7153f44f1",
+        "specInfo": {
+          "specItems": [
+            {
+              "specName": "规格",
+              "specValue": "浮力10 g"
+            }
+          ]
+        }
+      }
+    ],
+    "orderExtension": {
+      "obs": "general",
+      "consignorCompanyName": "",
+      "sellerChainOrder": false,
+      "instantOrder": false,
+      "forbidModifyPriceCauseCoupon": false,
+      "isKjzcOrder": false,
+      "supplier": false,
+      "ttpftGroupSuccess": false,
+      "mybankEFTRepayment": false,
+      "plusOrder": false,
+      "downStreamChannel": "",
+      "globalSecond": false,
+      "hasBeenSignForMyBankEBTicket": false,
+      "isPunishOrder": false,
+      "isBigBuyer": false,
+      "inSiteDistributionOrder": false,
+      "electronicAcceptBillWaitSellerSign": false,
+      "manufactContract": false,
+      "fromTaobao": true,
+      "closeOperateType": "",
+      "kjpayOrder": false,
+      "canOrderAddedMailNo": false,
+      "creditBuyXTemplateOrder": false,
+      "_F_t_flow_i": "fenxiao",
+      "wechatOrder": false,
+      "isMultiAndFirstInstant": false,
+      "shegouPayPromotion": "",
+      "waitselleragree": false,
+      "canModifyMemo": true,
+      "unConfirmedReceiveNote": false,
+      "AEZYSaleProxyOrder": false,
+      "totalOrderServiceFee": "0",
+      "refundPostFee": "0",
+      "myBankEFTPayOrder": false,
+      "saleProxyOrder": false,
+      "supportDae": false,
+      "accountPeriodOrder": false,
+      "paidCarriage": "800",
+      "orderPiaoJuPaidForSingleStep": false,
+      "globalCainiaoffNew": false,
+      "isManufactContractOrder": false,
+      "saleProxySettleBillOrder": false,
+      "warehouseDispatchOrder": false,
+      "lstOrder": false,
+      "stepOrderList": [
+        {
+          "aBLink": true,
+          "activeEnable": true,
+          "activeStatus": 1,
+          "adjustFee": "0",
+          "attributes": {
+            "started_ship": "1"
+          },
+          "bALink": false,
+          "bizOrderId": "5127367934393025138",
+          "bizOrderIdStr": "5127367934393025138",
+          "buyerId": "3244220459",
+          "confirmGoodsWithDisburse": true,
+          "discountFee": "300",
+          "firstStep": true,
+          "gmtCreate": 1786938520000,
+          "gmtModified": 1787029852000,
+          "gmtPay": 1786938536000,
+          "gmtShip": 1787029852000,
+          "gmtStart": 1786938521000,
+          "goodsFee": "630",
+          "hadMoreOrLess": false,
+          "hasDelivery": true,
+          "lastStep": true,
+          "logisticsStatus": 2,
+          "onlyAlink": false,
+          "paidFee": "1130",
+          "paidPostFee": "800",
+          "payFee": "1130",
+          "payStatus": 2,
+          "postFee": "800",
+          "processTemplateStep": {
+            "aBLink": true,
+            "allowInstant": true,
+            "attributes": {},
+            "bALink": false,
+            "confirmGoodsTimeout": 864000,
+            "delivery": true,
+            "deliveryScale": 10000,
+            "fundRules": [
+              {
+                "scale": 10000,
+                "steps": [
+                  1
+                ],
+                "time": 0,
+                "type": "byConfirmReceiveGoods"
+              }
+            ],
+            "id": "30",
+            "onlyAlink": false,
+            "payScale": 10000,
+            "payTimeout": 432000,
+            "payTimeoutType": 0,
+            "processTemplateId": "21",
+            "sortType": "AB",
+            "stepName": "全款交易",
+            "stepNo": 1,
+            "supportMoreOrLess": false
+          },
+          "sellerId": "2219577180417",
+          "shipAmount": {},
+          "shipedAmount": {},
+          "startedShip": true,
+          "stepName": "全款交易",
+          "stepNo": 1,
+          "stepOrderId": "107296921601225904"
+        }
+      ],
+      "bNrd": true,
+      "overdueOrder": false,
+      "punishOrderText": "交易异常或者店铺存在违规，系统评估中，资金冻结false天",
+      "isTp": true,
+      "waitBuyerConfirmAction": false,
+      "waitbuyerpay": false,
+      "orderSheGouPaidForSingleStep": false,
+      "waitbuyerreceive": true,
+      "tradeTypeStr": "50060",
+      "bankPayOrder": false,
+      "electronicAcceptBillTicketing": false,
+      "isHmyzx": false,
+      "offerRefundReceipt": "",
+      "globalOrder": false,
+      "sheGouOrder": false,
+      "batchNumber": "36ed8cb9-93b8-4e5b-a05b-d7551b20c96f",
+      "punishOrderTextV2": "",
+      "electronicAcceptBillSuccess": false,
+      "normalContractOrder": false,
+      "history": false,
+      "punishOrder": false,
+      "ttPftOrder": false,
+      "batchMakeOrder": false,
+      "FXYCDFOrder": false,
+      "myBankPEFTPayOrder": false,
+      "forbidDisplayAddressInfo": false,
+      "hasOfficialDelivery": false,
+      "waitSellerAcceptOrder": false,
+      "purchaseBeforePayOrder": false,
+      "hasInvoice": false,
+      "complaintDoing": false,
+      "ttPftByOfficialLogistics": false,
+      "orderStatusStr": "waitbuyerreceive",
+      "serviceGroupByType": [],
+      "jdPreSaleOrder": false,
+      "isGfztOrder": false,
+      "sendGoodsTimeoutHours": -1,
+      "batchAllowMoreOrLess": false,
+      "fakeTrade": false,
+      "manufactServiceFee": "0",
+      "steptradeFlow": {
+        "107296921601225904": [
+          {
+            "actionName": "waitbuyerpay",
+            "actionTime": 1786938521000
+          },
+          {
+            "actionName": "waitsellersend",
+            "actionTime": 1786938536000
+          },
+          {
+            "actionName": "waitbuyerreceive",
+            "actionTime": 1787029852000
+          },
+          {
+            "actionName": "success"
+          }
+        ]
+      },
+      "creditCard": false,
+      "dropShip": false,
+      "needBuyerApprove": false
+    },
+    "orderLogos": [
+      {
+        "cssClass": "trade-icon-phone",
+        "displayType": "img",
+        "group": "before",
+        "id": "2",
+        "link": "http://3g.1688.com/?tracelog=wireless_tradelist_seller",
+        "logo": "https://gw.alipayobjects.com/zos/rmsportal/IAEcfUEtTcQxMVZozfDR.png",
+        "sortNum": 1,
+        "textBackgroundColor": "",
+        "textColor": "",
+        "textContent": "",
+        "tips": "手机订单"
+      }
+    ],
+    "orderPermission": {
+      "canAccountMultiPay": false,
+      "canApplyCompensation": false,
+      "canApplyInvoice": false,
+      "canArchiveOrder": false,
+      "canBuyerAbortTrade": false,
+      "canBuyerAddCart": false,
+      "canBuyerBuyAgain": false,
+      "canBuyerCloseTrade": false,
+      "canBuyerConfirmPaid": false,
+      "canBuyerExtendReceiveTime": false,
+      "canBuyerGoToPackage": false,
+      "canBuyerGoToWarehouse": false,
+      "canBuyerModifyAddress": false,
+      "canBuyerPay": false,
+      "canBuyerQuerySimilarOffer": false,
+      "canBuyerRate": false,
+      "canBuyerReceiveGoods": false,
+      "canBuyerRefund": false,
+      "canBuyerRefundForAs": false,
+      "canBuyerRemindSendGoods": false,
+      "canBuyerRepayment": false,
+      "canBuyerUpdateFeedback": false,
+      "canBuyerViewBankTransferInfo": false,
+      "canBuyerViewLogistics": false,
+      "canNegotiationDeliveryTime": false,
+      "canSeeRateDetail": false,
+      "canSellerAbortTrade": false,
+      "canSellerAcceptOrder": false,
+      "canSellerAcceptStopReceiveGoods": false,
+      "canSellerCloseTrade": false,
+      "canSellerDktRefund": false,
+      "canSellerExtendAccountPeriodDate": false,
+      "canSellerExtendReceiveTime": true,
+      "canSellerModifyAddress": false,
+      "canSellerModifyPrice": false,
+      "canSellerModifyStepPrice": false,
+      "canSellerMoreOrLess": false,
+      "canSellerRate": false,
+      "canSellerRemindPay": false,
+      "canSellerRemindPayNext": false,
+      "canSellerRemindRepayment": false,
+      "canSellerSendGoods": false,
+      "canSellerShowAEZYFX": false,
+      "canSellerShowWaitLogistics": false,
+      "canSellerSmallPayment": false,
+      "canSellerViewLogistics": true,
+      "canUseInsensitiveEye": false,
+      "canViewInvoice": false,
+      "canViewReceiveNote": false,
+      "hideAddressInfo": false,
+      "viewMyBankElectronicBill": false
+    },
+    "orderPermissions": [
+      {
+        "highlight": false,
+        "name": "延长收货时间",
+        "permissionKey": "canSellerExtendReceiveTime"
+      },
+      {
+        "actionUrl": "https://trade.1688.com/order/order_detail.htm?tracelog=20120313bscentertologisticsseller&to=logisticsTabTitle&order_id=5127367934393025138",
+        "highlight": false,
+        "name": "查看物流",
+        "permissionKey": "canSellerViewLogistics"
+      }
+    ],
+    "originalSumPayment": "1430",
+    "promotionFeeMap": {
+      "allPromotion": "300",
+      "shopPromotion": "300"
+    },
+    "sellerInfo": {
+      "companyName": "MASKED",
+      "loginId": "MASKED",
+      "purchase": "0",
+      "userId": "MASKED"
+    },
+    "serviceOrderList": [
+      {
+        "bizType": "thbyf_s",
+        "category": "insurance",
+        "displayMode": 0,
+        "entryList": [
+          {
+            "id": "5127367934393034320"
+          },
+          {
+            "id": "5127367934393043502"
+          }
+        ],
+        "orderId": "5127367934393025138",
+        "payer": "seller",
+        "payerDesc": "上门取件，最高可补全部退货运费",
+        "payerHighlight": false,
+        "popDescription": "选择上门取件退货可享运费补偿，补偿金额按买家等级不同。服务支持情况以订单显示“退货包运费”标签为准，退货包运费不代表商品支持7 天无理由退货。",
+        "productName": "退货包运费",
+        "role": "3",
+        "serviceCode": "thbyf_s",
+        "serviceShortCode": "HH",
+        "sumPayment": "0"
+      }
+    ],
+    "status": "waitbuyerreceive",
+    "statusLabel": "waitbuyerreceive",
+    "sumPayment": "1130",
+    "sumProductPayment": "630",
+    "track": {}
+  }
+]

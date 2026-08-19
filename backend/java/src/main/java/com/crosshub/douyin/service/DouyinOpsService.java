@@ -131,11 +131,12 @@ public class DouyinOpsService {
     public Map<String, Object> enqueueLoginOpen() {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
+        reclaimStaleBusyTasks(tenantId, agent.getId());
         if (hasRunningBusy(tenantId)) {
             return Map.of(
                     "already_open", true,
                     "queued", false,
-                    "message", "抖音浏览器任务进行中，请稍候或点「我已完成登录」刷新状态"
+                    "message", "抖音浏览器任务进行中；若本机没有弹出登录窗口，请重启 Sync Helper 后再点「打开登录」"
             );
         }
         String taskId = "agt_" + UUID.randomUUID();
@@ -161,6 +162,7 @@ public class DouyinOpsService {
     public Map<String, Object> enqueueSessionProbe() {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
+        reclaimStaleBusyTasks(tenantId, agent.getId());
         if (hasRunningBusy(tenantId)) {
             return Map.of(
                     "queued", false,
@@ -1804,6 +1806,10 @@ public class DouyinOpsService {
         item.put("storeId", row.getStoreId());
         item.put("sku", row.getSku());
         item.put("productName", row.getProductName());
+        String productId = extractOrderProductId(row);
+        if (!productId.isBlank()) {
+            item.put("productId", productId);
+        }
         item.put("quantity", row.getQuantity());
         item.put("amount", row.getAmount());
         item.put("currency", row.getCurrency());
@@ -1812,6 +1818,36 @@ public class DouyinOpsService {
         item.put("orderedAt", row.getOrderedAt());
         item.put("shipDeadline", row.getShipDeadline());
         return item;
+    }
+
+    /** 从订单 raw_json.product_item[].product_id 解析抖店商品 ID（标题可能与商品库不一致） */
+    private String extractOrderProductId(DouyinOrder row) {
+        String raw = row == null ? "" : firstNonBlank(row.getRawJson(), "");
+        if (raw.isBlank()) {
+            return "";
+        }
+        try {
+            var root = objectMapper.readTree(raw);
+            var items = root.get("product_item");
+            if (items != null && items.isArray()) {
+                for (var node : items) {
+                    if (node == null || node.isNull()) continue;
+                    String id = firstNonBlank(
+                            node.path("product_id").asText(""),
+                            node.path("productId").asText("")
+                    );
+                    if (!id.isBlank()) {
+                        return id;
+                    }
+                }
+            }
+            return firstNonBlank(
+                    root.path("product_id").asText(""),
+                    root.path("productId").asText("")
+            );
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private Map<String, Object> toProductDto(DouyinProduct row) {
@@ -1929,6 +1965,86 @@ public class DouyinOpsService {
             );
         }
         return agent;
+    }
+
+    /**
+     * Drop zombie Douyin browser tasks so a dead/restarted Helper cannot block「打开登录」forever.
+     * Orphans: claimed by another agent id. Stale: pending &gt;2m, probe running &gt;3m, login/sync running &gt;12m.
+     */
+    private void reclaimStaleBusyTasks(Long tenantId, String onlineAgentId) {
+        String nowTs = now();
+        LocalDateTime nowDt = LocalDateTime.now();
+        String pendingCutoff = nowDt.minusMinutes(2).format(TS);
+        String probeCutoff = nowDt.minusMinutes(3).format(TS);
+        String loginCutoff = nowDt.minusMinutes(12).format(TS);
+        String agentId = onlineAgentId == null ? "" : onlineAgentId;
+
+        int orphaned = jdbc.update(
+                """
+                UPDATE agent_task
+                SET status = 'failed',
+                    error_code = 'DY_SYNC_FAILED',
+                    error_message = '助手已重启，旧登录任务已取消，请重新打开登录',
+                    finished_at = ?
+                WHERE tenant_id = ?
+                  AND status IN ('pending', 'running')
+                  AND task_type IN (
+                    'douyin_session_probe',
+                    'douyin_login_open',
+                    'douyin_sync',
+                    'douyin_products_sync'
+                  )
+                  AND (agent_id IS NULL OR agent_id = '' OR agent_id <> ?)
+                """,
+                nowTs,
+                tenantId,
+                agentId
+        );
+        int stale = jdbc.update(
+                """
+                UPDATE agent_task
+                SET status = 'failed',
+                    error_code = 'DY_SYNC_FAILED',
+                    error_message = '登录任务已过期，请重新打开登录',
+                    finished_at = ?
+                WHERE tenant_id = ?
+                  AND status IN ('pending', 'running')
+                  AND task_type IN (
+                    'douyin_session_probe',
+                    'douyin_login_open',
+                    'douyin_sync',
+                    'douyin_products_sync'
+                  )
+                  AND (
+                    (status = 'pending' AND created_at <> '' AND created_at < ?)
+                    OR (
+                      task_type = 'douyin_session_probe'
+                      AND status = 'running'
+                      AND CASE WHEN started_at IS NULL OR started_at = '' THEN created_at ELSE started_at END < ?
+                    )
+                    OR (
+                      task_type IN ('douyin_login_open', 'douyin_sync', 'douyin_products_sync')
+                      AND status = 'running'
+                      AND CASE WHEN started_at IS NULL OR started_at = '' THEN created_at ELSE started_at END < ?
+                    )
+                  )
+                """,
+                nowTs,
+                tenantId,
+                pendingCutoff,
+                probeCutoff,
+                loginCutoff
+        );
+        if (orphaned + stale > 0) {
+            Map<String, Object> snap = readSessionSnapshot(tenantId);
+            snap.put("profile_busy", false);
+            snap.put("ready", false);
+            snap.putIfAbsent("logged_in", false);
+            snap.put("requires_auth", true);
+            snap.put("message", "请重新打开登录窗口完成抖店登录");
+            snap.remove("error_code");
+            writeSessionSnapshot(tenantId, snap);
+        }
     }
 
     private boolean hasRunningBusy(Long tenantId) {

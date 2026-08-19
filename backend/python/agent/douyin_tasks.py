@@ -12,8 +12,10 @@ from zoneinfo import ZoneInfo
 
 from app.browser.douyin_context import (
     DOUYIN_SELLER_HOME,
+    close_douyin_profile_browsers,
     ensure_douyin_home_page,
     install_douyin_only_tab_guard,
+    launch_douyin_persistent_context,
     sanitize_profile_startup_for_douyin,
 )
 
@@ -114,27 +116,93 @@ def profile_dir(tenant_id: int) -> Path:
     return path
 
 
-def _launch(tenant_id: int, *, headless: bool = False, force_navigate: bool = True):
-    from playwright.sync_api import sync_playwright
+def _run_in_clean_thread(fn, *, timeout: float | None = None):
+    """Playwright Sync API cannot run when the current thread already has an asyncio loop
+    (Helper tray/flask may install one). Always execute browser work on a fresh thread.
+    """
+    import concurrent.futures
 
-    sanitize_profile_startup_for_douyin(profile_dir(tenant_id), home_url=DOUYIN_SELLER_HOME)
-    pw = sync_playwright().start()
-    context = pw.chromium.launch_persistent_context(
-        user_data_dir=str(profile_dir(tenant_id)),
-        headless=headless,
-        viewport={"width": 1440, "height": 900},
-        locale="zh-CN",
-        args=[
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(fn)
+        return fut.result(timeout=timeout)
+
+
+def _douyin_launch_kwargs(*, headless: bool) -> dict[str, Any]:
+    """Prefer system Chrome/Edge — packaged Helper does not ship Playwright browsers."""
+    import sys
+
+    from app.browser.context import _system_chrome_path
+
+    kwargs: dict[str, Any] = {
+        "headless": headless,
+        "viewport": {"width": 1440, "height": 900},
+        "locale": "zh-CN",
+        # Persistent profile already has extension state; Playwright's
+        # --disable-extensions makes Chrome exit immediately (target closed).
+        "ignore_default_args": ["--enable-automation", "--disable-extensions"],
+        "args": [
             "--disable-blink-features=AutomationControlled",
             "--no-first-run",
             "--no-default-browser-check",
             "--disable-session-crashed-bubble",
+            "--hide-crash-restore-bubble",
             f"--homepage={DOUYIN_SELLER_HOME}",
         ],
-    )
+    }
+    chrome = _system_chrome_path()
+    frozen = bool(getattr(sys, "frozen", False))
+    if chrome:
+        kwargs["executable_path"] = chrome
+    elif frozen:
+        # Last resort for frozen builds without detectable Chrome path.
+        kwargs["channel"] = "chrome"
+    return kwargs
+
+
+def _has_douyin_profile_lock(profile_dir: Path) -> bool:
+    root = Path(profile_dir)
+    if (root / "SingletonLock").exists() or (root / "lockfile").exists():
+        return True
+    return (root / "Default" / "LOCK").exists()
+
+
+def _launch(tenant_id: int, *, headless: bool = False, force_navigate: bool = True):
+    from playwright.sync_api import sync_playwright
+
+    user_dir = profile_dir(tenant_id)
+    # Kill holders first. Mutating Preferences/Sessions under a live Chrome
+    # makes the next launch exit immediately ("Target page ... has been closed").
+    if _has_douyin_profile_lock(user_dir):
+        print("[DouyinBrowser] stale profile lock present, reclaiming before launch…", flush=True)
+        close_douyin_profile_browsers(user_dir)
+    sanitize_profile_startup_for_douyin(user_dir, home_url=DOUYIN_SELLER_HOME)
+    launch_kwargs = _douyin_launch_kwargs(headless=headless)
+    state: dict[str, Any] = {"pw": None}
+
+    def launch_fn():
+        if state["pw"] is not None:
+            _close_pw(state["pw"], None)
+            state["pw"] = None
+        state["pw"] = sync_playwright().start()
+        return state["pw"].chromium.launch_persistent_context(
+            user_data_dir=str(user_dir),
+            **launch_kwargs,
+        )
+
+    try:
+        context = launch_douyin_persistent_context(
+            playwright=None,
+            profile_dir=user_dir,
+            launch_kwargs=launch_kwargs,
+            launch_fn=launch_fn,
+            reclaim_fn=lambda: close_douyin_profile_browsers(user_dir),
+        )
+    except Exception:
+        _close_pw(state["pw"], None)
+        raise
     install_douyin_only_tab_guard(context)
     page = ensure_douyin_home_page(context, force_navigate=force_navigate)
-    return pw, context, page
+    return state["pw"], context, page
 
 
 def _cookie_summary(context) -> str:
@@ -232,54 +300,60 @@ def _close_pw(pw, context) -> None:
 
 
 def probe_session(tenant_id: int) -> dict[str, Any]:
-    pw = context = page = None
-    try:
-        pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
-        time.sleep(1.5)
-        logged_in = _looks_logged_in(page, context)
-        print(
-            f"[DouyinProbe] tenant={tenant_id} logged_in={logged_in} "
-            f"url={page.url!r} {_cookie_summary(context)}",
-            flush=True,
-        )
-        return {
-            "tenant_id": tenant_id,
-            "ready": logged_in,
-            "logged_in": logged_in,
-            "requires_auth": not logged_in,
-            "profile_busy": False,
-            "message": "抖店已登录" if logged_in else "抖店未登录，请打开登录窗口完成登录",
-            "shop_count": 0,
-            "shops": [],
-        }
-    finally:
-        _close_pw(pw, context)
+    def _run() -> dict[str, Any]:
+        pw = context = page = None
+        try:
+            pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+            time.sleep(1.5)
+            logged_in = _looks_logged_in(page, context)
+            print(
+                f"[DouyinProbe] tenant={tenant_id} logged_in={logged_in} "
+                f"url={page.url!r} {_cookie_summary(context)}",
+                flush=True,
+            )
+            return {
+                "tenant_id": tenant_id,
+                "ready": logged_in,
+                "logged_in": logged_in,
+                "requires_auth": not logged_in,
+                "profile_busy": False,
+                "message": "抖店已登录" if logged_in else "抖店未登录，请打开登录窗口完成登录",
+                "shop_count": 0,
+                "shops": [],
+            }
+        finally:
+            _close_pw(pw, context)
+
+    return _run_in_clean_thread(_run, timeout=180)
 
 
 def open_login_window(tenant_id: int, timeout_seconds: int = 600) -> dict[str, Any]:
-    pw = context = page = None
-    try:
-        pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
-        print(f"[DouyinLogin] opened {DOUYIN_SELLER_HOME} tenant={tenant_id}", flush=True)
-        logged_in, page = _wait_until_logged_in(
-            page,
-            context,
-            timeout_seconds=timeout_seconds,
-            label="open_login",
-        )
-        return {
-            "tenant_id": tenant_id,
-            "ready": logged_in,
-            "logged_in": logged_in,
-            "requires_auth": not logged_in,
-            "profile_busy": False,
-            "message": "抖店已登录" if logged_in else "登录超时，请重试打开登录窗口",
-            "shop_count": 0,
-            "shops": [],
-        }
-    finally:
-        # Graceful close on this thread so cookies flush before next sync.
-        _close_pw(pw, context)
+    def _run() -> dict[str, Any]:
+        pw = context = page = None
+        try:
+            pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+            print(f"[DouyinLogin] opened {DOUYIN_SELLER_HOME} tenant={tenant_id}", flush=True)
+            logged_in, page = _wait_until_logged_in(
+                page,
+                context,
+                timeout_seconds=timeout_seconds,
+                label="open_login",
+            )
+            return {
+                "tenant_id": tenant_id,
+                "ready": logged_in,
+                "logged_in": logged_in,
+                "requires_auth": not logged_in,
+                "profile_busy": False,
+                "message": "抖店已登录" if logged_in else "登录超时，请重试打开登录窗口",
+                "shop_count": 0,
+                "shops": [],
+            }
+        finally:
+            # Graceful close on this thread so cookies flush before next sync.
+            _close_pw(pw, context)
+
+    return _run_in_clean_thread(_run, timeout=float(timeout_seconds) + 90)
 
 
 def _extract_list_rows(data: Any) -> list[dict[str, Any]] | None:

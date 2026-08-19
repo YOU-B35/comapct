@@ -34,6 +34,17 @@ _TEMU_BROWSER_TASK_TYPES = frozenset(
     }
 )
 
+# One Douyin Chrome profile at a time (login/probe/sync fight the same tenant user-data-dir).
+_DOUYIN_BROWSER_LOCK = threading.Lock()
+_DOUYIN_BROWSER_TASK_TYPES = frozenset(
+    {
+        "douyin_session_probe",
+        "douyin_login_open",
+        "douyin_sync",
+        "douyin_products_sync",
+    }
+)
+
 
 def _clear_panel_logging_in(session_key: str | None) -> None:
     key = str(session_key or "").strip()
@@ -516,6 +527,82 @@ def handle_1688_login_open(client: AgentApiClient, task: dict[str, Any]) -> None
         )
 
 
+def handle_1688_products_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        from agent.alibaba1688_product_tasks import run_products_sync
+
+        result = run_products_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        code = "A1688_PRODUCTS_SYNC_FAILED"
+        if "A1688_PRODUCTS_NEED_DAY0" in message:
+            code = "A1688_PRODUCTS_NEED_DAY0"
+        elif "A1688_NOT_LOGGED_IN" in message or "未登录" in message:
+            code = "A1688_NOT_LOGGED_IN"
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=code,
+            error_message=message,
+        )
+
+
+def handle_1688_orders_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        from agent.alibaba1688_order_tasks import run_orders_sync
+
+        result = run_orders_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        code = "A1688_ORDERS_SYNC_FAILED"
+        if "A1688_ORDERS_NEED_DAY0" in message:
+            code = "A1688_ORDERS_NEED_DAY0"
+        elif "A1688_ORDERS_SOURCE_UNAVAILABLE" in message:
+            code = "A1688_ORDERS_SOURCE_UNAVAILABLE"
+        elif "A1688_NOT_LOGGED_IN" in message or "未登录" in message:
+            code = "A1688_NOT_LOGGED_IN"
+        elif "timeout" in message.lower() or "超时" in message:
+            code = "A1688_SYNC_TIMEOUT"
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=code,
+            error_message=message,
+        )
+
+
+def handle_1688_peer_bestsellers_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        from agent.alibaba1688_peer_tasks import run_peer_bestsellers_sync
+
+        result = run_peer_bestsellers_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        code = "A1688_ORDERS_SYNC_FAILED"
+        if "A1688_NOT_LOGGED_IN" in message or "未登录" in message:
+            code = "A1688_NOT_LOGGED_IN"
+        elif "timeout" in message.lower() or "超时" in message:
+            code = "A1688_SYNC_TIMEOUT"
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=code,
+            error_message=message,
+        )
+
+
 def handle_douyin_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
     task_id = str(task.get("task_id") or task.get("id") or "")
     if not task_id:
@@ -635,23 +722,31 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
             elif task_type == "temu_competitor_discover":
                 handle_temu_competitor_discover(client, task)
         return
-    if task_type == "douyin_session_probe":
-        handle_douyin_session_probe(client, task)
-        return
-    if task_type == "douyin_login_open":
-        handle_douyin_login_open(client, task)
-        return
-    if task_type == "douyin_sync":
-        handle_douyin_sync(client, task)
-        return
-    if task_type == "douyin_products_sync":
-        handle_douyin_products_sync(client, task)
+    if task_type in _DOUYIN_BROWSER_TASK_TYPES:
+        with _DOUYIN_BROWSER_LOCK:
+            if task_type == "douyin_session_probe":
+                handle_douyin_session_probe(client, task)
+            elif task_type == "douyin_login_open":
+                handle_douyin_login_open(client, task)
+            elif task_type == "douyin_sync":
+                handle_douyin_sync(client, task)
+            elif task_type == "douyin_products_sync":
+                handle_douyin_products_sync(client, task)
         return
     if task_type == "1688_session_probe":
         handle_1688_session_probe(client, task)
         return
     if task_type == "1688_login_open":
         handle_1688_login_open(client, task)
+        return
+    if task_type == "1688_products_sync":
+        handle_1688_products_sync(client, task)
+        return
+    if task_type == "1688_orders_sync":
+        handle_1688_orders_sync(client, task)
+        return
+    if task_type == "1688_peer_bestsellers_sync":
+        handle_1688_peer_bestsellers_sync(client, task)
         return
     task_id = str(task.get("task_id") or "")
     if task_id:

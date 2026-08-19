@@ -6,6 +6,7 @@ import com.crosshub.agent.repository.AgentTaskRepository;
 import com.crosshub.agent.repository.IntegrationAgentRepository;
 import com.crosshub.agent.service.AgentService;
 import com.crosshub.agent.service.AgentTaskConcurrency;
+import com.crosshub.alibaba1688.service.Alibaba1688AgentTasks;
 import com.crosshub.common.AppErrorCode;
 import com.crosshub.config.AgentProperties;
 import com.crosshub.security.AgentContext;
@@ -37,6 +38,10 @@ public class AgentServiceImpl implements AgentService {
     private static final long AMAZON_TASK_RUNNING_TTL_SECONDS = 6 * 60;
     private static final long AGENT_TASK_RUNNING_TTL_SECONDS = 40 * 60;
     private static final long AGENT_TASK_DEFAULT_TTL_SECONDS = 10 * 60;
+    /** 1688 商品同步安全上限；正常应像抖音一样 1–2 分钟内结束。 */
+    private static final long A1688_PRODUCTS_SYNC_TTL_SECONDS = 15 * 60;
+    private static final long A1688_ORDERS_SYNC_TTL_SECONDS = 10 * 60;
+    private static final long A1688_PEER_BESTSELLERS_TTL_SECONDS = 10 * 60;
 
     private final IntegrationAgentRepository agentRepository;
     private final AgentTaskRepository taskRepository;
@@ -428,6 +433,12 @@ public class AgentServiceImpl implements AgentService {
             ttl = AMAZON_TASK_RUNNING_TTL_SECONDS;
         } else if (TemuAgentTasks.CRAWL.equals(task.getTaskType())) {
             ttl = AGENT_TASK_RUNNING_TTL_SECONDS;
+        } else if (Alibaba1688AgentTasks.PRODUCTS_SYNC.equals(task.getTaskType())) {
+            ttl = A1688_PRODUCTS_SYNC_TTL_SECONDS;
+        } else if (Alibaba1688AgentTasks.ORDERS_SYNC.equals(task.getTaskType())) {
+            ttl = A1688_ORDERS_SYNC_TTL_SECONDS;
+        } else if (Alibaba1688AgentTasks.PEER_BESTSELLERS_SYNC.equals(task.getTaskType())) {
+            ttl = A1688_PEER_BESTSELLERS_TTL_SECONDS;
         } else {
             ttl = AGENT_TASK_DEFAULT_TTL_SECONDS;
         }

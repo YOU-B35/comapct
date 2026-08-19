@@ -55,6 +55,6 @@ test('not_found when probe never true', async () => {
     pollMs: 5,
   })
   assert.equal(result.status, 'not_found')
-  assert.match(result.message, /请先下载安装/)
-  assert.match(result.message, /允许打开/)
+  assert.match(result.message, /SETUP\.cmd|请先解压|连接助手/)
+  assert.match(result.message, /允许/)
 })

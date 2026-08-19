@@ -142,7 +142,7 @@ export async function fetchAmazonStores() {
   return res
 }
 
-/** 获取 1688 运营已绑定的全部采购账号 */
+/** 获取 1688 运营已绑定的全部店铺 */
 export async function fetchAlibaba1688Stores() {
   const res = await fetchStores('1688')
   if (!canUsePlatformAccountsBackend()) {

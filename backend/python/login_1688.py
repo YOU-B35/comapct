@@ -14,8 +14,11 @@ from app.browser.alibaba1688_context import profile_dir
 from app.browser.alibaba1688_session import is_login_page, persist_1688_session, session_ready
 from app.config import resolve_tenant_id
 
-LOGIN_URL = "https://login.1688.com/member/signin.htm?Done=https%3A%2F%2Fwww.1688.com%2F"
-HOME_URL = "https://www.1688.com/"
+HOME_URL = "https://work.1688.com/"
+LOGIN_URL = (
+    "https://login.1688.com/member/signin.htm?"
+    "Done=https%3A%2F%2Fwork.1688.com%2F"
+)
 WAIT_SECONDS = 600
 
 
@@ -37,7 +40,8 @@ def _logged_in(page, context) -> bool:
         content = page.content()[:5000]
     except Exception:
         content = ""
-    if "退出" in content or "我的阿里" in content or "采购车" in content:
+    markers = ("退出", "我的阿里", "采购车", "采购工作台", "我的进货单", "进货单")
+    if any(m in content for m in markers) and "密码登录" not in content and "扫码登录" not in content:
         return True
     return False
 

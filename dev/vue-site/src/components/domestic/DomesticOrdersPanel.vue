@@ -25,6 +25,10 @@ const props = defineProps({
   actionLabel: { type: String, default: '抓取今日订单' },
   amountLabel: { type: String, default: '当日金额' },
   showShipActions: { type: Boolean, default: true },
+  /** 为 false 时不展示大标题区，仅保留同步时间 + 操作（用于外层 Tab 已声明名称的场景） */
+  showHeader: { type: Boolean, default: true },
+  /** 为 false 时隐藏顶部订单统计卡片（卡片已上移到运营概览） */
+  showMiniStats: { type: Boolean, default: true },
 })
 
 defineEmits(['refresh', 'ship-push', 'ship-urge'])
@@ -47,6 +51,7 @@ function statusType(order) {
 <template>
   <div class="domestic-panel">
     <DomesticPanelHeader
+      v-if="showHeader"
       :title="ordersTitle"
       :description="ordersDescription"
       :synced-at="syncedAt"
@@ -54,8 +59,37 @@ function statusType(order) {
       :loading="loading"
       @action="$emit('refresh')"
     />
+    <div v-else class="domestic-panel__toolbar">
+      <div class="domestic-panel__toolbar-filters">
+        <el-input
+          v-model="keyword"
+          clearable
+          size="small"
+          placeholder="搜索订单号 / 商品 / 来源"
+          class="domestic-panel__toolbar-search"
+        />
+      </div>
+      <div class="domestic-panel__toolbar-actions">
+        <el-button type="primary" size="small" :loading="loading" @click="$emit('refresh')">
+          {{ actionLabel }}
+        </el-button>
+        <el-text v-if="syncedAt" size="small" type="info" class="domestic-panel__toolbar-meta">
+          同步 {{ syncedAt }}
+        </el-text>
+      </div>
+    </div>
 
-    <div class="mini-stats">
+    <div v-if="showHeader" class="domestic-panel__header-search">
+      <el-input
+        v-model="keyword"
+        clearable
+        size="small"
+        placeholder="搜索订单号 / 商品 / 来源"
+        class="domestic-panel__toolbar-search"
+      />
+    </div>
+
+    <div v-if="showMiniStats" class="mini-stats">
       <div class="mini-stat">
         <span class="mini-stat__value">{{ summary.total }}</span>
         <span class="mini-stat__label">全部订单</span>
@@ -80,6 +114,7 @@ function statusType(order) {
       :total="total"
       placeholder="搜索订单号 / 商品 / 来源"
       :show-sizes="false"
+      :show-search="false"
     >
       <el-table :data="paged" size="small" stripe v-loading="loading">
         <el-table-column prop="orderNo" label="订单号" min-width="150" />
@@ -171,6 +206,56 @@ function statusType(order) {
 .domestic-panel {
   display: grid;
   gap: 16px;
+}
+
+.domestic-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.domestic-panel__toolbar--actions-only {
+  justify-content: flex-end;
+}
+
+.domestic-panel__header-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.domestic-panel__toolbar-search {
+  width: min(220px, 100%);
+}
+
+.domestic-panel__toolbar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.domestic-panel__toolbar-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.domestic-panel__toolbar-meta {
+  text-align: right;
+  line-height: 1.3;
+}
+
+.domestic-panel__toolbar-spacer {
+  flex: 1;
+  min-width: 8px;
 }
 
 .mini-stats {

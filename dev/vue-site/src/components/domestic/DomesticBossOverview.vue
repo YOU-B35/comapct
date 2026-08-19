@@ -14,6 +14,8 @@ const props = defineProps({
   issuesLabel: { type: String, default: '运营预警' },
   /** 嵌入驾驶舱时隐藏图表，只保留指标/预警/分店表 */
   compact: { type: Boolean, default: false },
+  /** 上层已展示订单/预警卡片时隐藏本组件 metrics-bar */
+  hideMetrics: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['navigate'])
@@ -91,7 +93,7 @@ const chartCompare = computed(() =>
 
 <template>
   <div class="domestic-overview" :class="{ 'domestic-overview--compact': compact }">
-    <div class="metrics-bar metrics-bar--4">
+    <div v-if="!hideMetrics" class="metrics-bar metrics-bar--4">
       <div v-for="item in keyMetrics" :key="item.label" class="metric-item">
         <div class="metric-value" :class="item.type ? `is-${item.type}` : ''">
           {{ item.value }}
@@ -101,7 +103,7 @@ const chartCompare = computed(() =>
       </div>
     </div>
 
-    <div class="alert-bar">
+    <div v-if="!hideMetrics" class="alert-bar">
       <button
         v-for="item in alertItems.filter((i) => i.count > 0)"
         :key="item.tab"

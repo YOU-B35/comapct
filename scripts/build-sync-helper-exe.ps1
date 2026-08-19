@@ -58,6 +58,7 @@ Write-Host "==> pyinstaller onedir" -ForegroundColor Cyan
     --hidden-import PIL.Image `
     --hidden-import PIL.ImageDraw `
     --add-data "$PyRoot\agent\panel;agent/panel" `
+    --add-data "$PyRoot\agent\alibaba1688_product_tasks_legacy.bin;agent" `
     --hidden-import app.browser.context `
     --hidden-import app.crawler.temu_crawler `
     --hidden-import app.amazon.report_crawler `
@@ -93,25 +94,28 @@ $readme = @"
 CrossHub Sync Helper（用户本机）
 ================================
 
-1. 双击 CrossHub-Sync-Helper.exe，保持程序运行（可最小化到托盘）。
+【首次使用 — 必做】
+1. 解压本文件夹到任意目录（建议桌面）。
+2. 双击 SETUP.cmd（推荐），或双击 CrossHub-Sync-Helper.exe。
+   SETUP.cmd 会注册「连接助手」协议并启动助手。
+3. 保持程序运行（可最小化到托盘）。
+4. 打开本机面板：http://127.0.0.1:18766
+5. 在网站点「生成绑定码」，粘贴到助手面板完成绑定。
+6. 网站状态栏显示「助手在线」后，再点「打开登录」。
 
-2. 本机面板：http://127.0.0.1:18766
+【日常使用】
+- 先确保本机助手已启动（SETUP.cmd 或 exe）。
+- 网站可点「连接助手」自动拉起（需完成过首次 SETUP）。
+- java_api_url 默认 https://www.yoto.work（一般无需修改）。
+- 需要本机已安装 Google Chrome。
 
-3. 在网站生成绑定码，于面板完成绑定。
-
-4. java_api_url 默认 https://www.yoto.work（一般无需修改）。
-
-5. 需要本机已安装 Google Chrome。
-
-6. 首次安装后运行 register-protocol.ps1（或直接运行一次 exe）以注册「连接助手」协议。
-7. 网站点「连接助手」会通过 crosshub-sync-helper://start 拉起本程序。
-
-协议注册（若未自动注册）：
+协议手动注册（若 SETUP 失败）：
   powershell -ExecutionPolicy Bypass -File .\register-protocol.ps1 -ExePath .\CrossHub-Sync-Helper.exe
 "@
 Set-Content -Path (Join-Path $AppDir "README.txt") -Value $readme -Encoding UTF8
 
 Copy-Item -Force (Join-Path $Root "scripts\packaging\sync-helper\register-protocol.ps1") (Join-Path $AppDir "register-protocol.ps1")
+Copy-Item -Force (Join-Path $Root "scripts\packaging\sync-helper\SETUP.cmd") (Join-Path $AppDir "SETUP.cmd")
 
 Write-Host "==> done: $AppDir" -ForegroundColor Green
 Write-Host "    Edit config.json (agent_token) then run CrossHub-Sync-Helper.exe" -ForegroundColor Green
