@@ -252,6 +252,7 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     assert_orders_xhr_ready()
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or "default"
     start_date = str(payload.get("start_date") or "").strip()
     end_date = str(payload.get("end_date") or "").strip()
     if not start_date or not end_date:
@@ -336,7 +337,7 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
         refunds = [normalize_refund(r) for r in refund_rows if isinstance(r, dict)]
         client.ingest_1688_orders(
             {
-                "store_id": "default",
+                "store_id": store_id,
                 "sync_id": sync_id,
                 "orders": orders,
                 "refunds": refunds,

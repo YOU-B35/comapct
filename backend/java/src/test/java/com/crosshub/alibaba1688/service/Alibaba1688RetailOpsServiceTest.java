@@ -4,6 +4,7 @@ import com.crosshub.config.migration.V40Alibaba1688RetailOrderMigration;
 import com.crosshub.config.migration.V41Alibaba1688RetailOrderItemUnitPriceMigration;
 import com.crosshub.config.migration.V42Alibaba1688PeerBestsellerMigration;
 import com.crosshub.config.migration.V43Alibaba1688PeerBestsellerQualityMigration;
+import com.crosshub.config.migration.V44Alibaba1688PeerBestsellerStoreMigration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,6 +33,7 @@ class Alibaba1688RetailOpsServiceTest {
         new V41Alibaba1688RetailOrderItemUnitPriceMigration(jdbc).migrate();
         new V42Alibaba1688PeerBestsellerMigration(jdbc).migrate();
         new V43Alibaba1688PeerBestsellerQualityMigration(jdbc).migrate();
+        new V44Alibaba1688PeerBestsellerStoreMigration(jdbc).migrate();
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS alibaba1688_product (
                   id TEXT PRIMARY KEY,
@@ -484,22 +486,22 @@ class Alibaba1688RetailOpsServiceTest {
                     "sale_text", "已售" + (i * 100) + "+件"
             ));
         }
-        Map<String, Object> replaced = fx.service.replacePeerBestsellers(1L, Map.of("items", items));
+        Map<String, Object> replaced = fx.service.replacePeerBestsellers(1L, Map.of("store_id", "store-1", "items", items));
         assertEquals(12, replaced.get("ingested"));
 
-        Map<String, Object> page1 = fx.service.listPeerBestsellers(1L, 1, 10);
+        Map<String, Object> page1 = fx.service.listPeerBestsellers(1L, "store-1", 1, 10);
         assertEquals(12, page1.get("total"));
         assertEquals(10, ((List<?>) page1.get("items")).size());
         assertEquals(1200, ((Map<?, ?>) ((List<?>) page1.get("items")).get(0)).get("sales"));
 
-        Map<String, Object> page2 = fx.service.listPeerBestsellers(1L, 2, 10);
+        Map<String, Object> page2 = fx.service.listPeerBestsellers(1L, "store-1", 2, 10);
         assertEquals(2, ((List<?>) page2.get("items")).size());
 
         // 替换后旧数据清空
-        fx.service.replacePeerBestsellers(1L, Map.of("items", List.of(
+        fx.service.replacePeerBestsellers(1L, Map.of("store_id", "store-1", "items", List.of(
                 Map.of("offer_id", "peer-new", "shop_name", "新店", "title", "新品", "price", "0.5", "sales", 50, "sale_text", "已售50+件")
         )));
-        Map<String, Object> after = fx.service.listPeerBestsellers(1L, 1, 10);
+        Map<String, Object> after = fx.service.listPeerBestsellers(1L, "store-1", 1, 10);
         assertEquals(1, after.get("total"));
         assertEquals("peer-new", ((Map<?, ?>) ((List<?>) after.get("items")).get(0)).get("offerId"));
     }
@@ -507,7 +509,7 @@ class Alibaba1688RetailOpsServiceTest {
     @Test
     void peerBestsellerQualityScoreRoundTrips() throws Exception {
         Fixture fx = db();
-        fx.service.replacePeerBestsellers(1L, Map.of("items", List.of(
+        fx.service.replacePeerBestsellers(1L, Map.of("store_id", "store-1", "items", List.of(
                 Map.of(
                         "offer_id", "peer-q",
                         "shop_name", "某店",
@@ -518,7 +520,7 @@ class Alibaba1688RetailOpsServiceTest {
                         "quality_score", "复购31.58% · 达标100%"
                 )
         )));
-        Map<String, Object> result = fx.service.listPeerBestsellers(1L, 1, 10);
+        Map<String, Object> result = fx.service.listPeerBestsellers(1L, "store-1", 1, 10);
         Map<?, ?> item = (Map<?, ?>) ((List<?>) result.get("items")).get(0);
         assertEquals("复购31.58% · 达标100%", item.get("qualityScore"));
     }
@@ -559,5 +561,78 @@ class Alibaba1688RetailOpsServiceTest {
         Fixture(JdbcTemplate jdbc, Path tmp) {
             this(jdbc, new Alibaba1688RetailOpsService(jdbc, new ObjectMapper()), tmp);
         }
+    }
+
+    @Test
+    void peerBestsellersReplaceKeepsStoresSeparate() throws Exception {
+        Fixture fx = db();
+        fx.service.replacePeerBestsellers(1L, Map.of(
+                "store_id", "store-1",
+                "items", List.of(Map.of("offer_id", "peer-a", "shop_name", "A", "title", "A1", "price", "1", "sales", 10, "sale_text", "10+"))
+        ));
+        fx.service.replacePeerBestsellers(1L, Map.of(
+                "store_id", "store-2",
+                "items", List.of(Map.of("offer_id", "peer-b", "shop_name", "B", "title", "B1", "price", "2", "sales", 20, "sale_text", "20+"))
+        ));
+
+        Map<String, Object> store1 = fx.service.listPeerBestsellers(1L, "store-1", 1, 10);
+        Map<String, Object> store2 = fx.service.listPeerBestsellers(1L, "store-2", 1, 10);
+        Map<String, Object> all = fx.service.listPeerBestsellers(1L, "", 1, 10);
+        assertEquals(1, store1.get("total"));
+        assertEquals(1, store2.get("total"));
+        assertEquals(2, all.get("total"));
+        assertEquals("store-1", ((Map<?, ?>) ((List<?>) store1.get("items")).get(0)).get("storeId"));
+        assertEquals("store-2", ((Map<?, ?>) ((List<?>) store2.get("items")).get(0)).get("storeId"));
+
+        // replacing one store must not clear the other
+        fx.service.replacePeerBestsellers(1L, Map.of(
+                "store_id", "store-1",
+                "items", List.of(Map.of("offer_id", "peer-a2", "shop_name", "A", "title", "A2", "price", "1", "sales", 11, "sale_text", "11+"))
+        ));
+        Map<String, Object> after = fx.service.listPeerBestsellers(1L, "", 1, 10);
+        assertEquals(2, after.get("total"));
+    }
+
+    @Test
+    void overviewGroupsPerStoreAndTotals() throws Exception {
+        Fixture fx = db();
+        seedOrder(fx, "store-1", "O-OV1", "paid", "100", "", "2026-08-18 10:00:00", "L1", "offer-1", "2");
+        seedOrder(fx, "store-2", "O-OV2", "paid", "999", "", "2026-08-18 10:00:00", "L2", "offer-2", "1");
+
+        Map<String, Object> overview = fx.service.overview(
+                1L, LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 18));
+        assertEquals(2, overview.get("store_count"));
+        assertEquals(0, new BigDecimal("1099").compareTo((BigDecimal) overview.get("total_paid_sales")));
+        assertEquals(2, overview.get("total_paid_order_count"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stores = (List<Map<String, Object>>) overview.get("stores");
+        assertEquals(2, stores.size());
+        assertEquals("store-1", stores.get(0).get("store_id"));
+        assertEquals(0, new BigDecimal("100").compareTo((BigDecimal) stores.get(0).get("paid_sales")));
+    }
+
+    @Test
+    void v44MigrationBackfillsStoreIdAndCreatesUniqueIndex() throws Exception {
+        Fixture fx = db();
+        fx.jdbc.update(
+                """
+                INSERT INTO alibaba1688_peer_bestseller (
+                  id, tenant_id, offer_id, shop_name, title, price, sales, sale_text,
+                  offer_url, image_url, suggestion, synced_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                "legacy-1", 1L, "peer-legacy", "OLD", "OLD", "1", 5, "5+", "", "", "watch", "2026-08-19 10:00:00", "2026-08-19 10:00:00", "2026-08-19 10:00:00"
+        );
+        new V44Alibaba1688PeerBestsellerStoreMigration(fx.jdbc).migrate();
+        Map<String, Object> row = fx.jdbc.queryForMap(
+                "SELECT store_id FROM alibaba1688_peer_bestseller WHERE offer_id = 'peer-legacy'"
+        );
+        assertEquals("default", row.get("store_id"));
+        List<Map<String, Object>> indexes = fx.jdbc.queryForList(
+                "PRAGMA index_list(alibaba1688_peer_bestseller)"
+        );
+        boolean uniqueOffer = indexes.stream()
+                .anyMatch(idx -> "uk_a1688_peer_bestseller_offer".equals(String.valueOf(idx.get("name"))));
+        assertEquals(true, uniqueOffer);
     }
 }

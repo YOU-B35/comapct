@@ -101,6 +101,50 @@ public class Alibaba1688RetailOpsService {
         return current;
     }
 
+    /** Multi-store overview: per-store aggregates plus totals for the period. */
+    public Map<String, Object> overview(
+            Long tenantId,
+            LocalDate start,
+            LocalDate end
+    ) {
+        List<String> storeIds = jdbc.queryForList(
+                """
+                SELECT DISTINCT store_id FROM alibaba1688_order
+                WHERE tenant_id = ? AND store_id <> ''
+                """,
+                String.class,
+                tenantId
+        );
+        List<Map<String, Object>> stores = new ArrayList<>();
+        BigDecimal totalPaidSales = BigDecimal.ZERO;
+        BigDecimal totalRefundAmount = BigDecimal.ZERO;
+        int totalPaidOrders = 0;
+        int totalRefundOrders = 0;
+        for (String storeId : storeIds) {
+            if (storeId == null || storeId.isBlank()) {
+                continue;
+            }
+            Map<String, Object> agg = aggregate(tenantId, start, end, storeId);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("store_id", storeId);
+            row.putAll(agg);
+            stores.add(row);
+            totalPaidSales = totalPaidSales.add((BigDecimal) agg.get("paid_sales"));
+            totalRefundAmount = totalRefundAmount.add((BigDecimal) agg.get("refund_amount"));
+            totalPaidOrders += ((Number) agg.get("paid_order_count")).intValue();
+            totalRefundOrders += ((Number) agg.get("refund_order_count")).intValue();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("stores", stores);
+        out.put("total_paid_sales", totalPaidSales);
+        out.put("total_refund_amount", totalRefundAmount);
+        out.put("total_net_sales", totalPaidSales.subtract(totalRefundAmount));
+        out.put("total_paid_order_count", totalPaidOrders);
+        out.put("total_refund_order_count", totalRefundOrders);
+        out.put("store_count", stores.size());
+        return out;
+    }
+
     private Map<String, Object> aggregate(
             Long tenantId,
             LocalDate start,
@@ -440,8 +484,16 @@ public class Alibaba1688RetailOpsService {
         if (tenantId == null || tenantId <= 0) {
             throw new IllegalArgumentException("tenant required");
         }
+        String storeId = text(body == null ? null : body.get("store_id"));
+        if (storeId.isBlank()) {
+            storeId = "default";
+        }
         String now = now();
-        jdbc.update("DELETE FROM alibaba1688_peer_bestseller WHERE tenant_id = ?", tenantId);
+        jdbc.update(
+                "DELETE FROM alibaba1688_peer_bestseller WHERE tenant_id = ? AND store_id = ?",
+                tenantId,
+                storeId
+        );
         int count = 0;
         for (Map<?, ?> item : listOf(body == null ? null : body.get("items"))) {
             String offerId = text(item.get("offer_id"));
@@ -456,12 +508,13 @@ public class Alibaba1688RetailOpsService {
             jdbc.update(
                     """
                     INSERT INTO alibaba1688_peer_bestseller (
-                      id, tenant_id, offer_id, shop_name, title, price, sales, sale_text,
+                      id, tenant_id, store_id, offer_id, shop_name, title, price, sales, sale_text,
                       offer_url, image_url, quality_score, suggestion, synced_at, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     UUID.randomUUID().toString(),
                     tenantId,
+                    storeId,
                     offerId,
                     text(item.get("shop_name")),
                     text(item.get("title")),
@@ -478,33 +531,45 @@ public class Alibaba1688RetailOpsService {
             );
             count++;
         }
-        return Map.of("ingested", count);
+        return Map.of("ingested", count, "store_id", storeId);
     }
 
-    /** 同行爆款分页查询（按销量降序），每页默认 10 条。 */
-    public Map<String, Object> listPeerBestsellers(Long tenantId, int page, int pageSize) {
+    public Map<String, Object> listPeerBestsellers(
+            Long tenantId,
+            String storeIdOrNull,
+            int page,
+            int pageSize
+    ) {
+        String storeId = normalizeStore(storeIdOrNull);
         int safePage = Math.max(1, page);
         int safeSize = Math.min(50, Math.max(1, pageSize));
         Integer total = jdbc.queryForObject(
-                "SELECT COUNT(1) FROM alibaba1688_peer_bestseller WHERE tenant_id = ?",
+                "SELECT COUNT(1) FROM alibaba1688_peer_bestseller "
+                        + "WHERE tenant_id = ? AND (? = '' OR store_id = ?)",
                 Integer.class,
-                tenantId
+                tenantId,
+                storeId,
+                storeId
         );
         List<Map<String, Object>> rows = jdbc.queryForList(
                 """
-                SELECT offer_id, shop_name, title, price, sales, sale_text, offer_url, image_url, quality_score, suggestion, synced_at
+                SELECT store_id, offer_id, shop_name, title, price, sales, sale_text,
+                       offer_url, image_url, quality_score, suggestion, synced_at
                 FROM alibaba1688_peer_bestseller
-                WHERE tenant_id = ?
+                WHERE tenant_id = ? AND (? = '' OR store_id = ?)
                 ORDER BY sales DESC, offer_id
                 LIMIT ? OFFSET ?
                 """,
                 tenantId,
+                storeId,
+                storeId,
                 safeSize,
                 (safePage - 1) * safeSize
         );
         List<Map<String, Object>> items = new ArrayList<>();
         for (Map<String, Object> row : rows) {
             Map<String, Object> dto = new LinkedHashMap<>();
+            dto.put("storeId", row.get("store_id"));
             dto.put("offerId", row.get("offer_id"));
             dto.put("shopName", row.get("shop_name"));
             dto.put("title", row.get("title"));
@@ -525,7 +590,6 @@ public class Alibaba1688RetailOpsService {
         out.put("pageSize", safeSize);
         return out;
     }
-
     private static String peerSuggestion(int sales) {
         if (sales >= 100000) {
             return "现象级爆款，建议重点对标价格与卖点";

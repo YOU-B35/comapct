@@ -6,6 +6,7 @@ import { formatMoney } from '@/utils/format'
 import {
   fetchAlibaba1688OrderSummary,
   fetchAlibaba1688OrderTrend,
+  fetchAlibaba1688OrderOverview,
 } from '@/api/alibaba1688Api'
 
 const props = defineProps({
@@ -30,6 +31,7 @@ const customRange = ref([])
 const loading = ref(false)
 const summary = ref(null)
 const trend = ref([])
+const overview = ref(null)
 const trendEl = ref(null)
 
 function dateText(offsetDays = 0) {
@@ -55,11 +57,17 @@ async function load() {
   if (!props.backendReady || !props.stores.length) {
     summary.value = null
     trend.value = []
+    overview.value = null
     return
   }
   loading.value = true
   try {
     const [start, end] = rangeOf()
+    if (props.selectedStoreId === 'all') {
+      overview.value = await fetchAlibaba1688OrderOverview({ startDate: start, endDate: end })
+    } else {
+      overview.value = null
+    }
     const [summaryRes, trendRes] = await Promise.all([
       fetchAlibaba1688OrderSummary({ startDate: start, endDate: end, storeId: props.selectedStoreId }),
       fetchAlibaba1688OrderTrend({ startDate: start, endDate: end, storeId: props.selectedStoreId }),
@@ -69,6 +77,7 @@ async function load() {
   } catch (error) {
     summary.value = null
     trend.value = []
+    overview.value = null
     ElMessage.error(error?.message || '加载 1688 经营驾驶舱失败')
   } finally {
     loading.value = false
@@ -89,6 +98,34 @@ const metrics = computed(() => {
   ]
 })
 
+const overviewStores = computed(() => {
+  const list = Array.isArray(overview.value?.stores) ? overview.value.stores : []
+  return list.map((row) => {
+    const store = props.stores.find((s) => s.id === row.store_id)
+    return {
+      storeId: row.store_id,
+      storeName: store?.storeName || row.store_id,
+      paidSales: Number(row.paid_sales) || 0,
+      refundAmount: Number(row.refund_amount) || 0,
+      netSales: Number(row.net_sales) || 0,
+      paidOrderCount: Number(row.paid_order_count) || 0,
+      refundOrderCount: Number(row.refund_order_count) || 0,
+      averageOrderValue: Number(row.average_order_value) || 0,
+      soldQuantity: Number(row.sold_quantity) || 0,
+      soldProductCount: Number(row.sold_product_count) || 0,
+    }
+  })
+})
+
+const overviewTotals = computed(() => ({
+  paidSales: Number(overview.value?.total_paid_sales) || 0,
+  refundAmount: Number(overview.value?.total_refund_amount) || 0,
+  netSales: Number(overview.value?.total_net_sales) || 0,
+  paidOrderCount: Number(overview.value?.total_paid_order_count) || 0,
+  refundOrderCount: Number(overview.value?.total_refund_order_count) || 0,
+  storeCount: Number(overview.value?.store_count) || 0,
+}))
+
 const trendOption = computed(() => ({
   color: ['#1f4fd6', '#10b981', '#f59e0b'],
   tooltip: {
@@ -105,7 +142,7 @@ const trendOption = computed(() => ({
         const value = Number(p.value) || 0
         const text = p.seriesName === '订单数'
           ? `${value} 单`
-          : `¥${value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+          : '¥' + value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
         lines.push(`${p.marker}${p.seriesName}：${text}`)
       }
       return lines.join('<br/>')
@@ -239,6 +276,31 @@ defineExpose({ load })
       </div>
     </div>
 
+    <el-card v-if="selectedStoreId === 'all' && overviewStores.length" shadow="never" class="store-overview-card">
+      <template #header>店铺经营总览（{{ overviewTotals.storeCount }} 家店铺）</template>
+      <el-table :data="overviewStores" size="small" stripe>
+        <el-table-column prop="storeName" label="店铺" min-width="140" show-overflow-tooltip />
+        <el-table-column label="净销售额" align="right">
+          <template #default="{ row }">{{ formatMoney(row.netSales) }}</template>
+        </el-table-column>
+        <el-table-column label="支付销售额" align="right">
+          <template #default="{ row }">{{ formatMoney(row.paidSales) }}</template>
+        </el-table-column>
+        <el-table-column label="退款金额" align="right">
+          <template #default="{ row }">{{ formatMoney(row.refundAmount) }}</template>
+        </el-table-column>
+        <el-table-column prop="paidOrderCount" label="支付订单" align="right" />
+        <el-table-column prop="refundOrderCount" label="退款订单" align="right" />
+        <el-table-column label="客单价" align="right">
+          <template #default="{ row }">{{ formatMoney(row.averageOrderValue) }}</template>
+        </el-table-column>
+        <el-table-column prop="soldQuantity" label="销售件数" align="right" />
+      </el-table>
+      <div class="store-total-row">
+        合计：净销售额 {{ formatMoney(overviewTotals.netSales) }}· 支付销售额 {{ formatMoney(overviewTotals.paidSales) }}· 退款 {{ formatMoney(overviewTotals.refundAmount) }}· 支付订单 {{ overviewTotals.paidOrderCount }}单 · 退款订单 {{ overviewTotals.refundOrderCount }}单 
+      </div>
+    </el-card>
+
     <el-card shadow="never" class="trend-card">
       <template #header>销售额 / 订单趋势</template>
       <div ref="trendEl" class="trend-chart" />
@@ -256,4 +318,6 @@ defineExpose({ load })
 .metric-hint { color: var(--el-text-color-placeholder); font-size: 12px; }
 .trend-card { margin-top: 16px; }
 .trend-chart { height: 320px; }
+.store-overview-card { margin-top: 16px; }
+.store-total-row { margin-top: 10px; color: var(--el-text-color-secondary); font-size: 13px; text-align: right; }
 </style>

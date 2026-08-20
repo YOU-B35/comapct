@@ -157,6 +157,11 @@ public class Alibaba1688SessionService {
 
     @Transactional
     public Map<String, Object> enqueueOrdersSync() {
+        return enqueueOrdersSync(null);
+    }
+
+    @Transactional
+    public Map<String, Object> enqueueOrdersSync(String storeIdOrNull) {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
         reclaimStaleBusyTasks(tenantId, agent.getId());
@@ -169,6 +174,7 @@ public class Alibaba1688SessionService {
         String taskId = "agt_" + UUID.randomUUID();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("tenant_id", tenantId);
+        payload.put("store_id", storeIdOrNull == null ? "" : storeIdOrNull.trim());
         payload.put("scope", "7d");
         insertAgentTask(tenantId, taskId, Alibaba1688AgentTasks.ORDERS_SYNC, payload, agent.getId());
         markOrdersSyncQueued(tenantId);
@@ -181,6 +187,11 @@ public class Alibaba1688SessionService {
 
     @Transactional
     public Map<String, Object> enqueuePeerBestsellersSync() {
+        return enqueuePeerBestsellersSync(null);
+    }
+
+    @Transactional
+    public Map<String, Object> enqueuePeerBestsellersSync(String storeIdOrNull) {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
         reclaimStaleBusyTasks(tenantId, agent.getId());
@@ -193,6 +204,7 @@ public class Alibaba1688SessionService {
         String taskId = "agt_" + UUID.randomUUID();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("tenant_id", tenantId);
+        payload.put("store_id", storeIdOrNull == null ? "" : storeIdOrNull.trim());
         payload.put("scope", "peer_bestsellers");
         insertAgentTask(tenantId, taskId, Alibaba1688AgentTasks.PEER_BESTSELLERS_SYNC, payload, agent.getId());
         markPeerBestsellersSyncQueued(tenantId);

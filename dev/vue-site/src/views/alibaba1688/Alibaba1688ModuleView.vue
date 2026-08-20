@@ -143,7 +143,7 @@ async function syncOrders() {
   if (!backendReady.value || ordersSyncing.value) return
   ordersSyncing.value = true
   try {
-    const queued = await enqueueAlibaba1688OrdersSync()
+    const queued = await enqueueAlibaba1688OrdersSync({ storeId: selectedStoreId.value })
     if (queued?.queued === false) {
       ElMessage.warning(queued?.message || '已有 1688 浏览器任务进行中')
       return
@@ -185,7 +185,7 @@ async function syncPeerBestsellers() {
   if (!backendReady.value || peerSyncing.value) return
   peerSyncing.value = true
   try {
-    const queued = await enqueueAlibaba1688PeerBestsellersSync()
+    const queued = await enqueueAlibaba1688PeerBestsellersSync({ storeId: selectedStoreId.value })
     if (queued?.queued === false) {
       ElMessage.warning(queued?.message || '已有 1688 浏览器任务进行中')
       return
@@ -350,6 +350,7 @@ onActivated(() => {
             ref="peerBestsellersRef"
             :backend-ready="backendReady"
             :stores="stores1688"
+            :selected-store-id="selectedStoreId"
             :syncing="peerSyncing"
             @sync="syncPeerBestsellers"
           />

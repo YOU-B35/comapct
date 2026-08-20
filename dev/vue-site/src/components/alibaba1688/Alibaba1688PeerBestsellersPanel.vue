@@ -8,6 +8,7 @@ import {
 const props = defineProps({
   backendReady: { type: Boolean, default: false },
   stores: { type: Array, default: () => [] },
+  selectedStoreId: { type: String, default: 'all' },
   syncing: { type: Boolean, default: false },
 })
 
@@ -27,7 +28,11 @@ async function load() {
   }
   loading.value = true
   try {
-    const data = await fetchAlibaba1688PeerBestsellers({ page: page.value, pageSize: pageSize.value })
+    const data = await fetchAlibaba1688PeerBestsellers({
+      storeId: props.selectedStoreId,
+      page: page.value,
+      pageSize: pageSize.value,
+    })
     rows.value = Array.isArray(data?.items) ? data.items : []
     total.value = Number(data?.total) || 0
   } catch (error) {
@@ -51,7 +56,12 @@ function openOffer(row) {
   if (row?.offerUrl) window.open(row.offerUrl, '_blank', 'noopener')
 }
 
-watch(() => [props.backendReady, props.stores.length], () => {
+function storeName(storeId) {
+  const store = props.stores.find((s) => s.id === storeId)
+  return store?.storeName || storeId || '-'
+}
+
+watch(() => [props.backendReady, props.stores.length, props.selectedStoreId], () => {
   page.value = 1
   void load()
 })
@@ -84,21 +94,24 @@ defineExpose({ load })
         <template #default="{ row }">
           <div class="product-cell" @click="openOffer(row)">
             <el-image v-if="thumbSrc(row)" :src="thumbSrc(row)" fit="cover" class="thumb" />
-            <span class="title">{{ row.title || '—' }}</span>
+            <span class="title">{{ row.title || '-' }}</span>
           </div>
         </template>
       </el-table-column>
+      <el-table-column v-if="selectedStoreId === 'all'" label="所属店铺" min-width="120" show-overflow-tooltip>
+        <template #default="{ row }">{{ storeName(row.storeId) }}</template>
+      </el-table-column>
       <el-table-column prop="shopName" label="店铺名称" min-width="150" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.shopName || '—' }}</template>
+        <template #default="{ row }">{{ row.shopName || '-' }}</template>
       </el-table-column>
       <el-table-column label="单价" width="100" align="right">
-        <template #default="{ row }">{{ row.price ? `¥${row.price}` : '—' }}</template>
+        <template #default="{ row }">{{ row.price ? '¥' + row.price : '-' }}</template>
       </el-table-column>
       <el-table-column label="销量（平台已售）" width="130" align="right">
-        <template #default="{ row }">{{ row.saleText || row.sales || '—' }}</template>
+        <template #default="{ row }">{{ row.saleText || row.sales || '-' }}</template>
       </el-table-column>
       <el-table-column label="商品质量分" width="100" align="center">
-        <template #default="{ row }">{{ row.qualityScore || '—' }}</template>
+        <template #default="{ row }">{{ row.qualityScore || '-' }}</template>
       </el-table-column>
       <el-table-column prop="suggestion" label="追踪建议" min-width="200" show-overflow-tooltip />
       <el-table-column prop="syncedAt" label="抓取时间" width="150" />

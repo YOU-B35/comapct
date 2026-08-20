@@ -36,8 +36,7 @@ public class V42Alibaba1688PeerBestsellerMigration {
                   suggestion TEXT DEFAULT '',
                   synced_at TEXT NOT NULL,
                   created_at TEXT NOT NULL,
-                  updated_at TEXT NOT NULL,
-                  UNIQUE (tenant_id, offer_id)
+                  updated_at TEXT NOT NULL
                 )
                 """);
         log.info("V42 alibaba1688_peer_bestseller migration applied");

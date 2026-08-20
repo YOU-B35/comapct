@@ -89,9 +89,13 @@ public class Alibaba1688Controller {
     }
 
     @PostMapping("/orders/sync")
-    public ResponseEntity<Map<String, Object>> syncOrders() {
+    public ResponseEntity<Map<String, Object>> syncOrders(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
         try {
-            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueOrdersSync()));
+            String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueOrdersSync(sid)));
         } catch (ResponseStatusException ex) {
             return mapSessionError(ex);
         }
@@ -140,6 +144,16 @@ public class Alibaba1688Controller {
                 range[1],
                 storeId != null && !storeId.isBlank() ? storeId : storeIdSnake
         ));
+    }
+
+    @GetMapping("/operations/overview")
+    public Map<String, Object> operationsOverview(
+            @RequestParam String startDate,
+            @RequestParam String endDate
+    ) {
+        Long tenantId = dataScopeService.requireTenantId();
+        LocalDate[] range = parseRange(startDate, endDate);
+        return ApiResult.ok(retailOpsService.overview(tenantId, range[0], range[1]));
     }
 
     @GetMapping("/orders")
@@ -195,17 +209,28 @@ public class Alibaba1688Controller {
 
     @GetMapping("/peer-bestsellers")
     public Map<String, Object> peerBestsellers(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake,
             @RequestParam(required = false, defaultValue = "1") int page,
             @RequestParam(required = false, defaultValue = "10") int pageSize
     ) {
         Long tenantId = dataScopeService.requireTenantId();
-        return ApiResult.ok(retailOpsService.listPeerBestsellers(tenantId, page, pageSize));
+        return ApiResult.ok(retailOpsService.listPeerBestsellers(
+                tenantId,
+                storeId != null && !storeId.isBlank() ? storeId : storeIdSnake,
+                page,
+                pageSize
+        ));
     }
 
     @PostMapping("/peer-bestsellers/sync")
-    public ResponseEntity<Map<String, Object>> syncPeerBestsellers() {
+    public ResponseEntity<Map<String, Object>> syncPeerBestsellers(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
         try {
-            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueuePeerBestsellersSync()));
+            String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueuePeerBestsellersSync(sid)));
         } catch (ResponseStatusException ex) {
             return mapSessionError(ex);
         }

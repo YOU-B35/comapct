@@ -40,7 +40,7 @@ def peer_suggestion(sales: int) -> str:
     return "销量一般，建议结合价格与质量评估"
 
 
-def seed_offer_ids(limit: int = SEED_LIMIT) -> list[str]:
+def seed_offer_ids(limit: int = SEED_LIMIT, store_id: str = "default") -> list[str]:
     c = sqlite3.connect(str(DB))
     try:
         rows = c.execute(
@@ -49,14 +49,20 @@ def seed_offer_ids(limit: int = SEED_LIMIT) -> list[str]:
             FROM alibaba1688_order_item i
             JOIN alibaba1688_order o ON o.tenant_id = i.tenant_id
               AND o.store_id = i.store_id AND o.order_no = i.order_no
-            WHERE i.offer_id <> '' AND o.paid_at <> ''
+            WHERE i.offer_id <> '' AND o.paid_at <> '' AND i.store_id = ?
             GROUP BY i.offer_id
             ORDER BY SUM(CAST(i.quantity AS REAL)) DESC
             LIMIT ?
             """,
-            (limit,),
+            (store_id, limit),
         ).fetchall()
-        own = {str(r[0]) for r in c.execute("SELECT offer_id FROM alibaba1688_product").fetchall()}
+        own = {
+            str(r[0])
+            for r in c.execute(
+                "SELECT offer_id FROM alibaba1688_product WHERE store_id = ?",
+                (store_id,),
+            ).fetchall()
+        }
         return [str(r[0]) for r in rows if str(r[0]) in own]
     finally:
         c.close()
@@ -164,7 +170,8 @@ def _merge(merged: dict[str, dict[str, Any]], item: dict[str, Any], enrich_only:
 def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
-    seeds = seed_offer_ids(SEED_LIMIT)
+    store_id = str(payload.get("store_id") or "").strip() or "default"
+    seeds = seed_offer_ids(SEED_LIMIT, store_id)
     if not seeds:
         return {"ingested": 0, "scanned": 0, "message": "暂无本店销量数据，先同步订单"}
     started = time.monotonic()
@@ -204,7 +211,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
                     print(f"[1688Peer] seed {offer_id} {label} EXC {str(exc)[:140]}", flush=True)
                 time.sleep(0.5)
 
-        own_ids = _own_offer_ids()
+        own_ids = _own_offer_ids(store_id)
         items = [v for v in merged.values() if v["offer_id"] not in own_ids and v["sales"] > 0]
         items.sort(key=lambda x: x["sales"], reverse=True)
         top = items[:MAX_RESULT]
@@ -258,7 +265,9 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     finally:
         _close(pw, context)
 
-    client.ingest_1688_peer_bestsellers({"tenant_id": tenant_id, "items": top})
+    client.ingest_1688_peer_bestsellers(
+        {"tenant_id": tenant_id, "store_id": store_id, "items": top}
+    )
     return {
         "ingested": len(top),
         "scanned": len(merged),
@@ -266,9 +275,15 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _own_offer_ids() -> set[str]:
+def _own_offer_ids(store_id: str = "default") -> set[str]:
     c = sqlite3.connect(str(DB))
     try:
-        return {str(r[0]) for r in c.execute("SELECT offer_id FROM alibaba1688_product").fetchall()}
+        return {
+            str(r[0])
+            for r in c.execute(
+                "SELECT offer_id FROM alibaba1688_product WHERE store_id = ?",
+                (store_id,),
+            ).fetchall()
+        }
     finally:
         c.close()

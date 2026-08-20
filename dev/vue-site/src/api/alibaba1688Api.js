@@ -150,8 +150,11 @@ export async function fetchAlibaba1688Products({ tab = 'all', status = 'all', st
   return res?.data ?? res ?? {}
 }
 
-export async function enqueueAlibaba1688OrdersSync() {
-  const res = await service.post('/api/1688/orders/sync', {}, { skipGlobalErrorToast: true })
+export async function enqueueAlibaba1688OrdersSync({ storeId } = {}) {
+  const res = await service.post('/api/1688/orders/sync', {}, {
+    params: storeId && storeId !== 'all' ? { storeId } : {},
+    skipGlobalErrorToast: true,
+  })
   return res?.data ?? res ?? {}
 }
 
@@ -166,6 +169,14 @@ export async function fetchAlibaba1688OrderTrend({ startDate, endDate, storeId }
   const params = { startDate, endDate }
   if (storeId && storeId !== 'all') params.storeId = storeId
   const res = await service.get('/api/1688/operations/trend', { params, skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
+export async function fetchAlibaba1688OrderOverview({ startDate, endDate } = {}) {
+  const res = await service.get('/api/1688/operations/overview', {
+    params: { startDate, endDate },
+    skipGlobalErrorToast: true,
+  })
   return res?.data ?? res ?? {}
 }
 
@@ -203,16 +214,21 @@ export async function fetchAlibaba1688SyncLogs({ limit = 20 } = {}) {
   return res?.data ?? res ?? {}
 }
 
-export async function fetchAlibaba1688PeerBestsellers({ page = 1, pageSize = 10 } = {}) {
+export async function fetchAlibaba1688PeerBestsellers({ storeId, page = 1, pageSize = 10 } = {}) {
+  const params = { page, pageSize }
+  if (storeId && storeId !== 'all') params.storeId = storeId
   const res = await service.get('/api/1688/peer-bestsellers', {
-    params: { page, pageSize },
+    params,
     skipGlobalErrorToast: true,
   })
   return res?.data ?? res ?? {}
 }
 
-export async function enqueueAlibaba1688PeerBestsellersSync() {
-  const res = await service.post('/api/1688/peer-bestsellers/sync', {}, { skipGlobalErrorToast: true })
+export async function enqueueAlibaba1688PeerBestsellersSync({ storeId } = {}) {
+  const res = await service.post('/api/1688/peer-bestsellers/sync', {}, {
+    params: storeId && storeId !== 'all' ? { storeId } : {},
+    skipGlobalErrorToast: true,
+  })
   return res?.data ?? res ?? {}
 }
 
