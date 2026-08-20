@@ -1,7 +1,7 @@
 # CrossHub 开发交接文档
 
 > **唯一活文档**：任何 Agent / 开发者接手本项目时**必须先读本文**，开发结束前**必须更新本文**。  
-> **最后更新**：2026-07-31 11:06（Asia/Shanghai）  
+> **最后更新**：2026-08-20（Asia/Shanghai，浏览器内置化改造）  
 > **更新人**：开发会话（完整基建交接文档）  
 > **Git 分支**：`feat/amazon-v2-ops-crawl` · 最近提交 `1091976`（其后有未提交 JP/自启/并发/托盘等）  
 > **全量快照**：`docs/progress-snapshot-2026-07-30.md`  
@@ -32,6 +32,7 @@
 2. **按 Bug Spec 修 Temu Profile 误迁移**：`docs/superpowers/specs/2026-07-30-temu-profile-migration-account-isolation-design.md`。  
 3. 清理已污染目录 `backend/python/.temu-browser-profile/tenant-5/account-13861260796`，再对 `YONI / 13861260796` 做干净首次登录回归。  
 4. AE `CRAWL_PYTHON_ENV` 架构债（应 Agent 化）与 Profile Sync AP-01/AP-02 证据收口（后续项）。  
+5. 【2026-08-20】爬虫已默认改用 Playwright 内置 Chromium（未提交）；重建 Helper exe 部署前，目标机需先 `py -m playwright install chromium`（无内置浏览器时冻结 exe 会自动回退本机 Chrome/Edge）。  
 
 ---
 
@@ -808,6 +809,23 @@
 - **验收**：四 Tab / 竞店 / 双刷冒烟 — A05 部分、A06/A04 失败  
 - **遗留**：TM-P4 ingest 401（最高优先级）；TM-P3 退避；TM-P5 余量；大量代码未 commit  
 - **下一接手**：§1 下一动作  
+
+---
+
+### 2026-08-20（爬虫浏览器内置化：默认改用 Playwright 内置 Chromium）
+
+- **背景**：用户反馈爬虫依赖本机公共 Chrome 的流程太麻烦，改为调用 Playwright 内置 Chromium，无需本机安装浏览器
+- **改动**（9 文件，未提交）：
+  - `app/config.py`：`TEMU_BROWSER_CHANNEL` 默认由 `chrome` 改为空（内置 Chromium）；显式设 `chrome`/`msedge` 仍可切回系统浏览器
+  - `app/browser/context.py`：新增 `_bundled_chromium_ready()` 探测内置浏览器；Temu `_launch_kwargs` 默认内置，冻结态且内置缺失时回退本机 Chrome/Edge
+  - `app/browser/aliexpress_context.py`：AE 工厂同逻辑切换
+  - `agent/douyin_tasks.py`：抖音工厂同逻辑切换（原先无视 `BROWSER_CHANNEL`，现已对齐）
+  - `.env` / `.env.example`：`TEMU_BROWSER_CHANNEL=` 置空
+  - `README.md` / `backend/README.md`：`playwright install chrome` → `install chromium`
+  - `scripts/build-sync-helper-exe.ps1` / `setup-temu-login.ps1`：文案同步
+- **不动**：1688 与竞品快照本就用内置 Chromium；Amazon 走紫鸟 WebDriver + CDP（账号隔离架构，不改）；`manual_chrome.py` 买家侧人工登录刻意用真实 Chrome（Playwright 页面登录空白问题），保留
+- **验证**：本机 Playwright 1.60 所需 chromium-1223 已缓存；三平台 launch kwargs 实测无 channel/executable_path；`TEMU_BROWSER_CHANNEL=chrome` 覆盖生效；相关 21 测试通过；全量测试失败 8 项均为改动前既有问题（HEAD 基线 11 项），零新增回归
+- **遗留**：① 部署/重建 Helper exe 的目标机需先 `py -m playwright install chromium`（冻结态无内置浏览器时自动回退本机浏览器，不会崩）；② 若后续发现内置 Chromium 被 Temu/AE 风控识别，可用 `TEMU_BROWSER_CHANNEL=chrome` 一键切回；③ 本次改动未提交，与既有未提交面（agent/main.py、tray_app.py、sync_helper_app.py、crosshub-proxy.conf）并存
 
 ---
 

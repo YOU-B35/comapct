@@ -533,7 +533,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onActivated } from 'vue'
 import { Upload, Plus, Close, Folder } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageSection from '@/components/common/PageSection.vue'
 import { useAccountStore } from '@sau/stores/account'
@@ -745,6 +746,31 @@ const pollPublishJob = async (jobId, timeoutMs = 180000) => {
     await sleep(2500)
   }
   return { status: 'failed', error: '发布超时，请稍后在平台后台确认是否已发出' }
+}
+
+const COOKIE_INVALID_RE = /cookie|已失效|失效|请先完成.*登录|重新登录|重新扫码/i
+const isCookieInvalidError = (error) => {
+  if (!error) return false
+  return COOKIE_INVALID_RE.test(String(error))
+}
+
+const route = useRoute()
+const router = useRouter()
+const sauAccountsPath = computed(() => {
+  const root = route.path.startsWith('/boss/sau') ? '/boss/sau' : '/employee/sau'
+  return `${root}/accounts`
+})
+
+/** 账号登录失效时弹出醒目提示，引导去账号管理补充登录 */
+const notifyCookieInvalid = (names) => {
+  const label = names && names.length ? names.join('、') : '所选平台账号'
+  ElNotification({
+    title: '账号登录已失效',
+    message: `${label} 的登录状态已失效，本次发布未成功。请前往「账号管理」重新扫码登录后再发布。`,
+    type: 'warning',
+    duration: 0,
+    onClick: () => router.push(sauAccountsPath.value),
+  })
 }
 
 // 处理文件上传成功
@@ -1031,6 +1057,28 @@ const confirmPublish = async (tab) => {
     }
   })
 
+  // 发布前先校验所选账号 cookie，失效账号及时提示，避免提交后才发现
+  const invalidAccounts = []
+  await Promise.all(
+    (tab.selectedAccounts || []).map(async (accountId) => {
+      const acc = accountStore.accounts.find((a) => a.id === accountId)
+      if (!acc) return
+      try {
+        const res = await http.post('/checkAccount', { id: accountId })
+        if (res?.data?.valid === false) invalidAccounts.push(`${acc.name}（${acc.platform}）`)
+      } catch (e) {
+        // 校验接口异常不阻塞发布
+      }
+    })
+  )
+  if (invalidAccounts.length) {
+    const names = [...new Set(invalidAccounts)]
+    notifyCookieInvalid(names)
+    tab.publishStatus = { message: `以下账号登录已失效，请先重新扫码登录：${names.join('、')}`, type: 'error' }
+    tab.publishing = false
+    throw new Error(`以下账号登录已失效，请先重新扫码登录：${names.join('、')}`)
+  }
+
   try {
     const data = await http.post('/postVideoBatch', batch)
     let results = data?.data?.results || []
@@ -1047,18 +1095,30 @@ const confirmPublish = async (tab) => {
           const finalJob = await pollPublishJob(item.job_id, 600000)
           if (!finalJob) return item
           const ok = finalJob.status === 'success'
+          const cookieInvalid = !ok && (
+            isCookieInvalidError(finalJob.error) ||
+            !!(finalJob.detail && finalJob.detail.cookie_invalid_accounts && finalJob.detail.cookie_invalid_accounts.length)
+          )
           return {
             ...item,
             code: ok ? 200 : 500,
             msg: ok
               ? (item.msg || '发布完成')
-              : (finalJob.error || '发布失败'),
+              : (cookieInvalid
+                  ? `「${getPlatformName(item.type)}」账号登录状态已失效，请前往账号管理重新扫码登录后再发布`
+                  : (finalJob.error || '发布失败')),
             runtime: finalJob.runtime || item.runtime,
+            cookieInvalid,
           }
         })
       )
       const byJob = Object.fromEntries(polled.map((r) => [r.job_id, r]))
       results = results.map((r) => (r.job_id && byJob[r.job_id] ? byJob[r.job_id] : r))
+    }
+
+    const cookieInvalidResults = results.filter((r) => r.cookieInvalid)
+    if (cookieInvalidResults.length) {
+      notifyCookieInvalid(cookieInvalidResults.map((r) => getPlatformName(r.type)))
     }
 
     const lines = results.map((r) => {
