@@ -1,1 +1,3 @@
 target/
+local-run.log
+local-run.log.err
