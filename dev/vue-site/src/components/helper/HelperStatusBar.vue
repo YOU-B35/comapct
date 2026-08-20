@@ -46,6 +46,8 @@ import HelperOpsGuideDialog from '@/components/helper/HelperOpsGuideDialog.vue'
 const props = defineProps({
   /** temu | aliexpress | amazon | douyin | 1688 */
   platform: { type: String, default: 'temu' },
+  /** 当前选中店铺（多店铺独立登录时透传给后端） */
+  storeId: { type: String, default: null },
 })
 
 const emit = defineEmits(['update:online', 'status'])
@@ -373,6 +375,7 @@ async function startSessionPoll() {
         intervalMs: 2000,
         maxIntervalMs: 5000,
         signal,
+        storeId: props.storeId,
       })
     } else if (props.platform === '1688') {
       session = await pollAlibaba1688SessionUntilReady({
@@ -380,6 +383,7 @@ async function startSessionPoll() {
         intervalMs: 2000,
         maxIntervalMs: 5000,
         signal,
+        storeId: props.storeId,
       })
     } else {
       session = await pollTemuSessionUntilReady({
@@ -455,9 +459,9 @@ async function handleOpenLogin() {
     if (props.platform === 'aliexpress') {
       openRes = await openAliExpressSellerLogin()
     } else if (props.platform === 'douyin') {
-      openRes = await enqueueDouyinLogin()
+      openRes = await enqueueDouyinLogin({ storeId: props.storeId })
     } else if (props.platform === '1688') {
-      openRes = await enqueueAlibaba1688Login()
+      openRes = await enqueueAlibaba1688Login({ storeId: props.storeId })
     } else {
       openRes = await enqueueTemuLogin({
         tenantId: currentTenantId.value,

@@ -440,10 +440,11 @@ def handle_douyin_session_probe(client: AgentApiClient, task: dict[str, Any]) ->
         return
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or None
     try:
         from agent.douyin_tasks import probe_session as douyin_probe_session
 
-        session = douyin_probe_session(tenant_id)
+        session = douyin_probe_session(tenant_id, store_id)
         client.complete_task_with_retry(task_id, status="success", result=session)
     except Exception as exc:
         message = str(exc)
@@ -461,10 +462,11 @@ def handle_douyin_login_open(client: AgentApiClient, task: dict[str, Any]) -> No
         return
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or None
     try:
         from agent.douyin_tasks import open_login_window as douyin_open_login_window
 
-        session = douyin_open_login_window(tenant_id, timeout_seconds=600)
+        session = douyin_open_login_window(tenant_id, timeout_seconds=600, store_id=store_id)
         client.complete_task_with_retry(task_id, status="success", result={"session": session})
     except Exception as exc:
         message = str(exc)
@@ -491,10 +493,11 @@ def handle_1688_session_probe(client: AgentApiClient, task: dict[str, Any]) -> N
         return
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or None
     try:
         from agent.alibaba1688_tasks import probe_session
 
-        session = probe_session(tenant_id)
+        session = probe_session(tenant_id, store_id)
         client.complete_task_with_retry(task_id, status="success", result={"session": session})
     except Exception as exc:
         message = str(exc)
@@ -512,10 +515,11 @@ def handle_1688_login_open(client: AgentApiClient, task: dict[str, Any]) -> None
         return
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or None
     try:
         from agent.alibaba1688_tasks import open_login_window
 
-        session = open_login_window(tenant_id, timeout_seconds=600)
+        session = open_login_window(tenant_id, timeout_seconds=600, store_id=store_id)
         client.complete_task_with_retry(task_id, status="success", result={"session": session})
     except Exception as exc:
         message = str(exc)

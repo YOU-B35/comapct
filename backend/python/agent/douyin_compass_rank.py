@@ -816,7 +816,12 @@ def run_compass_product_rank_sync(client, task: dict[str, Any]) -> dict[str, Any
 
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+        pw, context, page = _launch(
+            tenant_id,
+            headless=False,
+            force_navigate=True,
+            store_id=store_id,
+        )
         if not _looks_logged_in(page, context):
             logged_in, page = _wait_until_logged_in(
                 page,

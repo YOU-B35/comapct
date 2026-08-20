@@ -62,18 +62,26 @@ public class Alibaba1688Controller {
     }
 
     @PostMapping("/login/open")
-    public ResponseEntity<Map<String, Object>> loginOpen() {
+    public ResponseEntity<Map<String, Object>> loginOpen(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
         try {
-            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueLoginOpen()));
+            String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueLoginOpen(sid)));
         } catch (ResponseStatusException ex) {
             return mapSessionError(ex);
         }
     }
 
     @PostMapping("/session/probe")
-    public ResponseEntity<Map<String, Object>> sessionProbe() {
+    public ResponseEntity<Map<String, Object>> sessionProbe(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
         try {
-            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueSessionProbe()));
+            String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+            return ResponseEntity.ok(ApiResult.ok(sessionService.enqueueSessionProbe(sid)));
         } catch (ResponseStatusException ex) {
             return mapSessionError(ex);
         }

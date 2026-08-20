@@ -18,6 +18,7 @@ from app.browser.douyin_context import (
     launch_douyin_persistent_context,
     sanitize_profile_startup_for_douyin,
 )
+from app.session_scope import normalize_session_key, resolve_platform_profile_dir
 
 # Frozen from Day0 probe (2026-08-13).
 DOUYIN_ORDERS_XHR_READY = True
@@ -110,8 +111,19 @@ ROOT = Path(__file__).resolve().parents[1]
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
-def profile_dir(tenant_id: int) -> Path:
-    path = ROOT / ".douyin-browser-profile" / f"tenant-{int(tenant_id)}"
+def profile_dir(tenant_id: int, store_id: str | None = None) -> Path:
+    key = normalize_session_key(store_id)
+    if key == "default":
+        # 兼容旧版：default 店铺沿用平铺 tenant-{id}，避免既有登录态失效
+        legacy = ROOT / ".douyin-browser-profile" / f"tenant-{int(tenant_id)}"
+        legacy.mkdir(parents=True, exist_ok=True)
+        return legacy
+    path = resolve_platform_profile_dir(
+        "douyin",
+        tenant_id,
+        key,
+        root=ROOT / ".douyin-browser-profile",
+    )
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -166,10 +178,16 @@ def _has_douyin_profile_lock(profile_dir: Path) -> bool:
     return (root / "Default" / "LOCK").exists()
 
 
-def _launch(tenant_id: int, *, headless: bool = False, force_navigate: bool = True):
+def _launch(
+    tenant_id: int,
+    *,
+    headless: bool = False,
+    force_navigate: bool = True,
+    store_id: str | None = None,
+):
     from playwright.sync_api import sync_playwright
 
-    user_dir = profile_dir(tenant_id)
+    user_dir = profile_dir(tenant_id, store_id)
     # Kill holders first. Mutating Preferences/Sessions under a live Chrome
     # makes the next launch exit immediately ("Target page ... has been closed").
     if _has_douyin_profile_lock(user_dir):
@@ -299,11 +317,16 @@ def _close_pw(pw, context) -> None:
         pass
 
 
-def probe_session(tenant_id: int) -> dict[str, Any]:
+def probe_session(tenant_id: int, store_id: str | None = None) -> dict[str, Any]:
     def _run() -> dict[str, Any]:
         pw = context = page = None
         try:
-            pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+            pw, context, page = _launch(
+                tenant_id,
+                headless=False,
+                force_navigate=True,
+                store_id=store_id,
+            )
             time.sleep(1.5)
             logged_in = _looks_logged_in(page, context)
             print(
@@ -327,11 +350,20 @@ def probe_session(tenant_id: int) -> dict[str, Any]:
     return _run_in_clean_thread(_run, timeout=180)
 
 
-def open_login_window(tenant_id: int, timeout_seconds: int = 600) -> dict[str, Any]:
+def open_login_window(
+    tenant_id: int,
+    timeout_seconds: int = 600,
+    store_id: str | None = None,
+) -> dict[str, Any]:
     def _run() -> dict[str, Any]:
         pw = context = page = None
         try:
-            pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+            pw, context, page = _launch(
+                tenant_id,
+                headless=False,
+                force_navigate=True,
+                store_id=store_id,
+            )
             print(f"[DouyinLogin] opened {DOUYIN_SELLER_HOME} tenant={tenant_id}", flush=True)
             logged_in, page = _wait_until_logged_in(
                 page,
@@ -927,7 +959,12 @@ def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
 
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+        pw, context, page = _launch(
+            tenant_id,
+            headless=False,
+            force_navigate=True,
+            store_id=store_id,
+        )
         if not _looks_logged_in(page, context):
             print(
                 f"[DouyinProducts] not logged in yet; keep window open for login "
@@ -1238,7 +1275,12 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
 
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+        pw, context, page = _launch(
+            tenant_id,
+            headless=False,
+            force_navigate=True,
+            store_id=store_id,
+        )
         if not _looks_logged_in(page, context):
             print(
                 f"[DouyinOrders] not logged in yet; keep window open for login "
@@ -1306,7 +1348,12 @@ def run_issues_sync(client, task: dict[str, Any]) -> dict[str, Any]:
 
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+        pw, context, page = _launch(
+            tenant_id,
+            headless=False,
+            force_navigate=True,
+            store_id=store_id,
+        )
         if not _looks_logged_in(page, context):
             print(
                 f"[DouyinIssues] not logged in yet; keep window open for login "
@@ -1749,7 +1796,12 @@ def run_compass_sync(client, task: dict[str, Any]) -> dict[str, Any]:
 
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+        pw, context, page = _launch(
+            tenant_id,
+            headless=False,
+            force_navigate=True,
+            store_id=store_id,
+        )
         if not _looks_logged_in(page, context):
             logged_in, page = _wait_until_logged_in(
                 page,
@@ -2205,7 +2257,12 @@ def run_opportunity_sync(client, task: dict[str, Any]) -> dict[str, Any]:
 
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=False, force_navigate=True)
+        pw, context, page = _launch(
+            tenant_id,
+            headless=False,
+            force_navigate=True,
+            store_id=store_id,
+        )
         if not _looks_logged_in(page, context):
             logged_in, page = _wait_until_logged_in(
                 page,

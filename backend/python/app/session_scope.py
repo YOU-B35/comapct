@@ -18,6 +18,9 @@ _MAX_KEY_LEN = 48
 _PLATFORM_PROFILE_ENV = {
     "temu": "TEMU_PROFILE_ROOT",
     "aliexpress": "AE_PROFILE_ROOT",
+    "douyin": "DOUYIN_PROFILE_ROOT",
+    "1688": "A1688_PROFILE_ROOT",
+    "alibaba1688": "A1688_PROFILE_ROOT",
 }
 
 

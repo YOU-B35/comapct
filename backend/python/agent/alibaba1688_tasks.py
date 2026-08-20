@@ -41,11 +41,17 @@ def _looks_logged_in(page, context) -> bool:
     return any(m in content for m in markers) and "密码登录" not in content and "扫码登录" not in content
 
 
-def _launch(tenant_id: int, *, headless: bool = True, goto: str | None = HOME_URL):
+def _launch(
+    tenant_id: int,
+    *,
+    headless: bool = True,
+    goto: str | None = HOME_URL,
+    store_id: str | None = None,
+):
     from playwright.sync_api import sync_playwright
 
-    clear_stale_profile_locks(tenant_id)
-    user_data = str(profile_dir(tenant_id))
+    clear_stale_profile_locks(tenant_id, store_id)
+    user_data = str(profile_dir(tenant_id, store_id))
     print(f"[1688] launch profile={user_data} headless={headless} goto={goto!r}", flush=True)
     args = [
         "--disable-blink-features=AutomationControlled",
@@ -103,12 +109,17 @@ def _session_payload(tenant_id: int, *, logged_in: bool, message: str) -> dict[s
     }
 
 
-def probe_session(tenant_id: int) -> dict[str, Any]:
+def probe_session(tenant_id: int, store_id: str | None = None) -> dict[str, Any]:
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=crawl_headless_enabled(), goto=HOME_URL)
+        pw, context, page = _launch(
+            tenant_id,
+            headless=crawl_headless_enabled(),
+            goto=HOME_URL,
+            store_id=store_id,
+        )
         logged_in = _looks_logged_in(page, context)
-        persist_1688_session(tenant_id, page, context)
+        persist_1688_session(tenant_id, page, context, store_id)
         print(
             f"[1688Probe] tenant={tenant_id} logged_in={logged_in} url={getattr(page, 'url', '')!r}",
             flush=True,
@@ -122,10 +133,19 @@ def probe_session(tenant_id: int) -> dict[str, Any]:
         _close(pw, context)
 
 
-def open_login_window(tenant_id: int, timeout_seconds: int = 600) -> dict[str, Any]:
+def open_login_window(
+    tenant_id: int,
+    timeout_seconds: int = 600,
+    store_id: str | None = None,
+) -> dict[str, Any]:
     pw = context = page = None
     try:
-        pw, context, page = _launch(tenant_id, headless=False, goto=LOGIN_URL)
+        pw, context, page = _launch(
+            tenant_id,
+            headless=False,
+            goto=LOGIN_URL,
+            store_id=store_id,
+        )
         print(f"[1688Login] opened login for tenant={tenant_id}", flush=True)
         deadline = time.monotonic() + max(30, int(timeout_seconds))
         logged_in = False
@@ -137,7 +157,7 @@ def open_login_window(tenant_id: int, timeout_seconds: int = 600) -> dict[str, A
                         page.wait_for_timeout(2000)
                 except Exception:
                     pass
-                persist_1688_session(tenant_id, page, context)
+                persist_1688_session(tenant_id, page, context, store_id)
                 logged_in = True
                 break
             page.wait_for_timeout(2000)

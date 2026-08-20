@@ -25,18 +25,26 @@ public class DouyinController {
     }
 
     @PostMapping("/login/open")
-    public ResponseEntity<Map<String, Object>> loginOpen() {
+    public ResponseEntity<Map<String, Object>> loginOpen(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
         try {
-            return ResponseEntity.ok(ApiResult.ok(douyinOpsService.enqueueLoginOpen()));
+            String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+            return ResponseEntity.ok(ApiResult.ok(douyinOpsService.enqueueLoginOpen(sid)));
         } catch (ResponseStatusException ex) {
             return mapError(ex);
         }
     }
 
     @PostMapping("/session/probe")
-    public ResponseEntity<Map<String, Object>> sessionProbe() {
+    public ResponseEntity<Map<String, Object>> sessionProbe(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
         try {
-            return ResponseEntity.ok(ApiResult.ok(douyinOpsService.enqueueSessionProbe()));
+            String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+            return ResponseEntity.ok(ApiResult.ok(douyinOpsService.enqueueSessionProbe(sid)));
         } catch (ResponseStatusException ex) {
             return mapError(ex);
         }

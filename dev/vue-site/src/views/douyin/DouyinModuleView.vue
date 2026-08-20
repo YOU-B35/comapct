@@ -1162,6 +1162,7 @@ onMounted(() => {
       v-if="showHelperBar"
       ref="helperBarRef"
       platform="douyin"
+      :store-id="selectedStoreId"
       @update:online="onHelperOnline"
     />
 

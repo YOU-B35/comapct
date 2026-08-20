@@ -128,13 +128,19 @@ export async function fetchAlibaba1688Session() {
   return res?.data ?? res ?? {}
 }
 
-export async function enqueueAlibaba1688Login() {
-  const res = await service.post('/api/1688/login/open', {}, { skipGlobalErrorToast: true })
+export async function enqueueAlibaba1688Login({ storeId } = {}) {
+  const res = await service.post('/api/1688/login/open', {}, {
+    params: storeId && storeId !== 'all' ? { storeId } : {},
+    skipGlobalErrorToast: true,
+  })
   return res?.data ?? res ?? {}
 }
 
-export async function enqueueAlibaba1688SessionProbe() {
-  const res = await service.post('/api/1688/session/probe', {}, { skipGlobalErrorToast: true })
+export async function enqueueAlibaba1688SessionProbe({ storeId } = {}) {
+  const res = await service.post('/api/1688/session/probe', {}, {
+    params: storeId && storeId !== 'all' ? { storeId } : {},
+    skipGlobalErrorToast: true,
+  })
   return res?.data ?? res ?? {}
 }
 
@@ -238,11 +244,12 @@ export async function pollAlibaba1688SessionUntilReady({
   intervalMs = 2000,
   maxIntervalMs = 5000,
   signal = null,
+  storeId = null,
 } = {}) {
   const deadline = Date.now() + Math.max(5000, timeoutMs)
   let delay = Math.max(800, intervalMs)
   try {
-    await enqueueAlibaba1688SessionProbe()
+    await enqueueAlibaba1688SessionProbe({ storeId })
   } catch {
     // ignore; still poll session
   }

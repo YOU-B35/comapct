@@ -14,13 +14,19 @@ export async function fetchDouyinSession() {
   return res?.data ?? res ?? {}
 }
 
-export async function enqueueDouyinLogin() {
-  const res = await service.post('/api/douyin/login/open', {}, { skipGlobalErrorToast: true })
+export async function enqueueDouyinLogin({ storeId } = {}) {
+  const res = await service.post('/api/douyin/login/open', {}, {
+    params: storeId && storeId !== 'all' ? { storeId } : {},
+    skipGlobalErrorToast: true,
+  })
   return res?.data ?? res ?? {}
 }
 
-export async function enqueueDouyinSessionProbe() {
-  const res = await service.post('/api/douyin/session/probe', {}, { skipGlobalErrorToast: true })
+export async function enqueueDouyinSessionProbe({ storeId } = {}) {
+  const res = await service.post('/api/douyin/session/probe', {}, {
+    params: storeId && storeId !== 'all' ? { storeId } : {},
+    skipGlobalErrorToast: true,
+  })
   return res?.data ?? res ?? {}
 }
 
@@ -30,12 +36,13 @@ export async function pollDouyinSessionUntilReady({
   intervalMs = 2000,
   maxIntervalMs = 5000,
   signal = null,
+  storeId = null,
 } = {}) {
   const deadline = Date.now() + Math.max(5000, timeoutMs)
   let delay = Math.max(800, intervalMs)
   // Kick a probe once so agent writes fresh snapshot.
   try {
-    await enqueueDouyinSessionProbe()
+    await enqueueDouyinSessionProbe({ storeId })
   } catch {
     // ignore; still poll session
   }

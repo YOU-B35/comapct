@@ -96,6 +96,11 @@ public class Alibaba1688SessionService {
 
     @Transactional
     public Map<String, Object> enqueueLoginOpen() {
+        return enqueueLoginOpen(null);
+    }
+
+    @Transactional
+    public Map<String, Object> enqueueLoginOpen(String storeIdOrNull) {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
         reclaimStaleBusyTasks(tenantId, agent.getId());
@@ -109,6 +114,7 @@ public class Alibaba1688SessionService {
         String taskId = "agt_" + UUID.randomUUID();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("tenant_id", tenantId);
+        payload.put("store_id", storeIdOrNull == null ? "" : storeIdOrNull.trim());
         insertAgentTask(tenantId, taskId, Alibaba1688AgentTasks.LOGIN_OPEN, payload, agent.getId());
         writeSessionSnapshot(tenantId, Map.of(
                 "tenant_id", tenantId,
@@ -127,6 +133,11 @@ public class Alibaba1688SessionService {
 
     @Transactional
     public Map<String, Object> enqueueSessionProbe() {
+        return enqueueSessionProbe(null);
+    }
+
+    @Transactional
+    public Map<String, Object> enqueueSessionProbe(String storeIdOrNull) {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
         reclaimStaleBusyTasks(tenantId, agent.getId());
@@ -139,6 +150,7 @@ public class Alibaba1688SessionService {
         String taskId = "agt_" + UUID.randomUUID();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("tenant_id", tenantId);
+        payload.put("store_id", storeIdOrNull == null ? "" : storeIdOrNull.trim());
         insertAgentTask(tenantId, taskId, Alibaba1688AgentTasks.SESSION_PROBE, payload, agent.getId());
         writeSessionSnapshot(tenantId, Map.of(
                 "tenant_id", tenantId,

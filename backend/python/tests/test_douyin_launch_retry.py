@@ -196,7 +196,7 @@ def test_launch_starts_fresh_playwright_after_busy_error(tmp_path: Path, monkeyp
             starts["n"] += 1
             return FakePlaywright()
 
-    monkeypatch.setattr(dt, "profile_dir", lambda tenant_id: tmp_path)
+    monkeypatch.setattr(dt, "profile_dir", lambda tenant_id, store_id=None: tmp_path)
     monkeypatch.setattr(dt, "sanitize_profile_startup_for_douyin", lambda *a, **k: None)
     monkeypatch.setattr(dt, "install_douyin_only_tab_guard", lambda ctx: None)
     monkeypatch.setattr(dt, "ensure_douyin_home_page", lambda ctx, force_navigate=True: "page")
@@ -239,7 +239,7 @@ def test_launch_reclaims_existing_singleton_lock_before_first_attempt(tmp_path: 
         reclaims.append(str(profile_dir))
         return 1
 
-    monkeypatch.setattr(dt, "profile_dir", lambda tenant_id: tmp_path)
+    monkeypatch.setattr(dt, "profile_dir", lambda tenant_id, store_id=None: tmp_path)
     monkeypatch.setattr(dt, "sanitize_profile_startup_for_douyin", lambda *a, **k: None)
     monkeypatch.setattr(dt, "install_douyin_only_tab_guard", lambda ctx: None)
     monkeypatch.setattr(dt, "ensure_douyin_home_page", lambda ctx, force_navigate=True: "page")
@@ -273,7 +273,7 @@ def test_launch_reclaims_before_sanitize_when_lock_present(tmp_path: Path, monke
         def start(self):
             return FakePlaywright()
 
-    monkeypatch.setattr(dt, "profile_dir", lambda tenant_id: tmp_path)
+    monkeypatch.setattr(dt, "profile_dir", lambda tenant_id, store_id=None: tmp_path)
     monkeypatch.setattr(
         dt,
         "sanitize_profile_startup_for_douyin",

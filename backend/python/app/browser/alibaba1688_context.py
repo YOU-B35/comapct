@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from app.session_scope import normalize_session_key, resolve_platform_profile_dir
+
 _LOCK_NAMES = (
     "SingletonLock",
     "SingletonCookie",
@@ -12,22 +14,34 @@ _LOCK_NAMES = (
     "LOCK",
 )
 
+_PROFILE_ROOT = Path(__file__).resolve().parents[2] / ".1688-browser-profile"
+
 
 def crawl_headless_enabled() -> bool:
     """Data crawls default headless. Set A1688_HEADED=1 to show a window."""
     return os.getenv("A1688_HEADED", "").strip().lower() not in {"1", "true", "yes"}
 
 
-def profile_dir(tenant_id: int) -> Path:
-    root = Path(__file__).resolve().parents[2] / ".1688-browser-profile"
-    path = root / f"tenant-{tenant_id}"
+def profile_dir(tenant_id: int, store_id: str | None = None) -> Path:
+    key = normalize_session_key(store_id)
+    if key == "default":
+        # 兼容旧版：default 店铺沿用平铺 tenant-{id}，避免既有登录态失效
+        legacy = _PROFILE_ROOT / f"tenant-{tenant_id}"
+        legacy.mkdir(parents=True, exist_ok=True)
+        return legacy
+    path = resolve_platform_profile_dir(
+        "1688",
+        tenant_id,
+        key,
+        root=_PROFILE_ROOT,
+    )
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def clear_stale_profile_locks(tenant_id: int) -> None:
+def clear_stale_profile_locks(tenant_id: int, store_id: str | None = None) -> None:
     """Remove Chromium singleton locks left by a crashed Helper so login can relaunch."""
-    root = profile_dir(tenant_id)
+    root = profile_dir(tenant_id, store_id)
     for name in _LOCK_NAMES:
         path = root / name
         try:

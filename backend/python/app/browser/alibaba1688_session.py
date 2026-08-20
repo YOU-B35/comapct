@@ -41,12 +41,12 @@ def is_login_page(url: str) -> bool:
     )
 
 
-def _cookie_snapshot_path(tenant_id: int) -> Path:
-    return profile_dir(tenant_id) / COOKIE_SNAPSHOT
+def _cookie_snapshot_path(tenant_id: int, store_id: str | None = None) -> Path:
+    return profile_dir(tenant_id, store_id) / COOKIE_SNAPSHOT
 
 
-def _session_cache_path(tenant_id: int) -> Path:
-    return profile_dir(tenant_id) / SESSION_CACHE
+def _session_cache_path(tenant_id: int, store_id: str | None = None) -> Path:
+    return profile_dir(tenant_id, store_id) / SESSION_CACHE
 
 
 def filter_1688_cookies(cookies: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -80,7 +80,12 @@ def session_ready(url: str, cookies: list[dict[str, Any]]) -> bool:
     return "1688.com" in lowered or "alibaba.com" in lowered
 
 
-def persist_1688_session(tenant_id: int, page: Page, context: BrowserContext) -> dict[str, Any]:
+def persist_1688_session(
+    tenant_id: int,
+    page: Page,
+    context: BrowserContext,
+    store_id: str | None = None,
+) -> dict[str, Any]:
     url = ""
     try:
         url = page.url or ""
@@ -100,10 +105,10 @@ def persist_1688_session(tenant_id: int, page: Page, context: BrowserContext) ->
         "cookie_names": sorted({str(c.get("name") or "") for c in filtered if c.get("name")}),
         "saved_at": int(time.time()),
     }
-    _session_cache_path(tenant_id).write_text(
+    _session_cache_path(tenant_id, store_id).write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    _cookie_snapshot_path(tenant_id).write_text(
+    _cookie_snapshot_path(tenant_id, store_id).write_text(
         json.dumps({"tenant_id": tenant_id, "cookies": filtered, "saved_at": payload["saved_at"]}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )

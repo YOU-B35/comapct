@@ -183,6 +183,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             tenant_id,
             headless=True,
             goto="https://work.1688.com/",
+            store_id=store_id,
         )
         if not _looks_logged_in(page, context):
             raise RuntimeError("A1688_NOT_LOGGED_IN: 1688 未登录或登录已失效，请重新打开登录窗口")

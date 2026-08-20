@@ -270,7 +270,7 @@ onActivated(() => {
       description="面向个人消费者的店铺销售与商品经营数据"
     />
 
-    <HelperStatusBar platform="1688" />
+    <HelperStatusBar platform="1688" :store-id="selectedStoreId" />
 
     <PageSection v-if="stores1688.length" title="店铺" tone="toolbar">
       <div class="toolbar-row">
