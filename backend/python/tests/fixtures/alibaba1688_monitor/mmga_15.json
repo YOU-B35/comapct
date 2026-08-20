@@ -1,0 +1,46 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "limitTimeDay": 15,
+   "orderCntLevelText": "",
+   "deliveryLimitTimeModel": {
+    "limitTimeDay": 15,
+    "expectSendHour": 21,
+    "expectArrivalHour": 69,
+    "offerId": 930671411701,
+    "orderCntLevelText": "",
+    "class": "com.alibaba.shared.carriage.delivery.model.DeliveryLimitTimeQueryResult",
+    "attrs": {
+     "offerUnit": "件",
+     "ptsOfferStepModels": [
+      {
+       "selectedStartQuantity": 1,
+       "class": "com.alibaba.shared.protect.model.pts.PtsOfferStepModel",
+       "selectedPtsOfferTagModel": {
+        "serviceCode": "swtfh",
+        "disabled": false,
+        "serviceName": "15天发货",
+        "class": "com.alibaba.shared.protect.model.pts.PtsOfferTagModel",
+        "required": false,
+        "agreeDeliveryHours": 360,
+        "selected": false
+       },
+       "selected": false
+      }
+     ]
+    },
+    "expectTimeDesc": "",
+    "limitTimeDesc": "承诺15天发货"
+   },
+   "limitTimeDesc": "承诺15天发货",
+   "expectTimeDesc": ""
+  },
+  "resultCode": "ok"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192246622349e0f20",
+ "v": "1.0"
+}

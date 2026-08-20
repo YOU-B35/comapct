@@ -1,0 +1,123 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "aiIndexTitle": {
+    "detailRedirectUrl": "https://pages-fast.1688.com/wow/cbu/default/defaultv1/tMDFMkPdjT/index.html?wh_pid=4264670&x-ssr=true&__existtitle__=1&__removesafearea__=1&__hideLoading__=1&x-fcc=snapshot&skeleton=true&__immersive__=1&x-prefetch=true&width=500&showType=drawer&title=%E4%B8%A5%E9%80%89%E6%8C%87%E6%95%B0"
+   },
+   "detailRedirectUrl": "https://pages-fast.1688.com/wow/cbu/default/defaultv1/tMDFMkPdjT/index.html?wh_pid=4264670&x-ssr=true&__existtitle__=1&__removesafearea__=1&__hideLoading__=1&x-fcc=snapshot&skeleton=true&__immersive__=1&x-prefetch=true&width=500&showType=drawer&title=%E4%B8%A5%E9%80%89%E6%8C%87%E6%95%B0",
+   "hasSimilarOffer": false,
+   "platformEndorsementList": [
+    {
+     "pitKey": "pit1_quality",
+     "property": "品质保障",
+     "value": "30天无品质问题退款"
+    },
+    {
+     "pitKey": "pit2_price",
+     "property": "价格稳定",
+     "value": "60天老客价"
+    },
+    {
+     "pitKey": "pit3_service",
+     "property": "库存稳定",
+     "value": "近期无断供"
+    },
+    {
+     "pitKey": "pit4_service",
+     "property": "开票无忧",
+     "value": "支持普票、专票"
+    },
+    {
+     "pitKey": "pit5_reputation",
+     "property": "口碑真实",
+     "value": "近期加购40+次"
+    },
+    {
+     "pitKey": "pit6_reputation",
+     "property": "商家可靠",
+     "value": "服务1800+买家"
+    }
+   ],
+   "platformProductInfoMap": {
+    "PRODUCT_PARAMS": {
+     "linkUrl": "https://air.1688.com/kapp/cpapp/des-info/home?modalType=attrContent&offerId=930671411701",
+     "paramList": [
+      {
+       "property": "产品类别",
+       "value": "大物钩"
+      },
+      {
+       "property": "品牌",
+       "value": "东博瑞"
+      },
+      {
+       "property": "鱼钩号码",
+       "value": "1号 2号 4号 6号 8号"
+      },
+      {
+       "property": "钓钩种类",
+       "value": "有倒刺钩"
+      },
+      {
+       "property": "是否有倒刺",
+       "value": "是"
+      }
+     ],
+     "type": "PRODUCT_PARAMS"
+    }
+   },
+   "trackInfo": {
+    "spmd": "a262eq.8239380/24V2.yx_index.0",
+    "arg1": "/1688.od_offerdetail.ai_index",
+    "uiTrackInfo": {
+     "/1688.od_offerdetail.ai_index.brand": {
+      "args": {
+       "arg1_none_prefix": "1",
+       "spm-cnt": "a262eq.8239380/24V2.yx_index.0",
+       "offer_id": 930671411701
+      }
+     },
+     "/1688.od_offerdetail.ai_index": {
+      "args": {
+       "arg1_none_prefix": "1",
+       "spm-cnt": "a262eq.8239380/24V2.yx_index.0",
+       "offer_id": 930671411701
+      }
+     },
+     "/1688.od_offerdetail.ai_index.product_params": {
+      "args": {
+       "arg1_none_prefix": "1",
+       "spm-cnt": "a262eq.8239380/24V2.yx_index.0",
+       "offer_id": 930671411701
+      }
+     },
+     "/1688.od_offerdetail.ai_index.qualification_certificate": {
+      "args": {
+       "arg1_none_prefix": "1",
+       "spm-cnt": "a262eq.8239380/24V2.yx_index.0",
+       "offer_id": 930671411701
+      }
+     },
+     "/1688.od_offerdetail.ai_index.official_inspection": {
+      "args": {
+       "arg1_none_prefix": "1",
+       "spm-cnt": "a262eq.8239380/24V2.yx_index.0",
+       "offer_id": 930671411701
+      }
+     }
+    },
+    "offer_id": 930671411701
+   },
+   "utCustomMap": {
+    "offer_id": 930671411701
+   }
+  },
+  "resultCode": "ok"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192244972319e0f20",
+ "v": "1.0"
+}

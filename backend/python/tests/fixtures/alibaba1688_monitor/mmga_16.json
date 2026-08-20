@@ -1,0 +1,17 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "backgroundColor": "#FFFFFF",
+   "data": [],
+   "mode": "normal",
+   "success": "true"
+  },
+  "resultCode": "ok"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192245682336e0f20",
+ "v": "1.0"
+}

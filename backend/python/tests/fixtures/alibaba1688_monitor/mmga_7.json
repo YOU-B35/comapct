@@ -1,0 +1,14 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "hasAttentionNew": false
+  },
+  "resultCode": "ok"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192244972318e0f20",
+ "v": "1.0"
+}

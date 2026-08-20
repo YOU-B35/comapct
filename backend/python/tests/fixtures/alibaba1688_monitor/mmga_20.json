@@ -1,0 +1,231 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "traceId": "215041ea17872192256212416e0f20",
+  "data": {
+   "utCustomMap": {
+    "business": "yanxuan_same",
+    "offer_id": "930671411701"
+   },
+   "trackInfo": {
+    "spmd": "a262eq.8239380/24V2.yxtk.0",
+    "arg1": "/1688.od_offerdetail.yxtk",
+    "uiTrackInfo": {
+     "yxtkPk": {
+      "args": {
+       "arg1_none_prefix": "1",
+       "business": "yanxuan_same",
+       "spm-cnt": "a262eq.8239380/24V2.yxtk.pk",
+       "offer_id": "930671411701"
+      }
+     }
+    },
+    "childExpoList": [
+     {
+      "arg1": "/1688.od_offerdetail.yxtk.pk",
+      "spm-cnt": "a262eq.8239380/24V2.yxtk.pk",
+      "offer_id": "930671411701"
+     },
+     {
+      "arg1": "/1688.od_offerdetail.yxtk.offer",
+      "offerIds": "996809607058,809393479850,1018251045632,831332832124,1047539017084,741831081629,641823457449,642506511103",
+      "spm-cnt": "a262eq.8239380/24V2.yxtk.offer"
+     }
+    ]
+   },
+   "compareArrowIconUrl": "https://gw.alicdn.com/imgextra/i1/O1CN01wQ3nu91xNudAbXP49_!!6000000006432-2-tps-12-24.png",
+   "compareText": "同款对比",
+   "offerId": 930671411701,
+   "compareTextColor": "#C77012",
+   "compareAction": {
+    "type": "odOpenPopup",
+    "params": {
+     "contentUrlParams": {
+      "topItemIds": "996809607058,809393479850,1018251045632,831332832124,1047539017084,741831081629,641823457449,642506511103"
+     },
+     "linkUrl": "http://popups.m.1688.com/index.htm?version=2.0&contentType=h5&orientation=fromBottom&widthRatio=1&heightRatio=0.9&showNow=true&windowMaskColor=000000&windowMaskAlpha=0.75&contentUrl=https%3A%2F%2Fair.1688.com%2Fkapp%2Fctf-m-page%2Fodpage%2Fproduct-pk%3FofferId%3D930671411701%26cornerRadius%3D8x8x0x0"
+    }
+   },
+   "itemList": [
+    {
+     "advantageText": "源头工厂直供",
+     "crowdType": "货架电商",
+     "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01H9TnzM1qBoiMGBPim_!!981115458-0-cib.jpg",
+     "itemId": "996809607058",
+     "linkUrl": "https://detail.1688.com/offer/996809607058.html",
+     "memberLogoUrl": "https://gw.alicdn.com/imgextra/i4/O1CN01w3y4Hz216HrUb3bYL_!!6000000006935-2-tps-36-36.png",
+     "price": "16.8",
+     "salesCount": "700+件",
+     "shopIconUrl": "https://img.alicdn.com/imgextra/i2/6000000007246/O1CN01ymTCJl28RGqLrPgID_!!6000000007246-2-gg_dtc.png",
+     "shopName": "江西鄱湖渔具有限公司",
+     "trackInfo": {
+      "uiTrackInfo": {
+       "yxtkOffer": {
+        "args": {
+         "arg1_none_prefix": "1",
+         "business": "yanxuan_same",
+         "spm-cnt": "a262eq.8239380/24V2.yxtk.offer.0",
+         "offer_id": "996809607058"
+        }
+       }
+      }
+     }
+    },
+    {
+     "crowdType": "货架电商",
+     "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN016DPclw1Jx6GNNzlDp_!!2217698281094-0-cib.jpg",
+     "itemId": "809393479850",
+     "linkUrl": "https://detail.1688.com/offer/809393479850.html",
+     "price": "0.19",
+     "salesCount": "60+件",
+     "shopName": "泰州市亿拓渔具有限公司",
+     "trackInfo": {
+      "uiTrackInfo": {
+       "yxtkOffer": {
+        "args": {
+         "arg1_none_prefix": "1",
+         "business": "yanxuan_same",
+         "spm-cnt": "a262eq.8239380/24V2.yxtk.offer.1",
+         "offer_id": "809393479850"
+        }
+       }
+      }
+     }
+    },
+    {
+     "crowdType": "货架电商",
+     "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01SWh44X1Ex2HS6hrwv_!!2219577180417-0-cib.jpg",
+     "itemId": "1018251045632",
+     "linkUrl": "https://detail.1688.com/offer/1018251045632.html",
+     "price": "8.0",
+     "shopName": "泰州市安之可渔具有限公司",
+     "trackInfo": {
+      "uiTrackInfo": {
+       "yxtkOffer": {
+        "args": {
+         "arg1_none_prefix": "1",
+         "business": "yanxuan_same",
+         "spm-cnt": "a262eq.8239380/24V2.yxtk.offer.2",
+         "offer_id": "1018251045632"
+        }
+       }
+      }
+     }
+    },
+    {
+     "advantageText": "源头工厂直供",
+     "crowdType": "货架电商",
+     "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01H9TnzM1qBoiMGBPim_!!981115458-0-cib.jpg",
+     "itemId": "831332832124",
+     "linkUrl": "https://detail.1688.com/offer/831332832124.html",
+     "memberLogoUrl": "https://gw.alicdn.com/imgextra/i4/O1CN01w3y4Hz216HrUb3bYL_!!6000000006935-2-tps-36-36.png",
+     "price": "128.0",
+     "shopIconUrl": "https://img.alicdn.com/imgextra/i2/6000000007246/O1CN01ymTCJl28RGqLrPgID_!!6000000007246-2-gg_dtc.png",
+     "shopName": "江西鄱湖渔具有限公司",
+     "trackInfo": {
+      "uiTrackInfo": {
+       "yxtkOffer": {
+        "args": {
+         "arg1_none_prefix": "1",
+         "business": "yanxuan_same",
+         "spm-cnt": "a262eq.8239380/24V2.yxtk.offer.3",
+         "offer_id": "831332832124"
+        }
+       }
+      }
+     }
+    },
+    {
+     "crowdType": "货架电商",
+     "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN016p7aGn1R7p0q5N1zf_!!3347512065-0-cib.jpg",
+     "itemId": "1047539017084",
+     "linkUrl": "https://detail.1688.com/offer/1047539017084.html",
+     "price": "55.0",
+     "shopName": "东阳市群洲钓具有限公司",
+     "trackInfo": {
+      "uiTrackInfo": {
+       "yxtkOffer": {
+        "args": {
+         "arg1_none_prefix": "1",
+         "business": "yanxuan_same",
+         "spm-cnt": "a262eq.8239380/24V2.yxtk.offer.4",
+         "offer_id": "1047539017084"
+        }
+       }
+      }
+     }
+    },
+    {
+     "crowdType": "货架电商",
+     "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01FpuYrg1SjCiKdPAfA_!!4034722282-0-cib.jpg",
+     "itemId": "741831081629",
+     "linkUrl": "https://detail.1688.com/offer/741831081629.html",
+     "price": "0.18",
+     "salesCount": "50+件",
+     "shopName": "泰州海沃渔具有限公司",
+     "trackInfo": {
+      "uiTrackInfo": {
+       "yxtkOffer": {
+        "args": {
+         "arg1_none_prefix": "1",
+         "business": "yanxuan_same",
+         "spm-cnt": "a262eq.8239380/24V2.yxtk.offer.5",
+         "offer_id": "741831081629"
+        }
+       }
+      }
+     }
+    },
+    {
+     "crowdType": "货架电商",
+     "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01quvBEH1fstuznvfSv_!!2211117144063-0-cib.jpg",
+     "itemId": "641823457449",
+     "linkUrl": "https://detail.1688.com/offer/641823457449.html",
+     "price": "0.38",
+     "salesCount": "8100+件",
+     "shopName": "深圳市东博瑞户外用品有限公司",
+     "trackInfo": {
+      "uiTrackInfo": {
+       "yxtkOffer": {
+        "args": {
+         "arg1_none_prefix": "1",
+         "business": "yanxuan_same",
+         "spm-cnt": "a262eq.8239380/24V2.yxtk.offer.6",
+         "offer_id": "641823457449"
+        }
+       }
+      }
+     }
+    },
+    {
+     "crowdType": "货架电商",
+     "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01MTTg8l1fstuy889nI_!!2211117144063-0-cib.jpg",
+     "itemId": "642506511103",
+     "linkUrl": "https://detail.1688.com/offer/642506511103.html",
+     "price": "0.38",
+     "salesCount": "6700+件",
+     "shopName": "深圳市东博瑞户外用品有限公司",
+     "trackInfo": {
+      "uiTrackInfo": {
+       "yxtkOffer": {
+        "args": {
+         "arg1_none_prefix": "1",
+         "business": "yanxuan_same",
+         "spm-cnt": "a262eq.8239380/24V2.yxtk.offer.7",
+         "offer_id": "642506511103"
+        }
+       }
+      }
+     }
+    }
+   ],
+   "type": "default",
+   "title": "相似同款"
+  }
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192256212416e0f20",
+ "v": "1.0"
+}

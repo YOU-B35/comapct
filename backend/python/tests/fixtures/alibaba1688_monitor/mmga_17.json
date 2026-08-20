@@ -1,0 +1,233 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "traceId": "215041ea17872192245012326e0f20",
+  "showCompareEntry": true,
+  "currentOffer": {
+   "saleText": "已售10万+件",
+   "offerUrl": "https://detail.1688.com/offer/930671411701.html",
+   "price": 0.5,
+   "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN013OJGvh1fsuMp5Znz8_!!2211117144063-0-cib.jpg",
+   "offerId": 930671411701,
+   "isCurrentOffer": true,
+   "title": "东博瑞欧鲤极尖锋鱼钩驼背钩克兰克宽门歪嘴合金钢反底KRANK HOOK",
+   "priceText": "¥0.5"
+  },
+  "offerList": [
+   {
+    "saleText": "已售10万+件",
+    "offerUrl": "https://detail.1688.com/offer/719873141422.html",
+    "price": 0.05,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01wfEA0a27tBXeSSexR_!!2215074757854-0-cib.jpg",
+    "offerId": 719873141422,
+    "isCurrentOffer": false,
+    "behaviorTag": "3天内看过",
+    "title": "8003倒钓钩路亚鱼钩挂软耳泥鳅钩路亚防挂底钓翘嘴鳜鱼梭鱼软虫钩",
+    "priceText": "¥0.05"
+   },
+   {
+    "saleText": "已售300+件",
+    "offerUrl": "https://detail.1688.com/offer/911017231882.html",
+    "price": 10.4,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN013JIQiw2KNfUq0hGfz_!!4115709545-0-cib.jpg",
+    "offerId": 911017231882,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "管付欧式鲤鱼钩反底钓驼背钩歪嘴鱼钩特氟龙涂层带圈草青鱼钩巨物",
+    "priceText": "¥10.4"
+   },
+   {
+    "saleText": "已售1万+件",
+    "offerUrl": "https://detail.1688.com/offer/620826694367.html",
+    "price": 8.0,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/16821099708_791853664.jpg",
+    "offerId": 620826694367,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "8245特氟龙欧鲤弯背钩长柄散装鱼钩欧洲钓组鲤鱼钩驼背钩管付批发",
+    "priceText": "¥8"
+   },
+   {
+    "saleText": "已售9700+件",
+    "offerUrl": "https://detail.1688.com/offer/628411084081.html",
+    "price": 7.5,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/21619603891_791853664.jpg",
+    "offerId": 628411084081,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "驼背钩弯背鱼钩铁特氟龙管付斜口带圈鲶鱼欧洲钓组鲤鱼毛钩若虫钩",
+    "priceText": "¥7.5"
+   },
+   {
+    "saleText": "已售700+件",
+    "offerUrl": "https://detail.1688.com/offer/816236423181.html",
+    "price": 6.1,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01rD3TR52LgjYyjWYrz_!!2217983469722-0-cib.jpg",
+    "offerId": 816236423181,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "海钓圆钩粗款加粗恶魔钩鹰嘴深海大物鱼钩船钓钩回头钩自杀钩批发",
+    "priceText": "¥6.1"
+   },
+   {
+    "saleText": "已售10万+件",
+    "offerUrl": "https://detail.1688.com/offer/931426560739.html",
+    "price": 0.12,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN010dJh7g1rFJQLZln3l_!!2219449235601-0-cib.jpg",
+    "offerId": 931426560739,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "欧鲤钩驼背钩有倒刺管付鱼钩正品歪嘴弯背钩加强鲶鱼鲤鱼毛钩虫钩",
+    "priceText": "¥0.12"
+   },
+   {
+    "saleText": "已售1000+件",
+    "offerUrl": "https://detail.1688.com/offer/829658798550.html",
+    "price": 5.7,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01AY0v6G2KNfUiJMSNK_!!4115709545-0-cib.jpg",
+    "offerId": 829658798550,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "碳钢管付千又鱼钩带圈歪嘴有倒刺加粗矶钓鲳鱼钩鲷鱼鲈鱼钩海钓钩",
+    "priceText": "¥5.7"
+   },
+   {
+    "saleText": "已售1100+件",
+    "offerUrl": "https://detail.1688.com/offer/615599475567.html",
+    "price": 5.7,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01V0PKh52KNf7g8hDHX_!!4115709545-0-cib.jpg",
+    "offerId": 615599475567,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "倒钓钩8003鱼钩路亚鱼钩软饵钩散装细条泥鳅钩鲤鱼翘嘴鲈鱼钩批发",
+    "priceText": "¥5.7"
+   },
+   {
+    "saleText": "已售400+件",
+    "offerUrl": "https://detail.1688.com/offer/679526031368.html",
+    "price": 4.8,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01M2elKW2KNfJh68u4c_!!4115709545-0-cib.jpg",
+    "offerId": 679526031368,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "歪嘴款倒钓钩管付路亚鱼钩有倒刺带圈孔环散装泥鳅钩鳜鱼软饵钓钩",
+    "priceText": "¥4.8"
+   },
+   {
+    "saleText": "已售500+件",
+    "offerUrl": "https://detail.1688.com/offer/894668210442.html",
+    "price": 2.9,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01DhHKvG1rFJP1cJRI1_!!2219449235601-0-cib.jpg",
+    "offerId": 894668210442,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "管付千又鱼钩散装钩子歪嘴有倒刺高碳钢筏钓鱼钩鲤鱼爆炸海钓",
+    "priceText": "¥2.9"
+   },
+   {
+    "saleText": "已售100+件",
+    "offerUrl": "https://detail.1688.com/offer/678891325448.html",
+    "price": 8.3,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01IOyCEA2KNfDL0RVCE_!!4115709545-0-cib.jpg",
+    "offerId": 678891325448,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "驼背钩欧鲤钩弯柄管付带孔圈环长柄钩疯狂查理钩鲤鱼钩鲢鳙大物钩",
+    "priceText": "¥8.3"
+   },
+   {
+    "saleText": "已售800+件",
+    "offerUrl": "https://detail.1688.com/offer/927439486070.html",
+    "price": 8.3,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01R6MktB2Lgjbo6C2Is_!!2217983469722-0-cib.jpg",
+    "offerId": 927439486070,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "高碳钢自杀钩恶棍钩 深海大物海钓鹰嘴钩船钓钩回头钩鱼钩",
+    "priceText": "¥8.3"
+   },
+   {
+    "saleText": "已售9万+件",
+    "offerUrl": "https://detail.1688.com/offer/933531865494.html",
+    "price": 0.13,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN016Zn3zH1rFJQP9uG41_!!2219449235601-0-cib.jpg",
+    "offerId": 933531865494,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "管付弯背鲤钩有倒刺欧钓钩罗尼钓组欧式钓组库钓管付鲤飞钓鲤鱼钩",
+    "priceText": "¥0.13"
+   },
+   {
+    "saleText": "已售1万+件",
+    "offerUrl": "https://detail.1688.com/offer/1064181492014.html",
+    "price": 0.07,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN019qXEUe1FcFxKyEC9l_!!2219107620507-0-cib.jpg",
+    "offerId": 1064181492014,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "管付欧鲤钩反底驼背钩斜口管付带圈巨物钩青鲤鱼鱼钩散装",
+    "priceText": "¥0.07"
+   },
+   {
+    "saleText": "已售5万+件",
+    "offerUrl": "https://detail.1688.com/offer/831064428317.html",
+    "price": 0.09,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01c4UfLx1F0hJcpPU1k_!!3063480425-0-cib.jpg",
+    "offerId": 831064428317,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "长柄弯背钩碳钢钓组欧鲤鱼钩驼背有刺钩毛钩管付飞钓钩若虫钩裸钩",
+    "priceText": "¥0.09"
+   },
+   {
+    "offerUrl": "https://detail.1688.com/offer/999140394064.html",
+    "price": 0.18,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01Wk1BBj24v4agxZzlq_!!2220744487452-0-cib.jpg",
+    "offerId": 999140394064,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "大弯柄管付带孔钩欧式 鲤鱼钓大物钩 库钓长柄圈环钩渔具厂家批发",
+    "priceText": "¥0.18"
+   },
+   {
+    "saleText": "已售200+件",
+    "offerUrl": "https://detail.1688.com/offer/644117304341.html",
+    "price": 7.3,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01PI2lWn2KNf7qCAhul_!!4115709545-0-cib.jpg",
+    "offerId": 644117304341,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "欧鲤钩鱼钩超滑特富龙铁氟龙涂层反底钓鲤鱼钩散装管付圆底钩批发",
+    "priceText": "¥7.3"
+   },
+   {
+    "saleText": "已售300+件",
+    "offerUrl": "https://detail.1688.com/offer/658454287855.html",
+    "price": 5.0,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01b7iU5y2KlTkr9dTLd_!!3582709597-0-cib.jpg",
+    "offerId": 658454287855,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "土肥富河童牌黑色管付千又歪嘴有倒刺筏钓路亚海钓大物鱼钩带圆孔",
+    "priceText": "¥5"
+   },
+   {
+    "saleText": "已售40+件",
+    "offerUrl": "https://detail.1688.com/offer/1041983132272.html",
+    "price": 17.5,
+    "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01FPayQl1RcxwOXbKzK_!!2222125942133-0-cib.jpg",
+    "offerId": 1041983132272,
+    "isCurrentOffer": false,
+    "behaviorTag": "相似款",
+    "title": "F15002 KONA科纳加强版无倒刺飞蝇钩裸钩fly hooks",
+    "priceText": "¥17.5"
+   }
+  ],
+  "candidateCount": 19
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192245012326e0f20",
+ "v": "1.0"
+}

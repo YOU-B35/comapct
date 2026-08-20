@@ -1,0 +1,39 @@
+{
+ "api": "mtop.1688.moga.pc.shopcard",
+ "data": {
+  "model": {
+   "isJointOperation": false,
+   "isStarGrayCheck": true,
+   "mainCategoryName": "垂钓用品",
+   "qualitySatisfactionRate": "100%",
+   "shopButton": {
+    "attentionRelation": false,
+    "fuzzyFavCount": "722粉丝",
+    "type": "ATTENTION"
+   },
+   "shopData": [
+    {
+     "dataKey": "品质达标率",
+     "dataValue": "100%"
+    },
+    {
+     "dataKey": "48小时支揽率",
+     "dataValue": "100%"
+    },
+    {
+     "dataKey": "店铺回头率",
+     "dataValue": "73%"
+    }
+   ],
+   "shopName": "深圳市东博瑞户外用品有限公司",
+   "shopUrl": "https://shop16yx1905b2433.1688.com",
+   "starNum": 4,
+   "tpYear": 6
+  }
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192241622306e0f20",
+ "v": "1.0"
+}

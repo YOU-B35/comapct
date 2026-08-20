@@ -1,0 +1,22 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "titleName": "商品证书",
+  "resourceUrl": "http://popups.m.1688.com/index.htm?version=2.0&contentType=h5&orientation=fromBottom&showNow=true&contentUrl=https%3A%2F%2Fair.1688.com%2Fkapp%2Fcpapp%2Fod-native-offer-cert%2Fhome%3FytContentColor%3D00000000%26isSuperChain%3Dfalse&windowMaskAlpha=0&widthRatio=1&heightRatio=1&offerId=930671411701",
+  "certificates": [],
+  "offerId": "930671411701",
+  "productCertificateText": "产品证书",
+  "simpleCertificateInfo": {
+   "productLicenseIcons": [],
+   "otherCheckObjNames": [],
+   "inventionPatentNames": []
+  },
+  "patentCertificateText": "专利证书",
+  "content": ""
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192245662333e0f20",
+ "v": "1.0"
+}

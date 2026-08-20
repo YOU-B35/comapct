@@ -1,0 +1,14 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "pc_calc_type": "2"
+  },
+  "resultCode": "ok"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192245372328e0f20",
+ "v": "1.0"
+}

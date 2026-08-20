@@ -1,0 +1,11 @@
+{
+ "api": "mtop.alisite.cbu.winport.sync.moduledata.get",
+ "data": {
+  "bannerInfos": []
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "213e07c617872192145113747e11b4",
+ "v": "1.0"
+}

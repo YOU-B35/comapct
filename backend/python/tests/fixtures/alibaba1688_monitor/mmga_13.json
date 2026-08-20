@@ -1,0 +1,195 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "result": {
+    "offerRateInfo": {
+     "headers": {},
+     "rateIdsStr": "40627972974,40503019019",
+     "trackInfo": {
+      "spmd": "a262eq.8239380\\/detail_od_evaluate_new",
+      "expoData": "offerId@930671411701^hasTbRate@false^tbSourceRateCnt@0^bucketId@0^showGuideInfo@false^rateIdsStr@40627972974,40503019019",
+      "uiTrackInfo": [
+       {
+        "args": {
+         "showGuideInfo": false,
+         "spmd": "a262eq.8239380\\/detail_od_evaluate_new",
+         "rateIdsStr": "40627972974,40503019019",
+         "arg1_none_prefix": "1",
+         "tbSourceRateCnt": 0,
+         "ipvId": "2150423a17049391722267051ecd4b",
+         "hasTbRate": false,
+         "offerId": 930671411701,
+         "bucketId": 0
+        }
+       }
+      ]
+     },
+     "success": true,
+     "model": {
+      "commentList": [
+       {
+        "buyerLevel": "L3",
+        "buyerLevelTag": "专业买家",
+        "content": "该用户觉得商品非常赞，给出了五星好评",
+        "gmtPublished": 1786760730000,
+        "plusUser": false,
+        "quantity": 2000.0,
+        "rateId": "40627972974",
+        "raterUserNick": "t**0",
+        "specInfo": "规格#3B1#(微倒刺)XX双加粗钓青鱼30-50KG",
+        "starLevel": "3",
+        "systemRemark": false,
+        "unit": "个",
+        "userGuideTxt": "近90天3次回购该商品"
+       },
+       {
+        "images": [],
+        "quantity": "2000",
+        "plusUser": false,
+        "content": "该用户觉得商品非常赞，给出了五星好评",
+        "rateId": "40627972974",
+        "raterUserNick": "t**0",
+        "unit": "个",
+        "userGuideTxt": "近90天超10次回购该店铺",
+        "gmtPublished": 1786760730000,
+        "specInfo": "规格#3B1#(微倒刺)XX双加粗钓青鱼30-50KG",
+        "imgCnt": "0",
+        "starLevel": "3",
+        "systemRemark": false,
+        "buyerLevel": "L3"
+       },
+       {
+        "images": [],
+        "quantity": "600",
+        "plusUser": false,
+        "content": "该用户觉得商品非常赞，给出了五星好评",
+        "rateId": "40503019019",
+        "raterUserNick": "t**0",
+        "unit": "个",
+        "userGuideTxt": "近90天超10次回购该店铺",
+        "gmtPublished": 1786168892000,
+        "specInfo": "规格#3B2#(微倒刺)X加粗钓鲤草青15-30KG#7C规格#3B1#(微倒刺)XX双加粗钓青鱼30-50KG#7C规格#3B4#(微倒刺)X加粗钓鲤草8-15KG",
+        "imgCnt": "0",
+        "starLevel": "3",
+        "systemRemark": false,
+        "buyerLevel": "L3"
+       }
+      ],
+      "hasTbRate": false,
+      "imprList": [],
+      "bucketId": 0,
+      "goodPercentForPc": 100.0,
+      "commentTotalNum": "10+",
+      "showGuideInfo": false,
+      "isGt95": true,
+      "goodPercent": "好评率100%",
+      "tbRateCnt": 0,
+      "rateAverageStarLevel": 5,
+      "detailLink": "https://air.1688.com/pages/od/offer-evaluate/dh3apq8qi/index.html?tdScene=offer-evaluate&offerId=930671411701&sellerLoginId=鲤钓dongborui",
+      "judgeNewVersion": false
+     },
+     "httpStatusCode": 200
+    },
+    "rateIdsStr": "40627972974,40503019019",
+    "product_comments": true,
+    "trackInfo": {
+     "spmd": "a262eq.8239380\\/detail_od_evaluate_new",
+     "expoData": "offerId@930671411701^hasTbRate@false^tbSourceRateCnt@0^bucketId@0^showGuideInfo@false^rateIdsStr@40627972974,40503019019",
+     "uiTrackInfo": [
+      {
+       "args": {
+        "showGuideInfo": false,
+        "spmd": "a262eq.8239380\\/detail_od_evaluate_new",
+        "rateIdsStr": "40627972974,40503019019",
+        "arg1_none_prefix": "1",
+        "tbSourceRateCnt": 0,
+        "ipvId": "2150423a17049391722267051ecd4b",
+        "hasTbRate": false,
+        "offerId": 930671411701,
+        "bucketId": 0
+       }
+      }
+     ]
+    },
+    "peopleEvaluation": "人评价",
+    "titleName": "商品评价",
+    "newOfferRateInfo": {
+     "headers": {},
+     "success": true,
+     "model": {
+      "validRateModel": {
+       "isNym": false,
+       "ratedUserNick": "鲤**i",
+       "isSystemRemark": false,
+       "plusUser": false,
+       "content": "该用户觉得商品非常赞，给出了五星好评",
+       "remarkFlag": 1,
+       "userGuideTxt": "近90天超10次回购该店铺",
+       "gmtPublished": 1786760730000,
+       "userGuideTxtNew": "近90天3次回购该商品",
+       "specInfo": "规格#3B1#(微倒刺)XX双加粗钓青鱼30-50KG",
+       "id": 40627972974,
+       "detailLink": "https://air.1688.com/pages/od/offer-evaluate/dh3apq8qi/index.html?tdScene=offer-evaluate&offerId=930671411701&sellerLoginId=鲤钓dongborui&rateId=40627972974",
+       "class": "com.alibaba.shared.rate.service.rate.model.MtopRateModel",
+       "quantity": 2000.0,
+       "posterUserInfo": {
+        "memberIdentityAttrModel": {
+         "tmIcon": "0",
+         "tbBS": "s",
+         "avIcon": "0",
+         "tpIcon": "0",
+         "ovIcon": "0",
+         "plusUser": false,
+         "tips": {
+          "membertip": "在线采购金额等级，展示采购商在线采购实力"
+         },
+         "rateBuyerGoodNum": 0,
+         "medalIcon": "0",
+         "common": "0",
+         "pnaIcon": "0",
+         "rateSum": 0,
+         "rateBuyerSum": 0,
+         "cnaIcon": "0",
+         "memberIcon": "https://cbu01.alicdn.com/cms/upload/member/club/buy_3_star.gif",
+         "enterpriseTP": false,
+         "personTP": false,
+         "rateBuyerNum": 0,
+         "class": "com.alibaba.shared.rate.service.member.model.MemberIdentityAttrModel",
+         "rateSellerNum": 0,
+         "rateSellerGoodNum": 0,
+         "tbIcon": "1",
+         "buyerLevel": "L3",
+         "gsIcon": "0"
+        },
+        "portraitUrl": "/img/ibank/2020/428/378/22185873824_536529798.jpg",
+        "class": "com.alibaba.shared.rate.service.rate.model.RateModelUserInfo"
+       },
+       "gmtCreate": 1786760730000,
+       "itemId": 930671411701,
+       "raterUserNick": "t**0",
+       "unit": "个",
+       "raterLevel": "L3",
+       "regularCustomer": true,
+       "starLevel": 5,
+       "systemRemark": false,
+       "feedBackAddress": "越南",
+       "status": "PUBLISHED"
+      },
+      "detailLink": "https://air.1688.com/pages/od/offer-evaluate/dh3apq8qi/index.html?tdScene=offer-evaluate&offerId=930671411701&sellerLoginId=鲤钓dongborui",
+      "class": "com.alibaba.shared.rate.service.rate.model.OfferDetailFirstPageRateModel"
+     },
+     "class": "com.alibaba.shared.service.common.result.MtopResult",
+     "httpStatusCode": 200
+    },
+    "invalidEvaluation": "暂无有效评价"
+   }
+  },
+  "resultCode": "ok"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192244972320e0f20",
+ "v": "1.0"
+}

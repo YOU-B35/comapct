@@ -1,0 +1,1231 @@
+{
+ "api": "mtop.alisite.cbu.winport.sync.moduledata.get",
+ "data": {
+  "appdata": {
+   "count": "10",
+   "memberId": "b2b-221111714406302508",
+   "sortType": "wangpu_score",
+   "pageNum": "1",
+   "handPriceReqSource": "1"
+  },
+  "isPicAuth": "false",
+  "isPriceAuth": "false",
+  "isTppOffer": "false",
+  "offerModuleList": [
+   {
+    "agentInfo": {
+     "fahuoTime": "48"
+    },
+    "consignPrice": "0.14",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@824828511612^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "14",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "0",
+      "humpLowPart": ".14"
+     }
+    },
+    "gmtCreate": "2024-08-15 14:45:00",
+    "goodRates": "100.0",
+    "handPrice": "0.14",
+    "id": "824828511612",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/824828511612.html?skuId=5542772300450&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN01ZJoaD91fsuN6ENRhh_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN01ZJoaD91fsuN6ENRhh_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "192002",
+      "194498",
+      "213250",
+      "17282",
+      "16962",
+      "17410",
+      "17474",
+      "16770",
+      "16514",
+      "18114",
+      "18754",
+      "18050",
+      "4268290",
+      "288386",
+      "265218",
+      "2695682",
+      "2695618",
+      "3267586",
+      "4181954",
+      "3997122",
+      "1939010"
+     ],
+     "tags": "176515,180739,335938,359618,364930,412482,414146,437506,439106,470594,474562,475650,476738,480002,481346,481538,483394,522562,531842,540930,562242,562370,564610,572162,586754,586946,595970,604546,611906,613378,624578,624706,626882,627074,627138,627202,627330,628930,643266,643394,644034,654146,654914,666818,668418,672194,672834,672898,673090,675650,675714,675906,676098,3767873,3768001,3768385,3768769,3768961,3770753,3775425,3775489,3778497,3778561,3778625,3778753,3780097,3784321,3791361,3791873,3792321,3793921,3800001,3801793,3803201,3811777,3819393,3819713,3819841,3819969,3820097,3820225,3820289,3820417,3820993,3822785,3822849,3822913,3822977,3823041,3823105,3823169,3823233,3823297,3823361,3823425,3823489,3823617,3823681,3823745,3823873,3824001,3824129,3824193,3824257,3824321,3824385,3824449,3824577,3824641,3824705,3824833,3824897,3824961,3825025,3825089,3825153,3825217,3825281,3825345,3825409,3825473,3825537,3825601,3825665,3825729,3825793,3825857,3832001,3833729,3833793,3833857,3833921,3833985,3849921,3872385,3873409,3878657,3881793,3945793,3953025,3953153,3966913,3977281,3982273,3997697,4001345,4020801,4047489,4056129,4077249,4080321,4087105,4087937,4100737,4109313,4115713,4131841,4147329,4157057,4157121,4158017,4307649"
+    },
+    "offerPointModelList": [
+     {
+      "pointCode": "repurchaseRate",
+      "pointText": "复购率65%"
+     }
+    ],
+    "offerPrice": "0.14",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false",
+     "offerCltRanking": "5"
+    },
+    "offerTagList": [
+     "192002",
+     "194498",
+     "213250",
+     "17282",
+     "16962",
+     "17410",
+     "17474",
+     "16770",
+     "16514",
+     "18114",
+     "18754",
+     "18050",
+     "4268290",
+     "288386",
+     "265218",
+     "2695682",
+     "2695618",
+     "3267586",
+     "4181954",
+     "3997122",
+     "1939010"
+    ],
+    "originPrice": "0.14",
+    "originalPrice": "0.14",
+    "priceSegments": [],
+    "quantityBegin": "100",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "false",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "false",
+     "isZeroWholesaleOffer": "false",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "欧鲤钓组配件反底钓鱼钩偏转件鱼钩套管绿色棕色Hook Kicker Line",
+    "supplyOfferId": "0",
+    "tagInfo": "common<fd>有内容<fd>28<rd>common<fd>全部<fd>28<rd>common<fd>好评<fd>28",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "10万+"
+   },
+   {
+    "agentInfo": {
+     "fahuoTime": "48"
+    },
+    "consignPrice": "0.11",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@645397882522^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "11",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "0",
+      "humpLowPart": ".11"
+     }
+    },
+    "gmtCreate": "2021-05-21 14:31:00",
+    "goodRates": "98.0",
+    "handPrice": "0.11",
+    "id": "645397882522",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/645397882522.html?skuId=5707834546841&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN012TFW471fsuBuNNLnY_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN012TFW471fsuBuNNLnY_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "194498",
+      "213250",
+      "17410",
+      "17282",
+      "17474",
+      "17538",
+      "18050",
+      "16962",
+      "16834",
+      "16514",
+      "16770",
+      "18114",
+      "18754",
+      "21058",
+      "4268290",
+      "4592706",
+      "288386",
+      "265218",
+      "1939010",
+      "2695682",
+      "2695618",
+      "4181954",
+      "3997122"
+     ],
+     "tags": "176515,335938,359618,361026,364930,393154,393474,393794,394178,399554,401090,401474,412482,414146,425858,437506,439106,448834,470594,480002,481346,481538,483394,522626,531842,540930,562242,562306,562370,564162,572162,576067,586754,586946,613378,628930,641666,643266,644034,654146,654914,666818,668418,670338,672194,672834,673090,675714,675906,4001345,4109313,4112257"
+    },
+    "offerPointModelList": [
+     {
+      "pointCode": "repurchaseRate",
+      "pointText": "复购率53%"
+     },
+     {
+      "pointCode": "offerTagTxt",
+      "pointColor": "#BC8136",
+      "pointText": "60+人种草"
+     }
+    ],
+    "offerPrice": "0.11",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false",
+     "offerTagTxt": "60+人种草"
+    },
+    "offerTagList": [
+     "194498",
+     "213250",
+     "17410",
+     "17282",
+     "17474",
+     "17538",
+     "18050",
+     "16962",
+     "16834",
+     "16514",
+     "16770",
+     "18114",
+     "18754",
+     "21058",
+     "4268290",
+     "4592706",
+     "288386",
+     "265218",
+     "1939010",
+     "2695682",
+     "2695618",
+     "4181954",
+     "3997122"
+    ],
+    "originPrice": "0.11",
+    "originalPrice": "0.11",
+    "priceSegments": [],
+    "quantityBegin": "100",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "false",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "true",
+     "isZeroWholesaleOffer": "true",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "出口欧洲CARP欧鲤钓配件QC转环/8子环/带焊接圈转环罗尼钓组珠珠",
+    "supplyOfferId": "0",
+    "tagInfo": "common<fd>有内容<fd>50<rd>common<fd>全部<fd>50<rd>common<fd>好评<fd>49<rd>common<fd>最新<fd>1<rd>common<fd>差评<fd>1",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "10万+"
+   },
+   {
+    "agentInfo": {
+     "fahuoTime": "48"
+    },
+    "consignPrice": "0.14",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@655300015039^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "14",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "0",
+      "humpLowPart": ".14"
+     }
+    },
+    "gmtCreate": "2021-09-03 15:29:00",
+    "goodRates": "92.3",
+    "handPrice": "0.14",
+    "id": "655300015039",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/655300015039.html?skuId=4721033160020&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN01gdgxZW1fstv3qUCPd_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN01gdgxZW1fstv3qUCPd_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "192002",
+      "194498",
+      "213250",
+      "17282",
+      "17538",
+      "17922",
+      "16834",
+      "16514",
+      "18754",
+      "16962",
+      "17474",
+      "17410",
+      "18114",
+      "18050",
+      "4268290",
+      "4592706",
+      "288386",
+      "265218",
+      "1939010",
+      "2695682",
+      "2695618",
+      "3267586",
+      "4181954",
+      "3997122"
+     ],
+     "tags": "176515,180739,335938,359618,361026,364930,393474,393666,393794,393986,401090,401474,412482,414146,425858,437506,439106,444226,448834,448898,470594,480002,481346,481538,483394,487490,522562,522754,531842,540930,562242,562306,562370,564162,564610,572162,576067,586562,586754,586946,595970,598338,604546,624578,624706,626882,627074,627138,627202,627330,628930,642818,643266,643394,654146,654274,654530,654594,654850,654914,666818,668418,670338,672898,675650,675714,675906,676098,3767873,3768001,3768385,3768769,3768961,3770753,3775425,3775489,3778497,3778561,3778625,3778753,3780097,3784321,3791361,3791873,3792321,3793921,3800001,3801793,3803201,3811777,3819393,3819713,3819841,3819969,3820097,3820225,3820289,3820417,3820993,3822785,3822849,3822913,3822977,3823041,3823105,3823169,3823233,3823297,3823361,3823425,3823489,3823617,3823681,3823745,3823873,3824001,3824129,3824193,3824257,3824321,3824385,3824449,3824577,3824641,3824705,3824833,3824897,3824961,3825025,3825089,3825153,3825217,3825281,3825345,3825409,3825473,3825537,3825601,3825665,3825729,3825793,3825857,3832001,3833729,3833793,3833857,3833921,3833985,3849921,3872385,3873409,3878657,3881793,3945793,3953025,3953153,3966913,3977281,3982273,3997697,4001345,4020801,4047489,4056129,4077249,4080321,4087105,4087937,4100737,4109313,4112257,4115713,4131841,4147329,4157057,4157121,4158017,4307649"
+    },
+    "offerPointModelList": [],
+    "offerPrice": "0.14",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false"
+    },
+    "offerTagList": [
+     "192002",
+     "194498",
+     "213250",
+     "17282",
+     "17538",
+     "17922",
+     "16834",
+     "16514",
+     "18754",
+     "16962",
+     "17474",
+     "17410",
+     "18114",
+     "18050",
+     "4268290",
+     "4592706",
+     "288386",
+     "265218",
+     "1939010",
+     "2695682",
+     "2695618",
+     "3267586",
+     "4181954",
+     "3997122"
+    ],
+    "originPrice": "0.14",
+    "originalPrice": "0.14",
+    "priceSegments": [],
+    "quantityBegin": "100",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "false",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "true",
+     "isZeroWholesaleOffer": "true",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "欧鲤钓配件双铜管0.5/0.6/0.7mm枯叶钓碳素线压线铜管CarpFishing",
+    "supplyOfferId": "0",
+    "tagInfo": "common<fd>有内容<fd>13<rd>common<fd>全部<fd>13<rd>common<fd>好评<fd>12<rd>common<fd>中评<fd>1",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "10万+"
+   },
+   {
+    "agentInfo": {},
+    "consignPrice": "0.18",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@944931327334^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "18",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "0",
+      "humpLowPart": ".18"
+     }
+    },
+    "gmtCreate": "2025-06-28 15:14:00",
+    "goodRates": "100.0",
+    "handPrice": "0.18",
+    "id": "944931327334",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/944931327334.html?skuId=6018759032727&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN01FsS5m21fsuHenxJBz_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN01FsS5m21fsuHenxJBz_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "194498",
+      "192002",
+      "213250",
+      "17282",
+      "16962",
+      "17410",
+      "17474",
+      "17922",
+      "16514",
+      "18114",
+      "18754",
+      "18050",
+      "4268290",
+      "288386",
+      "265218",
+      "2695618",
+      "3267586",
+      "4181954",
+      "3997122",
+      "1939010"
+     ],
+     "tags": "176515,335938,359618,364930,382146,414146,437506,439106,470594,480002,481346,481538,483394,531842,562370,572162,586754,586946,595970,604546,624578,624706,625154,626242,626882,627074,627138,627202,628930,644034,654146,654274,654530,654594,654850,654914,666818,668418,672898,675650,675906,676098,4109313"
+    },
+    "offerPointModelList": [],
+    "offerPrice": "0.18",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false"
+    },
+    "offerTagList": [
+     "194498",
+     "192002",
+     "213250",
+     "17282",
+     "16962",
+     "17410",
+     "17474",
+     "17922",
+     "16514",
+     "18114",
+     "18754",
+     "18050",
+     "4268290",
+     "288386",
+     "265218",
+     "2695618",
+     "3267586",
+     "4181954",
+     "3997122",
+     "1939010"
+    ],
+    "originPrice": "0.18",
+    "originalPrice": "0.18",
+    "priceSegments": [],
+    "quantityBegin": "100",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "false",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "false",
+     "isZeroWholesaleOffer": "false",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "欧鲤钓配件缓下沉防缠绕管环反底钓组配件钓子线连接器",
+    "supplyOfferId": "0",
+    "tagInfo": "common<fd>有内容<fd>2<rd>common<fd>好评<fd>2<rd>common<fd>全部<fd>2<rd>impr<fd>质量很好<fd>1",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "10万+"
+   },
+   {
+    "agentInfo": {},
+    "consignPrice": "0.50",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@930671411701^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "50",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "0",
+      "humpLowPart": ".5"
+     }
+    },
+    "gmtCreate": "2025-05-29 14:42:00",
+    "goodRates": "100.0",
+    "handPrice": "0.5",
+    "id": "930671411701",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/930671411701.html?skuId=5816693928938&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN013OJGvh1fsuMp5Znz8_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN013OJGvh1fsuMp5Znz8_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "194498",
+      "192002",
+      "213250",
+      "17474",
+      "17282",
+      "16962",
+      "17410",
+      "17922",
+      "16514",
+      "18114",
+      "18754",
+      "18050",
+      "17538",
+      "16834",
+      "4268290",
+      "288386",
+      "265218",
+      "1939010",
+      "2695618",
+      "4181954",
+      "3997122"
+     ],
+     "tags": "176515,310722,335938,359618,364930,382210,414146,425858,437506,439106,470594,474498,480002,481346,481538,483394,531842,540930,562306,562370,563394,586754,586946,595970,628930,641666,643266,644034,654146,666818,668418,672194,672834,672898,673090,675714,675906,676098,4109313"
+    },
+    "offerPointModelList": [
+     {
+      "pointCode": "offerCltRanking",
+      "pointColor": "#BC8136",
+      "pointText": "本店收藏排行第1名"
+     }
+    ],
+    "offerPrice": "0.50",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false",
+     "offerCltRanking": "1"
+    },
+    "offerTagList": [
+     "194498",
+     "192002",
+     "213250",
+     "17474",
+     "17282",
+     "16962",
+     "17410",
+     "17922",
+     "16514",
+     "18114",
+     "18754",
+     "18050",
+     "17538",
+     "16834",
+     "4268290",
+     "288386",
+     "265218",
+     "1939010",
+     "2695618",
+     "4181954",
+     "3997122"
+    ],
+    "originPrice": "0.5",
+    "originalPrice": "0.5",
+    "priceSegments": [],
+    "quantityBegin": "500",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "false",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "true",
+     "isZeroWholesaleOffer": "true",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "东博瑞欧鲤极尖锋鱼钩驼背钩克兰克宽门歪嘴合金钢反底KRANK HOOK",
+    "supplyOfferId": "0",
+    "tagInfo": "common<fd>有内容<fd>11<rd>common<fd>全部<fd>11<rd>common<fd>好评<fd>11<rd>common<fd>最新<fd>2",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "10万+"
+   },
+   {
+    "agentInfo": {
+     "fahuoTime": "48"
+    },
+    "consignPrice": "0.50",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@887028734094^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "50",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "0",
+      "humpLowPart": ".5"
+     }
+    },
+    "gmtCreate": "2025-02-13 14:00:00",
+    "goodRates": "88.9",
+    "handPrice": "0.5",
+    "id": "887028734094",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/887028734094.html?skuId=5729904784807&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN01ws3jkz1fsuFLu3AkD_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN01ws3jkz1fsuFLu3AkD_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "192002",
+      "194498",
+      "213250",
+      "17474",
+      "17282",
+      "16962",
+      "17410",
+      "17922",
+      "17026",
+      "16514",
+      "18114",
+      "18754",
+      "18050",
+      "21186",
+      "4268290",
+      "288386",
+      "265218",
+      "1939010",
+      "2695682",
+      "2695618",
+      "3571458",
+      "4181954",
+      "3997122"
+     ],
+     "tags": "359618,364930,382210,412482,414146,437506,439106,480002,481346,481538,483394,527682,540930,562242,562370,563394,564162,586754,586946,595970,624578,624706,626370,626882,627074,627138,627202,628930,642818,642882,643266,644034,654146,654274,654530,654594,654850,654914,666818,668418,672898,673090,675906,4109313"
+    },
+    "offerPointModelList": [
+     {
+      "pointCode": "offerCltRanking",
+      "pointColor": "#BC8136",
+      "pointText": "本店收藏排行第2名"
+     }
+    ],
+    "offerPrice": "0.50",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false",
+     "offerCltRanking": "2"
+    },
+    "offerTagList": [
+     "192002",
+     "194498",
+     "213250",
+     "17474",
+     "17282",
+     "16962",
+     "17410",
+     "17922",
+     "17026",
+     "16514",
+     "18114",
+     "18754",
+     "18050",
+     "21186",
+     "4268290",
+     "288386",
+     "265218",
+     "1939010",
+     "2695682",
+     "2695618",
+     "3571458",
+     "4181954",
+     "3997122"
+    ],
+    "originPrice": "0.5",
+    "originalPrice": "0.5",
+    "priceSegments": [],
+    "quantityBegin": "500",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "true",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "false",
+     "isZeroWholesaleOffer": "false",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "东博瑞极尖锋鱼钩欧鲤钓克洛尔KLOR X管付鲤鱼钩罗尼线辫散装鱼钩",
+    "supplyOfferId": "0",
+    "tagInfo": "common<fd>有内容<fd>9<rd>common<fd>全部<fd>9<rd>common<fd>好评<fd>8<rd>common<fd>差评<fd>1",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "9.3万+"
+   },
+   {
+    "agentInfo": {},
+    "consignPrice": "0.10",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@1036073769815^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "10",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "0",
+      "humpLowPart": ".1"
+     }
+    },
+    "gmtCreate": "2026-03-24 10:19:00",
+    "handPrice": "0.1",
+    "id": "1036073769815",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/1036073769815.html?skuId=6051124988622&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN01aFrSAd1fsuLTGUimI_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN01aFrSAd1fsuLTGUimI_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "194498",
+      "192002",
+      "213250",
+      "17282",
+      "16962",
+      "17410",
+      "17474",
+      "17922",
+      "16514",
+      "18114",
+      "18754",
+      "18050",
+      "4268290",
+      "288386",
+      "265218",
+      "2695618",
+      "3997122",
+      "1939010"
+     ],
+     "tags": "359618,364930,414146,437506,439106,470594,480002,481346,481538,483394,522626,562370,572162,586754,589762,619970,628930,654146,666818,668418,675906,676098,4109313"
+    },
+    "offerPointModelList": [],
+    "offerPrice": "0.10",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false"
+    },
+    "offerTagList": [
+     "194498",
+     "192002",
+     "213250",
+     "17282",
+     "16962",
+     "17410",
+     "17474",
+     "17922",
+     "16514",
+     "18114",
+     "18754",
+     "18050",
+     "4268290",
+     "288386",
+     "265218",
+     "2695618",
+     "3997122",
+     "1939010"
+    ],
+    "originPrice": "0.1",
+    "originalPrice": "0.1",
+    "priceSegments": [],
+    "quantityBegin": "200",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "false",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "false",
+     "isZeroWholesaleOffer": "false",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "欧鲤钓配件反吹圆环3.1mm 3.7mm 铁环鲤鱼钓垂钓小配件RIG RING",
+    "supplyOfferId": "0",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "2.6万+"
+   },
+   {
+    "agentInfo": {
+     "fahuoTime": "48"
+    },
+    "consignPrice": "4.50",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@763222944075^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "450",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "4",
+      "humpLowPart": ".5"
+     }
+    },
+    "gmtCreate": "2024-01-17 10:27:00",
+    "goodRates": "100.0",
+    "handPrice": "4.5",
+    "id": "763222944075",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/763222944075.html?skuId=5425003054759&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN01ee6iRB1fsu8NMZa0B_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN01ee6iRB1fsu8NMZa0B_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "192002",
+      "194498",
+      "213250",
+      "17282",
+      "16962",
+      "17410",
+      "17474",
+      "17922",
+      "16514",
+      "18114",
+      "18754",
+      "18050",
+      "4268290",
+      "288386",
+      "265218",
+      "2695682",
+      "2695618",
+      "4181954",
+      "3997122",
+      "1939010"
+     ],
+     "tags": "359618,382146,382210,393474,393666,393794,393986,404098,412482,414146,437506,439106,448834,448898,480002,481346,481538,483394,522626,540930,562242,562370,572162,595970,604546,620354,628930,643266,654146,668418,673090,675714,675906,676098,3767873,3768001,3768385,3768961,3770753,3775489,3778561,3778753,3784321,3791361,3791873,3793921,3801793,3819713,3819969,3820225,3820289,3820993,3822849,3822977,3823041,3823105,3823169,3823425,3824001,3824129,3824257,3824385,3824897,3825025,3825089,3825153,3825345,3825473,3825601,3825793,3832001,3833857,3849921,3872385,3873409,3878657,3953153,3966913,4020801,4056129,4087937,4100737,4109313,4112257,4115713,4147329,4157057"
+    },
+    "offerPointModelList": [],
+    "offerPrice": "4.50",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false"
+    },
+    "offerTagList": [
+     "192002",
+     "194498",
+     "213250",
+     "17282",
+     "16962",
+     "17410",
+     "17474",
+     "17922",
+     "16514",
+     "18114",
+     "18754",
+     "18050",
+     "4268290",
+     "288386",
+     "265218",
+     "2695682",
+     "2695618",
+     "4181954",
+     "3997122",
+     "1939010"
+    ],
+    "originPrice": "4.5",
+    "originalPrice": "4.5",
+    "priceSegments": [],
+    "quantityBegin": "5",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "false",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "false",
+     "isZeroWholesaleOffer": "false",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "15个/盒 欧式反底钓升级款大浮力仿真泡沫玉米钓鱼珠珠浮球饵鲤鱼",
+    "supplyOfferId": "0",
+    "tagInfo": "common<fd>有内容<fd>1<rd>common<fd>全部<fd>1<rd>common<fd>好评<fd>1",
+    "tagShowModelList": [],
+    "unit": "件",
+    "vagueSaleQuantity": "200+"
+   },
+   {
+    "agentInfo": {},
+    "consignPrice": "6.50",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@939571875397^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "650",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "6",
+      "humpLowPart": ".5"
+     }
+    },
+    "gmtCreate": "2025-06-16 13:48:00",
+    "goodRates": "100.0",
+    "handPrice": "6.5",
+    "id": "939571875397",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/939571875397.html?skuId=5838507997316&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN01gD6Z8G1fsuHQMBS0w_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN01gD6Z8G1fsuHQMBS0w_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "194498",
+      "192002",
+      "213250",
+      "17282",
+      "16962",
+      "17410",
+      "17474",
+      "17922",
+      "16514",
+      "18114",
+      "18754",
+      "18050",
+      "4268290",
+      "4592706",
+      "288386",
+      "265218",
+      "2685186",
+      "2695618",
+      "3997122",
+      "1939010"
+     ],
+     "tags": "359618,364930,382210,414146,437506,439106,470594,480002,481346,481538,483394,522562,522754,527682,540930,562370,563394,586946,620354,624578,624706,626242,626882,627074,627138,627202,628930,641666,642818,642882,643266,644034,654146,654274,654530,654594,654850,654914,666818,668418,670338,673090,675650,675714,675906,676098,677698,4109313"
+    },
+    "offerPointModelList": [],
+    "offerPrice": "6.50",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false"
+    },
+    "offerTagList": [
+     "194498",
+     "192002",
+     "213250",
+     "17282",
+     "16962",
+     "17410",
+     "17474",
+     "17922",
+     "16514",
+     "18114",
+     "18754",
+     "18050",
+     "4268290",
+     "4592706",
+     "288386",
+     "265218",
+     "2685186",
+     "2695618",
+     "3997122",
+     "1939010"
+    ],
+    "originPrice": "6.5",
+    "originalPrice": "6.5",
+    "priceSegments": [],
+    "quantityBegin": "20",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "false",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "false",
+     "isZeroWholesaleOffer": "false",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "东博瑞欧鲤极尖锋鱼钩驼背钩克兰克宽门歪嘴合金钢反底KRANK HOOK",
+    "supplyOfferId": "0",
+    "tagInfo": "common<fd>有内容<fd>2<rd>common<fd>好评<fd>2<rd>common<fd>全部<fd>2",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "2800+"
+   },
+   {
+    "agentInfo": {
+     "fahuoTime": "48"
+    },
+    "consignPrice": "1.00",
+    "consignPriceFlag": "false",
+    "discountPrice": "0.0",
+    "dotInfoMap": {
+     "expo_data": "object_id@645812427266^object_type@offer"
+    },
+    "expired": "false",
+    "finalPriceVo": {
+     "color": "#ff2900",
+     "fontSize": "24px",
+     "priceMoney": "100",
+     "priceUnit": "¥",
+     "priceView": {
+      "humpHighPart": "1",
+      "humpLowPart": ".0"
+     }
+    },
+    "gmtCreate": "2021-05-22 10:11:00",
+    "handPrice": "1.0",
+    "id": "645812427266",
+    "invalidAldPrice": "false",
+    "noOnlineTransaction": "false",
+    "offerDetailUrl": "https://m.1688.com/offer/645812427266.html?skuId=4759873749025&",
+    "offerImages": [
+     {
+      "imageURI": "img/ibank/O1CN01TTPlCI1fstv44y6GE_!!2211117144063-0-cib.jpg",
+      "size310x310ImageURI": "img/ibank/O1CN01TTPlCI1fstv44y6GE_!!2211117144063-0-cib.310x310.jpg"
+     }
+    ],
+    "offerModel": {
+     "icTags": [
+      "192002",
+      "194498",
+      "213250",
+      "17282",
+      "17474",
+      "17538",
+      "17410",
+      "17026",
+      "16834",
+      "16514",
+      "18754",
+      "16962",
+      "17922",
+      "18114",
+      "18050",
+      "4268290",
+      "4592706",
+      "288386",
+      "265218",
+      "1939010",
+      "2695682",
+      "2695618",
+      "3267586",
+      "3997122"
+     ],
+     "tags": "176515,310722,335938,359618,364930,401090,401474,412482,414146,425858,437506,439106,448834,480002,481346,481538,483394,522626,531842,540930,562242,562306,562370,564610,572162,576067,586754,586946,590786,595970,598402,604546,628930,643266,654146,666818,668418,670338,672898,673090,675714,675906,676098,3825345,4001345,4109313"
+    },
+    "offerPointModelList": [],
+    "offerPrice": "1.00",
+    "offerPriceType": "NORMAL",
+    "offerSellPoint": {
+     "show": "false"
+    },
+    "offerTagList": [
+     "192002",
+     "194498",
+     "213250",
+     "17282",
+     "17474",
+     "17538",
+     "17410",
+     "17026",
+     "16834",
+     "16514",
+     "18754",
+     "16962",
+     "17922",
+     "18114",
+     "18050",
+     "4268290",
+     "4592706",
+     "288386",
+     "265218",
+     "1939010",
+     "2695682",
+     "2695618",
+     "3267586",
+     "3997122"
+    ],
+    "originPrice": "1.0",
+    "originalPrice": "1.0",
+    "priceSegments": [],
+    "quantityBegin": "50",
+    "saleQuantity": "0",
+    "specialSign": {
+     "isAegisTrade": "true",
+     "isAlipaySupport": "true",
+     "isGroupOffer": "false",
+     "isHasImage": "true",
+     "isMixWholeSale": "true",
+     "isPictureAuthOffer": "false",
+     "isPriceAuthOffer": "false",
+     "isProcessingOffer": "false",
+     "isSpecialSupply": "false",
+     "isVIPMall": "false",
+     "isWholesaleOffer": "true",
+     "isZeroWholesaleOffer": "true",
+     "picAuthType": "0",
+     "priceAuthType": "0"
+    },
+    "status": "published",
+    "subject": "欧式钓法鲤鱼钓硅胶管鱼钩套管鱼线套管橡胶管钓鱼配fishing",
+    "supplyOfferId": "0",
+    "tagShowModelList": [],
+    "unit": "个",
+    "vagueSaleQuantity": "1.9万+"
+   }
+  ],
+  "selfLogin": "false",
+  "totalCount": "711"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "213e07c617872192145113741e11b4",
+ "v": "1.0"
+}

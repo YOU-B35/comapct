@@ -1,0 +1,159 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "data": {
+    "adviseList": [
+     {
+      "colorTag": "gray",
+      "name": "商家代发热度",
+      "value": "195",
+      "key": "dfPoint"
+     },
+     {
+      "colorTag": "gray",
+      "name": "近30天代发数量",
+      "value": "100以内",
+      "key": "orderCnt30d"
+     },
+     {
+      "colorTag": "gray",
+      "name": "近7天代发数量",
+      "value": "100以内",
+      "key": "orderCnt7d"
+     },
+     {
+      "colorTag": "gray",
+      "name": "铺货分销商数",
+      "value": "100以内",
+      "key": "distributorCnt"
+     },
+     {
+      "colorTag": "gray",
+      "name": "代发品质达标率",
+      "value": "100.00%",
+      "key": "ptRate"
+     },
+     {
+      "colorTag": "gray",
+      "name": "代发买家留货率",
+      "value": "100.00%",
+      "key": "returnRate"
+     },
+     {
+      "colorTag": "gray",
+      "name": "商品发布时间",
+      "value": "2025年5月",
+      "key": "offerPublishDate"
+     }
+    ],
+    "downstreamPerformance": {
+     "highExperienceScoreList": [],
+     "highPerfectLgtRateList": []
+    },
+    "hasAiMaterials": false,
+    "name": "分销代发",
+    "operateButtonList": [
+     {
+      "backgroundColor": "",
+      "buttonType": "normal",
+      "disType": "TEXT",
+      "imgUrl": "",
+      "name": "立即铺货",
+      "operateDisplayStatus": "ONE_CONSIGN",
+      "operateType": "CONSIGN_DF"
+     },
+     {
+      "backgroundColor": "",
+      "buttonType": "normal",
+      "disType": "TEXT",
+      "imgUrl": "",
+      "name": "加铺货单",
+      "operateDisplayStatus": "CONSIGN_DF",
+      "operateType": "ADD_CONSIGN"
+     },
+     {
+      "backgroundColor": "",
+      "buttonType": "normal",
+      "disType": "TEXT",
+      "imgUrl": "",
+      "name": "代发下单",
+      "operateDisplayStatus": "DX_ORDER",
+      "operateType": "DX_ORDER"
+     }
+    ],
+    "priceInfoList": [
+     {
+      "price": "0.5",
+      "text": "≥500件"
+     }
+    ],
+    "protectionInfoList": [
+     {
+      "actions": [
+       {
+        "appUrl": "https://air.1688.com/app/ctf-m-page/official-logistics/wireless-work-cloud.html?fromType=fenxiaodaifaod",
+        "jumpPc": "false",
+        "text": "去开通",
+        "url": "https://air.1688.com/app/ctf-m-page/official-logistics/menu-cloud.html?fromType=fenxiaodaifaod"
+       }
+      ],
+      "description": "通过官方退货仓将全网售后包裹转寄1688商家，提升售后效率，降低快递成本，开通服务即可使用。",
+      "serviceName": "官方仓退货"
+     }
+    ],
+    "showAdviseList": [
+     {
+      "colorTag": "gray",
+      "name": "商家代发热度",
+      "value": "195",
+      "key": "dfPoint"
+     },
+     {
+      "colorTag": "gray",
+      "name": "近30天代发数量",
+      "value": "100以内",
+      "key": "orderCnt30d"
+     },
+     {
+      "colorTag": "gray",
+      "name": "近7天代发数量",
+      "value": "100以内",
+      "key": "orderCnt7d"
+     },
+     {
+      "colorTag": "gray",
+      "name": "铺货分销商数",
+      "value": "100以内",
+      "key": "distributorCnt"
+     },
+     {
+      "colorTag": "gray",
+      "name": "代发品质达标率",
+      "value": "100.00%",
+      "key": "ptRate"
+     },
+     {
+      "colorTag": "gray",
+      "name": "代发买家留货率",
+      "value": "100.00%",
+      "key": "returnRate"
+     },
+     {
+      "colorTag": "gray",
+      "name": "商品发布时间",
+      "value": "2025年5月",
+      "key": "offerPublishDate"
+     }
+    ]
+   },
+   "success": true
+  },
+  "resultCode": "ok"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192245002323e0f20",
+ "v": "1.0"
+}

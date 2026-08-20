@@ -1,0 +1,35 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "offerDecisionAttrs": [
+    {
+     "property": "产品类别",
+     "value": "大物钩"
+    },
+    {
+     "property": "品牌",
+     "value": "东博瑞"
+    },
+    {
+     "property": "鱼钩号码",
+     "value": "1号 2号 4号 6号 8号"
+    },
+    {
+     "property": "钓钩种类",
+     "value": "有倒刺钩"
+    },
+    {
+     "property": "是否有倒刺",
+     "value": "是"
+    }
+   ]
+  },
+  "success": true
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192245002324e0f20",
+ "v": "1.0"
+}

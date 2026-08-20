@@ -1,0 +1,121 @@
+{
+ "api": "mtop.1688.mmga.offerdetail.service",
+ "data": {
+  "data": {
+   "result": {
+    "majorRecommendOfferInfos": [
+     {
+      "saleAmount": 4205,
+      "publishTime": 1621998037000,
+      "cornerIcon": "",
+      "promotionBenefitInfos": [],
+      "bestOffer": false,
+      "bigPromotion": false,
+      "title": "pop ups bait欧鲤钓反底钓鱼珠珠上浮型球饵丸型饵鲤鱼饵饵料",
+      "unit": "个",
+      "price": 4.2,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01h9XkMv1fstvukb98I_!!2211117144063-0-cib.jpg",
+      "offerId": 646247167434,
+      "publishWithin7days": false
+     },
+     {
+      "saleAmount": 979210,
+      "publishTime": 1621581650000,
+      "cornerIcon": "",
+      "promotionBenefitInfos": [],
+      "bestOffer": false,
+      "bigPromotion": false,
+      "title": "欧式鲤鱼钓组鱼钩挡珠罗尼钓法钩尖挡豆反底钓鱼配件抛竿跨境批发",
+      "unit": "个",
+      "price": 0.07,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01f8wsEd1fsu7yBuoKq_!!2211117144063-0-cib.jpg",
+      "offerId": 645748831372,
+      "publishWithin7days": false
+     },
+     {
+      "saleAmount": 198601,
+      "publishTime": 1621320458000,
+      "cornerIcon": "",
+      "promotionBenefitInfos": [],
+      "bestOffer": false,
+      "bigPromotion": false,
+      "title": "QC转环罗尼钓组欧式库钓欧式鲤钓珠珠大物线组carp fishing",
+      "unit": "个",
+      "price": 0.26,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01eUg2ok1fstv3WYrpB_!!2211117144063-0-cib.jpg",
+      "offerId": 644759189473,
+      "publishWithin7days": false
+     },
+     {
+      "saleAmount": 1020681,
+      "publishTime": 1621321945000,
+      "cornerIcon": "",
+      "promotionBenefitInfos": [],
+      "bestOffer": false,
+      "bigPromotion": false,
+      "title": "罗尼钓组配件热缩管库钓工具珠珠钓热缩束线管欧钓渔具欧鲤钓",
+      "unit": "个",
+      "price": 0.05,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01au5pV41fstvJ27jNW_!!2211117144063-0-cib.jpg",
+      "offerId": 644763165126,
+      "publishWithin7days": false
+     },
+     {
+      "saleAmount": 20,
+      "publishTime": 1622426622000,
+      "cornerIcon": "",
+      "promotionBenefitInfos": [],
+      "bestOffer": false,
+      "bigPromotion": false,
+      "title": "跨境档棒档风夹/欧式鲤鱼钓配件挡风棒 铝合金材质渔具小配件",
+      "unit": "个",
+      "price": 12.9,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01MrCzaL1fsttm9CeGO_!!2211117144063-0-cib.jpg",
+      "offerId": 646373990469,
+      "publishWithin7days": false
+     },
+     {
+      "saleAmount": 40458,
+      "publishTime": 1621836551000,
+      "cornerIcon": "",
+      "promotionBenefitInfos": [],
+      "bestOffer": false,
+      "bigPromotion": false,
+      "title": "20米 欧鲤钓库钓 欧钓编织线 绑制线组线渔具配件CARP FISHING",
+      "unit": "个",
+      "price": 6.0,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01Lrfxke1fsttcvEz41_!!2211117144063-0-cib.jpg",
+      "offerId": 646017203022,
+      "publishWithin7days": false
+     },
+     {
+      "saleAmount": 8295,
+      "publishTime": 1622009983000,
+      "cornerIcon": "",
+      "promotionBenefitInfos": [],
+      "bestOffer": false,
+      "bigPromotion": false,
+      "title": "跨境批发饵笼带配重飞德钓组饵托中通附饵铅坠Feeder Cage",
+      "unit": "个",
+      "price": 3.7,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01WfEFfF1fsttYgsMO2_!!2211117144063-0-cib.jpg",
+      "offerId": 645562617701,
+      "publishWithin7days": false
+     }
+    ],
+    "relationRecommendOfferInfos": [],
+    "shopSimilarRecommendOfferInfos": []
+   },
+   "success": true,
+   "resultCode": "0",
+   "class": "com.alibaba.china.offer.detail.shared.mobile.model.OfferDetailMobileModel",
+   "msgCode": "0"
+  },
+  "resultCode": "ok"
+ },
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "215041ea17872192256232417e0f20",
+ "v": "1.0"
+}

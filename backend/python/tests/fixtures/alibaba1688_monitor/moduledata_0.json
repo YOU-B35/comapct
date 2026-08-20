@@ -1,0 +1,9 @@
+{
+ "api": "mtop.alisite.cbu.winport.sync.moduledata.get",
+ "data": {},
+ "ret": [
+  "SUCCESS::调用成功"
+ ],
+ "traceId": "213e07c617872192144103735e11b4",
+ "v": "1.0"
+}
