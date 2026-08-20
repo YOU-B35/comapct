@@ -22,7 +22,7 @@ from app.config import (
 
 def _ae_launch_kwargs(headless: bool) -> dict:
     """AliExpress 登录页对 Playwright 指纹更敏感，单独收紧启动参数。"""
-    from app.browser.context import _system_chrome_path
+    from app.browser.context import _bundled_chromium_ready, _system_chrome_path
     from app.config import BROWSER_CHANNEL
 
     args: list[str] = []
@@ -43,15 +43,16 @@ def _ae_launch_kwargs(headless: bool) -> dict:
         "timezone_id": "Asia/Shanghai",
     }
     frozen = bool(getattr(sys, "frozen", False))
-    chrome = _system_chrome_path()
-    if frozen and chrome:
-        kwargs["executable_path"] = chrome
-    elif not headless and BROWSER_CHANNEL:
+    # 默认使用 Playwright 内置 Chromium；显式设置 TEMU_BROWSER_CHANNEL 时用系统浏览器；
+    # 冻结态且内置浏览器缺失时回退本机 Chrome/Edge。
+    if BROWSER_CHANNEL:
         kwargs["channel"] = BROWSER_CHANNEL
-    elif chrome:
-        kwargs["executable_path"] = chrome
-    elif BROWSER_CHANNEL:
-        kwargs["channel"] = BROWSER_CHANNEL
+    elif frozen and not _bundled_chromium_ready():
+        chrome = _system_chrome_path()
+        if chrome:
+            kwargs["executable_path"] = chrome
+        else:
+            kwargs["channel"] = "chrome"
 
     if headless:
         kwargs["args"].append("--headless=new")

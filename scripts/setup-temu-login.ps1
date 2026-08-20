@@ -10,7 +10,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location (Join-Path $Root "backend\python")
 
 Write-Host "==> Temu 登录配置（租户 $TenantId）" -ForegroundColor Cyan
-Write-Host "将打开 Chrome，请完成 Temu 卖家后台登录，并在浏览器里选好店铺。" -ForegroundColor Yellow
+Write-Host "将打开浏览器，请完成 Temu 卖家后台登录，并在浏览器里选好店铺。" -ForegroundColor Yellow
 Write-Host "完成后回到终端按 Enter。" -ForegroundColor Yellow
 Write-Host ""
 

@@ -140,10 +140,11 @@ def _run_in_clean_thread(fn, *, timeout: float | None = None):
 
 
 def _douyin_launch_kwargs(*, headless: bool) -> dict[str, Any]:
-    """Prefer system Chrome/Edge — packaged Helper does not ship Playwright browsers."""
+    """默认 Playwright 内置 Chromium；冻结态无内置浏览器时回退系统 Chrome/Edge。"""
     import sys
 
-    from app.browser.context import _system_chrome_path
+    from app.browser.context import _bundled_chromium_ready, _system_chrome_path
+    from app.config import BROWSER_CHANNEL
 
     kwargs: dict[str, Any] = {
         "headless": headless,
@@ -161,13 +162,16 @@ def _douyin_launch_kwargs(*, headless: bool) -> dict[str, Any]:
             f"--homepage={DOUYIN_SELLER_HOME}",
         ],
     }
-    chrome = _system_chrome_path()
     frozen = bool(getattr(sys, "frozen", False))
-    if chrome:
-        kwargs["executable_path"] = chrome
-    elif frozen:
-        # Last resort for frozen builds without detectable Chrome path.
-        kwargs["channel"] = "chrome"
+    if BROWSER_CHANNEL:
+        kwargs["channel"] = BROWSER_CHANNEL
+    elif frozen and not _bundled_chromium_ready():
+        chrome = _system_chrome_path()
+        if chrome:
+            kwargs["executable_path"] = chrome
+        else:
+            # Last resort for frozen builds without detectable Chrome path.
+            kwargs["channel"] = "chrome"
     return kwargs
 
 

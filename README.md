@@ -182,7 +182,7 @@ VITE_USE_TEMU_BACKEND=true
 ```powershell
 cd backend\python
 py -m pip install -r requirements.txt
-py -m playwright install chrome
+py -m playwright install chromium
 copy .env.example .env
 ```
 

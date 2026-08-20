@@ -113,7 +113,7 @@ def is_headless() -> bool:
 
 
 HEADLESS = is_headless()
-BROWSER_CHANNEL = os.getenv("TEMU_BROWSER_CHANNEL", "chrome").strip() or None
+BROWSER_CHANNEL = os.getenv("TEMU_BROWSER_CHANNEL", "").strip() or None
 
 MIN_ACTION_DELAY_MS = int(os.getenv("TEMU_MIN_DELAY_MS", "800"))
 MAX_ACTION_DELAY_MS = int(os.getenv("TEMU_MAX_DELAY_MS", "2200"))

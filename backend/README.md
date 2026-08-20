@@ -35,7 +35,7 @@ JDK 与 Maven 会安装到 `tools/jdk-17`、`tools/maven`（便携，不改系�
 ```powershell
 cd backend/python
 py -m pip install -r requirements.txt
-py -m playwright install chrome
+py -m playwright install chromium
 ```
 
 复制配置：`copy .env.example .env`
@@ -46,7 +46,7 @@ py -m playwright install chrome
 py login.py
 ```
 
-- 默认 **有头模式** + **本机 Chrome**（`TEMU_BROWSER_CHANNEL=chrome`）
+- 默认 **有头模式** + **Playwright 内置 Chromium**（无需本机浏览器；`TEMU_BROWSER_CHANNEL=chrome` 可切回系统 Chrome）
 ```powershell
 py login.py --tenant-id 1
 ```

@@ -85,6 +85,39 @@ def _system_chrome_path() -> str | None:
     return None
 
 
+def _bundled_chromium_ready() -> bool:
+    """检测 Playwright 内置 Chromium 是否已安装（脚本/冻结 exe 均适用）。"""
+    try:
+        import playwright
+
+        package_dir = Path(playwright.__file__).resolve().parent / "driver" / "package"
+        manifest = package_dir / "browsers.json"
+        if not manifest.is_file():
+            return False
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        chromium = next(
+            (b for b in data.get("browsers", []) if b.get("name") == "chromium"),
+            None,
+        )
+        revision = str((chromium or {}).get("revision") or "")
+        if not revision:
+            return False
+        override = (os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or "").strip()
+        if override:
+            root = Path(override)
+        elif sys.platform.startswith("win"):
+            root = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ms-playwright"
+        elif sys.platform == "darwin":
+            root = Path.home() / "Library" / "Caches" / "ms-playwright"
+        else:
+            root = Path.home() / ".cache" / "ms-playwright"
+        return any(
+            (root / f"{name}-{revision}").is_dir()
+            for name in ("chromium", "chromium_headless_shell")
+        )
+    except Exception:
+        return False
+
 def _launch_kwargs(headless: bool) -> dict:
     kwargs: dict = {
         "headless": headless,
@@ -99,14 +132,17 @@ def _launch_kwargs(headless: bool) -> dict:
         ),
     }
     frozen = bool(getattr(sys, "frozen", False))
-    chrome = _system_chrome_path()
-    # 冻结态必须绑本机浏览器，禁止落到 Playwright 自带 chromium_headless_shell
-    if frozen and chrome:
-        kwargs["executable_path"] = chrome
-    elif BROWSER_CHANNEL:
+    # 默认使用 Playwright 内置 Chromium，不依赖本机浏览器。
+    # 显式设置 TEMU_BROWSER_CHANNEL（如 chrome/msedge）时改用系统浏览器；
+    # 打包 exe 且内置浏览器缺失时回退本机 Chrome/Edge。
+    if BROWSER_CHANNEL:
         kwargs["channel"] = BROWSER_CHANNEL
-    elif chrome:
-        kwargs["executable_path"] = chrome
+    elif frozen and not _bundled_chromium_ready():
+        chrome = _system_chrome_path()
+        if chrome:
+            kwargs["executable_path"] = chrome
+        else:
+            kwargs["channel"] = "chrome"
 
     if headless:
         kwargs["args"].append("--headless=new")

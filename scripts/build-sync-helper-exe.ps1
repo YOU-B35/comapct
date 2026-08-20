@@ -107,7 +107,7 @@ CrossHub Sync Helper（用户本机）
 - 先确保本机助手已启动（SETUP.cmd 或 exe）。
 - 网站可点「连接助手」自动拉起（需完成过首次 SETUP）。
 - java_api_url 默认 https://www.yoto.work（一般无需修改）。
-- 需要本机已安装 Google Chrome。
+- 默认使用 Playwright 内置 Chromium（本机执行过一次 py -m playwright install chromium 即可）；未安装时自动回退本机 Google Chrome/Edge。
 
 协议手动注册（若 SETUP 失败）：
   powershell -ExecutionPolicy Bypass -File .\register-protocol.ps1 -ExePath .\CrossHub-Sync-Helper.exe
