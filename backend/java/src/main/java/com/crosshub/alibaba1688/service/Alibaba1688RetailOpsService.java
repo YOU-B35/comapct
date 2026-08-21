@@ -28,10 +28,16 @@ public class Alibaba1688RetailOpsService {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final Alibaba1688StoreKeyResolver storeKeyResolver;
 
-    public Alibaba1688RetailOpsService(JdbcTemplate jdbc, ObjectMapper objectMapper) {
+    public Alibaba1688RetailOpsService(
+            JdbcTemplate jdbc,
+            ObjectMapper objectMapper,
+            Alibaba1688StoreKeyResolver storeKeyResolver
+    ) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.storeKeyResolver = storeKeyResolver;
     }
 
     @Transactional
@@ -44,8 +50,9 @@ public class Alibaba1688RetailOpsService {
         }
         String storeId = text(body.get("store_id"));
         if (storeId.isBlank()) {
-            storeId = "default";
+            storeId = defaultStoreId(tenantId);
         }
+        syncActualStoreIdentity(tenantId, storeId, listOf(body.get("orders")));
         String syncId = text(body.get("sync_id"));
         String now = now();
 
@@ -802,6 +809,58 @@ public class Alibaba1688RetailOpsService {
     private static String normalizeStore(String storeIdOrNull) {
         String storeId = text(storeIdOrNull);
         return storeId.isBlank() ? "" : storeId;
+    }
+
+    private String defaultStoreId(Long tenantId) {
+        if (tenantId == null || tenantId <= 0) {
+            return "default";
+        }
+        try {
+            String resolved = storeKeyResolver.resolveDefaultAccountId(tenantId);
+            return resolved == null || resolved.isBlank() ? "default" : resolved;
+        } catch (Exception ex) {
+            return "default";
+        }
+    }
+
+    /** 以订单数据中的真实卖家信息为准，回写平台账号的店铺名与会员ID（用户绑定错误时自动纠正展示）。 */
+    private void syncActualStoreIdentity(Long tenantId, String storeId, List<Map<?, ?>> rawOrders) {
+        if (tenantId == null || storeId == null || storeId.isBlank() || rawOrders == null) {
+            return;
+        }
+        String actualName = "";
+        String actualMemberId = "";
+        for (Map<?, ?> entry : rawOrders) {
+            Object orderObj = entry.get("order");
+            if (!(orderObj instanceof Map<?, ?> order)) {
+                continue;
+            }
+            Object name = order.get("seller_name");
+            Object memberId = order.get("seller_id");
+            if (actualName.isBlank() && name != null && !String.valueOf(name).isBlank()) {
+                actualName = String.valueOf(name).trim();
+            }
+            if (actualMemberId.isBlank() && memberId != null && !String.valueOf(memberId).isBlank()) {
+                actualMemberId = String.valueOf(memberId).trim();
+            }
+            if (!actualName.isBlank() && !actualMemberId.isBlank()) {
+                break;
+            }
+        }
+        if (actualName.isBlank() && actualMemberId.isBlank()) {
+            return;
+        }
+        jdbc.update(
+                """
+                UPDATE platform_account
+                SET store_name = CASE WHEN ? = '' THEN store_name ELSE ? END,
+                    external_shop_id = CASE WHEN ? = '' THEN external_shop_id ELSE ? END
+                WHERE id = ? AND tenant_id = ? AND platform = '1688'
+                """,
+                actualName, actualName,
+                actualMemberId, actualMemberId,
+                storeId, tenantId
+        );
     }
 
     private static String day(String dateTime) {

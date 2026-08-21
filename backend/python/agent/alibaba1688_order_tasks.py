@@ -119,6 +119,12 @@ def normalize_order(raw: dict[str, Any]) -> dict[str, Any]:
     """Return {'order': {...}, 'items': [...]} for one platform order."""
     status_raw = _text(raw.get("status"))
     status = TRADE_STATUS_MAP.get(status_raw, status_raw)
+    seller = raw.get("sellerInfo") or {}
+    seller_name = ""
+    seller_id = ""
+    if isinstance(seller, dict):
+        seller_name = _text(seller.get("companyName"))
+        seller_id = _text(seller.get("userId"))
     return {
         "order": {
             "order_no": _text(raw.get("idStr") or raw.get("id")),
@@ -128,6 +134,8 @@ def normalize_order(raw: dict[str, Any]) -> dict[str, Any]:
             "created_platform_at": _text(raw.get("gmtCreate")),
             "updated_platform_at": _text(raw.get("gmtCreate")),
             "buyer_masked": _masked_buyer(raw),
+            "seller_name": seller_name,
+            "seller_id": seller_id,
         },
         "items": [normalize_item(entry) for entry in (raw.get("orderEntries") or []) if isinstance(entry, dict)],
     }
