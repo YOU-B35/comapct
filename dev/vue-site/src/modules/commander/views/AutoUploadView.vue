@@ -88,6 +88,10 @@ const PLATFORM_TEMPLATES = {
     url: `${import.meta.env.BASE_URL}templates/douyin-publish-template.xlsx`,
     filename: '抖店Excel上货模板.xlsx',
   },
+  1688: {
+    url: `${import.meta.env.BASE_URL}templates/1688-publish-template.xlsx`,
+    filename: '1688Excel上货模板.xlsx',
+  },
 }
 
 const canDownloadTemplate = computed(() => Boolean(PLATFORM_TEMPLATES[store.selectedPlatform]))
@@ -107,6 +111,9 @@ function downloadTemplate() {
 const uploadHint = computed(() => {
   if (store.selectedPlatform === 'douyin') {
     return '请按抖店 Excel 上货模板填写后上传；可点右上角「下载模板」获取空白表，并确保抖店 Agent 处于开启状态。'
+  }
+  if (store.selectedPlatform === '1688') {
+    return '请按 1688 Excel 上货模板填写后上传；可点右上角「下载模板」获取空白表，并确保 1688 Agent 处于开启状态。'
   }
   if (store.selectedPlatform === 'temu') {
     return '请按 Temu 批量上货表单填写后上传；可点右上角「下载模板」获取空白表。'

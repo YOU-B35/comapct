@@ -23,6 +23,7 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
     { value: 'ozon', label: 'Ozon' },
     // Commander 抖店/抖音 Excel 上货平台 id 为 douyin（与线上 /douyin-auto-upload 一致）
     { value: 'douyin', label: '抖店' },
+    { value: '1688', label: '1688' },
   ]
 
   const shopList = ref([])
@@ -161,10 +162,15 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
     statusMessage.value = null
     try {
       const platform = selectedPlatform.value || 'temu'
-      if (platform === 'temu' || platform === 'douyin') {
+      if (platform === 'temu' || platform === 'douyin' || platform === '1688') {
         statusMessage.value = {
           type: 'info',
-          text: platform === 'douyin' ? '正在预检抖店登录与店铺…' : '正在预检…',
+          text:
+            platform === 'douyin'
+              ? '正在预检抖店登录与店铺…'
+              : platform === '1688'
+                ? '正在预检1688登录与店铺…'
+                : '正在预检…',
         }
         await productIssuePrecheck(agentId, shopId.value, platform)
       }
