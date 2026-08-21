@@ -70,17 +70,19 @@ public class MonitorTaskScheduler {
                         """,
                         jobId, tenantId, targetId, scheduleId, platform, now
                 );
-                Map<String, Object> result = enqueuer.enqueue(tenantId, targetId, jobId);
-                if (!Boolean.TRUE.equals(result.get("queued"))) {
-                    jdbc.update(
-                            """
-                            UPDATE monitor_job
-                            SET status = 'failed', finished_at = ?, error_code = 'A1688_AGENT_OFFLINE',
-                                error_message = ?
-                            WHERE id = ? AND status = 'pending'
-                            """,
-                            now(), String.valueOf(result.get("message")), jobId
-                    );
+                if ("1688".equalsIgnoreCase(platform)) {
+                    Map<String, Object> result = enqueuer.enqueue(tenantId, targetId, jobId);
+                    if (!Boolean.TRUE.equals(result.get("queued"))) {
+                        jdbc.update(
+                                """
+                                UPDATE monitor_job
+                                SET status = 'failed', finished_at = ?, error_code = 'A1688_AGENT_OFFLINE',
+                                    error_message = ?
+                                WHERE id = ? AND status = 'pending'
+                                """,
+                                now(), String.valueOf(result.get("message")), jobId
+                        );
+                    }
                 }
                 advanceNextRun(scheduleId, now, intervalMinutes);
             } catch (Exception ex) {

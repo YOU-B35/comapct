@@ -238,12 +238,14 @@ public class MonitorServiceImpl implements MonitorService {
                 userId,
                 reason
         );
-        Map<String, Object> enqueued = monitorAgentTaskEnqueuer.enqueue(tenantId, targetId, jobId);
-        if (!Boolean.TRUE.equals(enqueued.get("queued"))) {
-            throw new ResponseStatusException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    AppErrorCode.A1688_AGENT_OFFLINE.getUserMessage()
-            );
+        if ("1688".equalsIgnoreCase(String.valueOf(target.get("platform")))) {
+            Map<String, Object> enqueued = monitorAgentTaskEnqueuer.enqueue(tenantId, targetId, jobId);
+            if (!Boolean.TRUE.equals(enqueued.get("queued"))) {
+                throw new ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        AppErrorCode.A1688_AGENT_OFFLINE.getUserMessage()
+                );
+            }
         }
         return toJobDto(Map.of("id", jobId, "status", "pending"));
     }

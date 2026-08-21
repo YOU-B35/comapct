@@ -227,7 +227,7 @@ async function main() {
     `  set -a`,
     `  . ${REMOTE_ROOT}/.monitor-smoke.env`,
     `  set +a`,
-    `  docker run --rm --network host -v ${REMOTE_ROOT}/scripts:/scripts:ro -v ${REMOTE_ROOT}/evidence:${REMOTE_ROOT}/evidence node:20-alpine node /scripts/monitor-api-smoke.js --base-url http://127.0.0.1:18080 --evidence-root ${REMOTE_ROOT}/evidence --db-path ${REMOTE_ROOT}/data/crosshub.db --no-local-worker --timeout-ms 60000`,
+    `  docker run --rm --network host -e CROSSHUB_MONITOR_LOGIN_ACCOUNT -e CROSSHUB_MONITOR_LOGIN_PASSWORD -e CROSSHUB_MONITOR_PORTAL_ROLE -e CROSSHUB_MONITOR_SMOKE_TIMEOUT_MS -v ${REMOTE_ROOT}/scripts:/scripts:ro -v ${REMOTE_ROOT}/evidence:${REMOTE_ROOT}/evidence node:20-alpine node /scripts/monitor-api-smoke.js --base-url http://127.0.0.1:18080 --evidence-root ${REMOTE_ROOT}/evidence --db-path ${REMOTE_ROOT}/data/crosshub.db --no-local-worker --timeout-ms 60000`,
     `else`,
     `  echo 'skip_remote_monitor_api_smoke=missing_env_file'`,
     `fi`,

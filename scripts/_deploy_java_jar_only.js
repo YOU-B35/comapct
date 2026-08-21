@@ -4,15 +4,24 @@ const { Client } = require('ssh2')
 const fs = require('fs')
 
 const host = process.env.CROSSHUB_SSH_HOST || '124.223.27.98'
-const password = process.env.CROSSHUB_SSH_PASSWORD
-if (!password) {
-  console.error('CROSSHUB_SSH_PASSWORD required')
+const password = process.env.CROSSHUB_SSH_PASSWORD || ''
+const keyPath = process.env.CROSSHUB_SSH_KEY || ''
+if (!password && !keyPath) {
+  console.error('CROSSHUB_SSH_PASSWORD or CROSSHUB_SSH_KEY required')
   process.exit(1)
 }
 
 const local = path.join(__dirname, '..', 'backend', 'java', 'target', 'temu-api-0.1.0.jar')
 const remoteRoot = '/data/crosshub'
 const conn = new Client()
+const ssh = {
+  host,
+  port: Number(process.env.CROSSHUB_SSH_PORT || 22),
+  username: process.env.CROSSHUB_SSH_USER || 'root',
+  readyTimeout: 120000,
+};
+if (password) ssh.password = password;
+if (keyPath) ssh.privateKey = fs.readFileSync(keyPath);
 
 conn
   .on('ready', () => {
@@ -56,9 +65,4 @@ conn
     console.error(e.message || e)
     process.exit(1)
   })
-  .connect({
-    host,
-    port: Number(process.env.CROSSHUB_SSH_PORT || 22),
-    username: process.env.CROSSHUB_SSH_USER || 'root',
-    password,
-  })
+  .connect(ssh)
