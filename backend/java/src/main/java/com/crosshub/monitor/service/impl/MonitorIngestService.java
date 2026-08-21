@@ -25,6 +25,8 @@ import java.util.UUID;
 public class MonitorIngestService {
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final long SUSPICIOUS_DELTA_CAP = 200000L;
+    private static final int MAX_PRODUCTS = 200;
+    private static final int MAX_RAW_JSON_LENGTH = 4000;
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
@@ -56,6 +58,24 @@ public class MonitorIngestService {
             snapshotAt = now();
         }
         List<Map<String, Object>> products = parseList(body.get("products"));
+        if (products.size() > MAX_PRODUCTS) {
+            products = products.subList(0, MAX_PRODUCTS);
+        }
+        if (!jobId.isBlank()) {
+            String existingSnapshot = jdbc.query(
+                    "SELECT snapshot_id FROM monitor_job WHERE id = ? AND tenant_id = ? LIMIT 1",
+                    rs -> rs.next() ? rs.getString(1) : "",
+                    jobId, tenantId
+            );
+            if (existingSnapshot != null && !existingSnapshot.isBlank()) {
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("snapshot_id", existingSnapshot);
+                out.put("product_count", 0);
+                out.put("signal_count", 0);
+                out.put("skipped_duplicate", true);
+                return out;
+            }
+        }
 
         Map<String, Prior> prior = loadPrior(tenantId, targetId);
         String snapshotId = "ms_" + UUID.randomUUID().toString().replace("-", "");
@@ -154,7 +174,7 @@ public class MonitorIngestService {
                     text(p, "status", ""),
                     intVal(p.get("expired")),
                     suspicious,
-                    text(p, "raw_json", ""),
+                    truncate(text(p, "raw_json", "")),
                     createdAt
             );
             inserted++;
@@ -269,6 +289,13 @@ public class MonitorIngestService {
         } catch (Exception ex) {
             return "{}";
         }
+    }
+
+    private String truncate(String value) {
+        if (value == null || value.length() <= MAX_RAW_JSON_LENGTH) {
+            return value == null ? "" : value;
+        }
+        return value.substring(0, MAX_RAW_JSON_LENGTH);
     }
 
     private String text(Map<String, Object> map, String key, String fallback) {
