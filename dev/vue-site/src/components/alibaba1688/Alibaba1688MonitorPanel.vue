@@ -339,6 +339,7 @@ defineExpose({ loadTargets })
                     v-if="thumbSrc(row)"
                     :src="thumbSrc(row)"
                     fit="cover"
+                    referrerpolicy="no-referrer"
                     style="width: 36px; height: 36px; vertical-align: middle"
                   />
                   <span

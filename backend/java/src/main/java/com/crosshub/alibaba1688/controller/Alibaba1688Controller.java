@@ -57,8 +57,12 @@ public class Alibaba1688Controller {
     }
 
     @GetMapping("/session")
-    public Map<String, Object> session() {
-        return ApiResult.ok(sessionService.session());
+    public Map<String, Object> session(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
+        String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+        return ApiResult.ok(sessionService.session(sid));
     }
 
     @PostMapping("/login/open")

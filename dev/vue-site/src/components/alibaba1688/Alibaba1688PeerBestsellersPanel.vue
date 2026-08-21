@@ -93,7 +93,7 @@ defineExpose({ load })
       <el-table-column label="商品" min-width="240">
         <template #default="{ row }">
           <div class="product-cell" @click="openOffer(row)">
-            <el-image v-if="thumbSrc(row)" :src="thumbSrc(row)" fit="cover" class="thumb" />
+            <el-image v-if="thumbSrc(row)" :src="thumbSrc(row)" fit="cover" class="thumb" referrerpolicy="no-referrer" />
             <span class="title">{{ row.title || '-' }}</span>
           </div>
         </template>

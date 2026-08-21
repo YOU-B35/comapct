@@ -123,8 +123,10 @@ export async function fetchAlibaba1688Operational({ storeId } = {}) {
   return res?.data ?? res ?? {}
 }
 
-export async function fetchAlibaba1688Session() {
-  const res = await service.get('/api/1688/session', { skipGlobalErrorToast: true })
+export async function fetchAlibaba1688Session({ storeId } = {}) {
+  const params = {}
+  if (storeId && storeId !== 'all') params.storeId = storeId
+  const res = await service.get('/api/1688/session', { params, skipGlobalErrorToast: true })
   return res?.data ?? res ?? {}
 }
 
@@ -257,12 +259,12 @@ export async function pollAlibaba1688SessionUntilReady({
     if (signal?.aborted) {
       throw new DOMException('Aborted', 'AbortError')
     }
-    const session = await fetchAlibaba1688Session()
+      const session = await fetchAlibaba1688Session({ storeId })
     if (session?.ready || session?.logged_in) {
       return session
     }
     await new Promise((r) => setTimeout(r, delay))
     delay = Math.min(maxIntervalMs, Math.floor(delay * 1.25))
   }
-  return fetchAlibaba1688Session()
+  return fetchAlibaba1688Session({ storeId })
 }

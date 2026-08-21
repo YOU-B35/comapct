@@ -32,26 +32,29 @@ public class Alibaba1688SessionService {
     private final PlatformAccountRepository platformAccountRepository;
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final Alibaba1688StoreKeyResolver storeKeyResolver;
 
     public Alibaba1688SessionService(
             DataScopeService dataScopeService,
             AgentPresenceService agentPresenceService,
             PlatformAccountRepository platformAccountRepository,
             JdbcTemplate jdbc,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            Alibaba1688StoreKeyResolver storeKeyResolver
     ) {
         this.dataScopeService = dataScopeService;
         this.agentPresenceService = agentPresenceService;
         this.platformAccountRepository = platformAccountRepository;
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.storeKeyResolver = storeKeyResolver;
     }
 
-    public Map<String, Object> session() {
+    public Map<String, Object> session(String storeIdOrNull) {
         Long tenantId = dataScopeService.requireTenantId();
         boolean agentOnline = agentPresenceService.isAgentOnline(tenantId);
         boolean profileBusy = hasRunningBusy(tenantId);
-        Map<String, Object> snapshot = readSessionSnapshot(tenantId);
+        Map<String, Object> snapshot = readSessionSnapshot(tenantId, storeIdOrNull);
         String snapError = String.valueOf(snapshot.getOrDefault("error_code", "")).trim();
         boolean forceRelogin = AppErrorCode.A1688_NOT_LOGGED_IN.getCode().equals(snapError)
                 || String.valueOf(snapshot.getOrDefault("message", "")).contains("未登录");
@@ -116,7 +119,7 @@ public class Alibaba1688SessionService {
         payload.put("tenant_id", tenantId);
         payload.put("store_id", storeIdOrNull == null ? "" : storeIdOrNull.trim());
         insertAgentTask(tenantId, taskId, Alibaba1688AgentTasks.LOGIN_OPEN, payload, agent.getId());
-        writeSessionSnapshot(tenantId, Map.of(
+        writeSessionSnapshot(tenantId, storeIdOrNull, Map.of(
                 "tenant_id", tenantId,
                 "ready", false,
                 "logged_in", false,
@@ -152,7 +155,7 @@ public class Alibaba1688SessionService {
         payload.put("tenant_id", tenantId);
         payload.put("store_id", storeIdOrNull == null ? "" : storeIdOrNull.trim());
         insertAgentTask(tenantId, taskId, Alibaba1688AgentTasks.SESSION_PROBE, payload, agent.getId());
-        writeSessionSnapshot(tenantId, Map.of(
+        writeSessionSnapshot(tenantId, storeIdOrNull, Map.of(
                 "tenant_id", tenantId,
                 "ready", false,
                 "logged_in", false,
@@ -239,11 +242,12 @@ public class Alibaba1688SessionService {
             return;
         }
         Long tenantId = task.getTenantId();
+        String taskStore = storeIdFromTask(task);
         // Product sync must not overwrite login session fields from a count-only result.
         if (Alibaba1688AgentTasks.PRODUCTS_SYNC.equals(task.getTaskType())
                 || Alibaba1688AgentTasks.ORDERS_SYNC.equals(task.getTaskType())
                 || Alibaba1688AgentTasks.PEER_BESTSELLERS_SYNC.equals(task.getTaskType())) {
-            Map<String, Object> snap = new LinkedHashMap<>(readSessionSnapshot(tenantId));
+            Map<String, Object> snap = new LinkedHashMap<>(readSessionSnapshot(tenantId, taskStore));
             snap.put("tenant_id", tenantId);
             snap.put("profile_busy", false);
             if (!"success".equalsIgnoreCase(status)) {
@@ -270,7 +274,7 @@ public class Alibaba1688SessionService {
                 }
                 snap.remove("error_code");
             }
-            writeSessionSnapshot(tenantId, snap);
+            writeSessionSnapshot(tenantId, taskStore, snap);
             return;
         }
         Map<String, Object> session = result == null ? Map.of() : result;
@@ -304,7 +308,7 @@ public class Alibaba1688SessionService {
                 snap.put("error_code", errorCode);
             }
         }
-        writeSessionSnapshot(tenantId, snap);
+        writeSessionSnapshot(tenantId, taskStore, snap);
     }
 
     @Transactional
@@ -446,10 +450,30 @@ public class Alibaba1688SessionService {
     }
 
     private Map<String, Object> readSessionSnapshot(Long tenantId) {
+        return readSessionSnapshot(tenantId, "");
+    }
+
+    private Map<String, Object> readSessionSnapshot(Long tenantId, String storeIdOrNull) {
+        String storeKey = normalizeStoreKey(storeIdOrNull);
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT payload_json FROM alibaba1688_session_snapshot WHERE tenant_id = ? LIMIT 1",
-                tenantId
+                "SELECT payload_json FROM alibaba1688_session_snapshot WHERE tenant_id = ? AND store_id = ? LIMIT 1",
+                tenantId, storeKey
         );
+        if (rows.isEmpty() && !"default".equals(storeKey)) {
+            // 指定店铺若为默认会话对应的账号，回退到 default 快照，避免误报未登录
+            String defaultAccount = "";
+            try {
+                defaultAccount = storeKeyResolver.resolveDefaultAccountId(tenantId);
+            } catch (Exception ignored) {
+                // keep empty
+            }
+            if (storeKey.equals(defaultAccount)) {
+                rows = jdbc.queryForList(
+                        "SELECT payload_json FROM alibaba1688_session_snapshot WHERE tenant_id = ? AND store_id = 'default' LIMIT 1",
+                        tenantId
+                );
+            }
+        }
         if (rows.isEmpty()) {
             Map<String, Object> defaults = new LinkedHashMap<>();
             defaults.put("tenant_id", tenantId);
@@ -466,6 +490,11 @@ public class Alibaba1688SessionService {
     }
 
     private void writeSessionSnapshot(Long tenantId, Map<String, Object> payload) {
+        writeSessionSnapshot(tenantId, "", payload);
+    }
+
+    private void writeSessionSnapshot(Long tenantId, String storeIdOrNull, Map<String, Object> payload) {
+        String storeKey = normalizeStoreKey(storeIdOrNull);
         String json;
         try {
             json = objectMapper.writeValueAsString(payload == null ? Map.of() : payload);
@@ -474,14 +503,30 @@ public class Alibaba1688SessionService {
         }
         jdbc.update(
                 """
-                INSERT INTO alibaba1688_session_snapshot (tenant_id, payload_json, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(tenant_id) DO UPDATE SET payload_json = excluded.payload_json, updated_at = excluded.updated_at
+                INSERT INTO alibaba1688_session_snapshot (tenant_id, store_id, payload_json, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(tenant_id, store_id) DO UPDATE
+                  SET payload_json = excluded.payload_json, updated_at = excluded.updated_at
                 """,
                 tenantId,
+                storeKey,
                 json,
                 now()
         );
+    }
+
+    private String normalizeStoreKey(String storeIdOrNull) {
+        String storeId = storeIdOrNull == null ? "" : storeIdOrNull.trim();
+        return storeId.isBlank() ? "default" : storeId;
+    }
+
+    private String storeIdFromTask(AgentTask task) {
+        if (task == null) {
+            return "";
+        }
+        Map<String, Object> payload = parseJson(task.getPayloadJson());
+        Object storeId = payload.get("store_id");
+        return storeId == null ? "" : String.valueOf(storeId);
     }
 
     private void insertAgentTask(

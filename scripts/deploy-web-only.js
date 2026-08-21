@@ -15,9 +15,13 @@ const SSH = {
   password: process.env.CROSSHUB_SSH_PASSWORD || '',
   readyTimeout: 120000,
 };
+const keyPath = process.env.CROSSHUB_SSH_KEY || '';
+if (keyPath && fs.existsSync(keyPath)) {
+  SSH.privateKey = fs.readFileSync(keyPath);
+}
 
-if (!SSH.host || !SSH.password) {
-  console.error('Set CROSSHUB_SSH_HOST and CROSSHUB_SSH_PASSWORD before deploying.');
+if (!SSH.host || (!SSH.password && !SSH.privateKey)) {
+  console.error('Set CROSSHUB_SSH_HOST and CROSSHUB_SSH_PASSWORD/CROSSHUB_SSH_KEY before deploying.');
   process.exit(1);
 }
 

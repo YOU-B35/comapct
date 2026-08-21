@@ -295,7 +295,7 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
     } else if (props.platform === 'douyin') {
       sessionStatus.value = await fetchDouyinSession()
     } else if (props.platform === '1688') {
-      sessionStatus.value = await fetchAlibaba1688Session()
+    sessionStatus.value = await fetchAlibaba1688Session({ storeId: props.storeId })
     } else {
       sessionStatus.value = await fetchTemuSessionStatus()
     }

@@ -60,7 +60,7 @@ function displayPrice(row) {
     <el-table v-loading="loading || syncing" :data="paged" stripe empty-text="暂无该分类商品" size="small">
       <el-table-column label="图片" width="92" align="center">
         <template #default="{ row }">
-          <el-image v-if="thumbSrc(row)" :src="thumbSrc(row)" fit="cover" class="thumb" />
+          <el-image v-if="thumbSrc(row)" :src="thumbSrc(row)" fit="cover" class="thumb" referrerpolicy="no-referrer" />
           <span v-else>—</span>
         </template>
       </el-table-column>
