@@ -33,7 +33,7 @@ def canonicalize_offer_url(url: str) -> str:
 
 def parse_sales_text(text: str | None) -> int:
     raw = str(text or "").replace(",", "")
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(万)?\+?\s*件", raw)
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(万)?\+?\s*件?", raw)
     if not m:
         return 0
     num = float(m.group(1))
