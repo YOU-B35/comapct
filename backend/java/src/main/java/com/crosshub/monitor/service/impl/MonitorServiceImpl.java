@@ -5,6 +5,7 @@ import com.crosshub.common.TenantCrawlCooldownService;
 import com.crosshub.config.CrawlerProperties;
 import com.crosshub.monitor.service.MonitorJobConflictException;
 import com.crosshub.monitor.service.MonitorService;
+import com.crosshub.monitor.util.Alibaba1688MonitorUrlValidator;
 import com.crosshub.monitor.util.TemuMonitorUrlValidator;
 import com.crosshub.security.AuthContext;
 import com.crosshub.tenant.service.DataScopeService;
@@ -477,6 +478,10 @@ public class MonitorServiceImpl implements MonitorService {
             String crawlStrategy,
             String targetUrl
     ) {
+        if ("1688".equalsIgnoreCase(platform) && "shop".equalsIgnoreCase(targetType)) {
+            Alibaba1688MonitorUrlValidator.requireValidForCreate(targetUrl, crawlStrategy);
+            return Alibaba1688MonitorUrlValidator.canonicalize(targetUrl);
+        }
         boolean temuShopListing = "temu".equalsIgnoreCase(platform)
                 && "shop".equalsIgnoreCase(targetType)
                 && "store_listing".equalsIgnoreCase(crawlStrategy);
