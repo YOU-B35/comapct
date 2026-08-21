@@ -401,3 +401,16 @@ powershell -File scripts\restart-java-api.ps1
 ## 许可证
 
 内部演示 / 学习评估项目。生产使用前请更换密钥、禁用 Demo 账号，并审查 `docs/permissions/` 中的权限对齐清单。
+
+---
+
+## 1688 竞店监控
+
+- 前置：租户已登录 1688（work.1688.com 会话有效，沿用现有浏览器 profile）。
+- 启动 monitor worker：`cd backend/python && python monitor_worker.py --loop --interval-seconds 30`（会自动消费 `monitor_schedule` 到期任务）。
+- 添加监控：1688 模块 → 竞店监控 → 添加店铺监控（填店铺链接或商品链接；商品链接走“指定商品盯梢”）。
+- 排程：`monitor_schedule.interval_minutes` 支持 60/120 分钟，页面可手动“立即刷新”。
+- 告警：`monitor_signal` 六类信号（price_change / sales_surge / delist_or_relist / bestseller_new_entry / stock_warning / auth_or_risk）；`config_json.webhook_url` 配置钉钉/企微 webhook（v1 预留）。
+- 数据口径：`daily_sales` = 累计销量差值（首次为 baseline 0）；负增量/异常跳变标记 `suspicious` 不计入趋势。
+- 冒烟：`python scripts/_smoke_1688_monitor.py`（真实会话，抓三家种子店铺）。
+- 表结构：1688 字段由 Java `V45Alibaba1688MonitorMigration` 在应用启动时自动补齐（`monitor_product_snapshot` 扩展列 + `monitor_target.config_json`）。

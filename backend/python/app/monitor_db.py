@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS monitor_target (
   status TEXT NOT NULL DEFAULT 'active',
   crawl_strategy TEXT NOT NULL DEFAULT '',
   freshness_minutes INTEGER NOT NULL DEFAULT 1440,
+  config_json TEXT NOT NULL DEFAULT '',
   latest_snapshot_id TEXT,
   latest_snapshot_at TEXT,
   created_at TEXT NOT NULL,

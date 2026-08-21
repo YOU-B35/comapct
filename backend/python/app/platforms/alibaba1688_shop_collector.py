@@ -174,6 +174,25 @@ def _fetch_offer_details(page, offers: list[dict[str, Any]], pinned: list[str]) 
             _assert_no_risk(page)
         finally:
             page.remove_listener("response", on_response)
+        try:
+            from agent.alibaba1688_order_tasks import _mtop
+
+            resp = _mtop(
+                page,
+                _MMGA_API,
+                {
+                    "mmgaRequest": {
+                        "serviceName": "compareOfferSelectListService",
+                        "offerId": int(oid),
+                        "queryType": "similar",
+                        "querySource": "PC",
+                        "needSort": True,
+                    }
+                },
+            )
+            captured.append(json.dumps(resp, ensure_ascii=False))
+        except Exception:
+            pass
 
         row = rows[oid]
         try:
