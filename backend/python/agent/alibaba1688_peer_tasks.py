@@ -43,26 +43,49 @@ def peer_suggestion(sales: int) -> str:
 def seed_offer_ids(limit: int = SEED_LIMIT, store_id: str = "default") -> list[str]:
     c = sqlite3.connect(str(DB))
     try:
-        rows = c.execute(
-            """
-            SELECT i.offer_id
-            FROM alibaba1688_order_item i
-            JOIN alibaba1688_order o ON o.tenant_id = i.tenant_id
-              AND o.store_id = i.store_id AND o.order_no = i.order_no
-            WHERE i.offer_id <> '' AND o.paid_at <> '' AND i.store_id = ?
-            GROUP BY i.offer_id
-            ORDER BY SUM(CAST(i.quantity AS REAL)) DESC
-            LIMIT ?
-            """,
-            (store_id, limit),
-        ).fetchall()
-        own = {
-            str(r[0])
-            for r in c.execute(
-                "SELECT offer_id FROM alibaba1688_product WHERE store_id = ?",
-                (store_id,),
+        is_default = store_id in ("default", "", None)
+        if is_default:
+            # 默认店铺不按 store_id 过滤：历史数据可能挂在账号 UUID 或 default 下
+            rows = c.execute(
+                """
+                SELECT i.offer_id
+                FROM alibaba1688_order_item i
+                JOIN alibaba1688_order o ON o.tenant_id = i.tenant_id
+                  AND o.store_id = i.store_id AND o.order_no = i.order_no
+                WHERE i.offer_id <> '' AND o.paid_at <> ''
+                GROUP BY i.offer_id
+                ORDER BY SUM(CAST(i.quantity AS REAL)) DESC
+                LIMIT ?
+                """,
+                (limit,),
             ).fetchall()
-        }
+            own = {
+                str(r[0])
+                for r in c.execute(
+                    "SELECT offer_id FROM alibaba1688_product"
+                ).fetchall()
+            }
+        else:
+            rows = c.execute(
+                """
+                SELECT i.offer_id
+                FROM alibaba1688_order_item i
+                JOIN alibaba1688_order o ON o.tenant_id = i.tenant_id
+                  AND o.store_id = i.store_id AND o.order_no = i.order_no
+                WHERE i.offer_id <> '' AND o.paid_at <> '' AND i.store_id = ?
+                GROUP BY i.offer_id
+                ORDER BY SUM(CAST(i.quantity AS REAL)) DESC
+                LIMIT ?
+                """,
+                (store_id, limit),
+            ).fetchall()
+            own = {
+                str(r[0])
+                for r in c.execute(
+                    "SELECT offer_id FROM alibaba1688_product WHERE store_id = ?",
+                    (store_id,),
+                ).fetchall()
+            }
         return [str(r[0]) for r in rows if str(r[0]) in own]
     finally:
         c.close()

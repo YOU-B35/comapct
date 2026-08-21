@@ -46,8 +46,14 @@ Write-Host "==> pyinstaller onedir" -ForegroundColor Cyan
     --paths $PyRoot `
     --hidden-import agent `
     --hidden-import agent.main `
-    --hidden-import agent.handlers `
-    --hidden-import agent.temu_tasks `
+--hidden-import agent.handlers `
+--hidden-import agent.alibaba1688_order_constants `
+--hidden-import agent.alibaba1688_product_constants `
+--hidden-import agent.alibaba1688_order_tasks `
+--hidden-import agent.alibaba1688_peer_tasks `
+--hidden-import agent.alibaba1688_product_tasks `
+--hidden-import agent.alibaba1688_tasks `
+--hidden-import agent.temu_tasks `
     --hidden-import agent.java_client `
       --hidden-import agent.helper_java_url `
       --hidden-import agent.bind `
