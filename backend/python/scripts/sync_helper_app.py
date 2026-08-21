@@ -165,9 +165,16 @@ def load_config() -> dict:
         )
         os.environ["TEMU_PROFILE_ROOT"] = str(Path(temu_profile))
         os.environ["AE_PROFILE_ROOT"] = str(Path(ae_profile))
+        a1688_profile = (
+            os.environ.get("A1688_PROFILE_ROOT")
+            or cfg.get("a1688_profile_root")
+            or str(py_root / ".1688-browser-profile")
+        )
+        os.environ["A1688_PROFILE_ROOT"] = str(Path(a1688_profile))
         env_candidates.append(py_root / ".env")
         print(f"==> project_root: {project_root}")
         print(f"==> temu_profile: {os.environ['TEMU_PROFILE_ROOT']}")
+        print(f"==> a1688_profile: {os.environ['A1688_PROFILE_ROOT']}")
     env_candidates.append(Path(r"D:\NIUBI\SaaS-HZ_WEB_Demo\backend\python\.env"))
     for env_file in env_candidates:
         if not env_file.is_file():

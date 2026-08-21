@@ -37,3 +37,13 @@ def test_alibaba1688_profile_dir_scopes_by_store(tmp_path: Path, monkeypatch) ->
     store_path = alibaba1688_context.profile_dir(5, "store-xyz")
     assert default_path.name == "tenant-5"
     assert store_path == root / "tenant-5" / "account-store-xyz"
+
+
+def test_alibaba1688_profile_dir_honors_env_override(tmp_path: Path, monkeypatch) -> None:
+    override = tmp_path / "custom-1688-profiles"
+    monkeypatch.setenv("A1688_PROFILE_ROOT", str(override))
+    from app.browser import alibaba1688_context as ctx
+
+    default_path = ctx.profile_dir(5, "default")
+    assert default_path == override / "tenant-5"
+    assert default_path.is_dir()

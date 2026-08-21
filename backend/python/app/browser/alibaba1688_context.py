@@ -17,6 +17,11 @@ _LOCK_NAMES = (
 _PROFILE_ROOT = Path(__file__).resolve().parents[2] / ".1688-browser-profile"
 
 
+def _profile_root() -> Path:
+    override = os.environ.get("A1688_PROFILE_ROOT", "").strip()
+    return Path(override) if override else _PROFILE_ROOT
+
+
 def crawl_headless_enabled() -> bool:
     """Data crawls default headless. Set A1688_HEADED=1 to show a window."""
     return os.getenv("A1688_HEADED", "").strip().lower() not in {"1", "true", "yes"}
@@ -24,16 +29,17 @@ def crawl_headless_enabled() -> bool:
 
 def profile_dir(tenant_id: int, store_id: str | None = None) -> Path:
     key = normalize_session_key(store_id)
+    root = _profile_root()
     if key == "default":
         # 兼容旧版：default 店铺沿用平铺 tenant-{id}，避免既有登录态失效
-        legacy = _PROFILE_ROOT / f"tenant-{tenant_id}"
+        legacy = root / f"tenant-{tenant_id}"
         legacy.mkdir(parents=True, exist_ok=True)
         return legacy
     path = resolve_platform_profile_dir(
         "1688",
         tenant_id,
         key,
-        root=_PROFILE_ROOT,
+        root=root,
     )
     path.mkdir(parents=True, exist_ok=True)
     return path
