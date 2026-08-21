@@ -121,6 +121,14 @@ CREATE TABLE IF NOT EXISTS monitor_signal (
 CREATE INDEX IF NOT EXISTS idx_monitor_signal_snapshot_type
 ON monitor_signal (tenant_id, snapshot_id, signal_type);
 
+CREATE TABLE IF NOT EXISTS tenant_crawl_cooldown (
+  tenant_id INTEGER NOT NULL,
+  scope TEXT NOT NULL DEFAULT 'platform',
+  last_success_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, scope)
+);
+
 CREATE TABLE IF NOT EXISTS ingest_batch (
   id TEXT PRIMARY KEY,
   tenant_id INTEGER NOT NULL,
