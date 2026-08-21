@@ -13,6 +13,7 @@ from typing import Any
 from app.db import connect, init_schema, seed_users
 from app.monitor_db import init_monitor_result_schema, init_monitor_schema
 from app.monitor_worker_service import process_next_pending_job
+from app.platforms.alibaba1688_monitor_adapter import Alibaba1688MonitorAdapter
 from app.platforms.temu_monitor_adapter import TemuMonitorAdapter
 
 
@@ -25,7 +26,7 @@ def process_one_job(*, worker_id: str, report_root: Path) -> dict[str, Any] | No
         init_monitor_result_schema(conn)
         return process_next_pending_job(
             conn,
-            adapters={"temu": TemuMonitorAdapter()},
+            adapters={"temu": TemuMonitorAdapter(), "1688": Alibaba1688MonitorAdapter()},
             report_root=report_root,
             worker_id=worker_id,
         )
