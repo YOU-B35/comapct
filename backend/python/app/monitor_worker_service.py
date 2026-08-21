@@ -270,6 +270,9 @@ def finish_ingest_batch(
     conn.commit()
 
 
+SUSPICIOUS_DELTA_CAP = 200000
+
+
 def analyze_products(
     conn: sqlite3.Connection,
     tenant_id: int,
@@ -301,21 +304,68 @@ def analyze_products(
     ).fetchall():
         history[row["product_id"]] = float(row["avg_daily_sales"] or 0)
 
+    prior_totals: dict[str, dict] = {}
+    for row in conn.execute(
+        """
+        SELECT p.product_id, p.total_sales, p.price, p.status, p.expired, s.snapshot_at
+        FROM monitor_product_snapshot p
+        JOIN monitor_snapshot s ON s.id = p.snapshot_id
+        WHERE p.tenant_id = ? AND p.target_id = ?
+        ORDER BY s.snapshot_at DESC
+        """,
+        (tenant_id, target_id),
+    ).fetchall():
+        pid = row["product_id"]
+        if pid not in prior_totals:
+            prior_totals[pid] = {
+                "total_sales": int(row["total_sales"] or 0),
+                "price": float(row["price"] or 0),
+                "status": str(row["status"] or ""),
+                "expired": int(row["expired"] or 0),
+                "snapshot_at": row["snapshot_at"],
+            }
+
     recent_launches = []
     sales_outliers = []
+    signals = []
     for product in products:
         listed_at = str(product.get("listed_at") or "")
         product_id = str(product.get("product_id") or "")
+        total_sales = int(product.get("total_sales") or 0)
         daily_sales = int(product.get("daily_sales") or 0)
+        price = float(product.get("price") or 0)
+        prior = prior_totals.get(product_id)
+        if prior is None:
+            if product.get("rank"):
+                signals.append(("bestseller_new_entry", 1.0, json.dumps({"rank": product.get("rank")}), product_id))
+        else:
+            if daily_sales == 0:
+                delta = total_sales - prior["total_sales"]
+                if 0 <= delta <= SUSPICIOUS_DELTA_CAP:
+                    daily_sales = delta
+                else:
+                    product["suspicious"] = 1
+            old_price = prior["price"]
+            if old_price and price and abs(old_price - price) > 0.001:
+                signals.append(("price_change", 1.0, json.dumps({"old": old_price, "new": price}), product_id))
+            if prior["expired"] and not int(product.get("expired") or 0):
+                signals.append(("delist_or_relist", 1.0, json.dumps({"status": "relisted"}), product_id))
+        product["daily_sales"] = daily_sales
         if is_recent_launch(snapshot_day, listed_at) and product_id not in prior_products:
             recent_launches.append(product)
         avg_daily = history.get(product_id, 0.0)
         if daily_sales >= 20 and (avg_daily <= 0 or daily_sales >= max(20, avg_daily * 1.5)):
             sales_outliers.append(product)
 
+    current_ids = {str(p.get("product_id") or "") for p in products}
+    for pid, prior in prior_totals.items():
+        if pid not in current_ids and prior["status"] != "":
+            signals.append(("delist_or_relist", 1.0, json.dumps({"status": "delisted"}), pid))
+
     return {
         "recent_launches": recent_launches,
         "sales_outliers": sales_outliers,
+        "signals": signals,
     }
 
 
@@ -370,8 +420,12 @@ def persist_snapshot(
             """
             INSERT INTO monitor_product_snapshot (
               id, tenant_id, snapshot_id, target_id, product_id, product_name,
-              category, price, daily_sales, total_sales, listed_at, url, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              category, price, daily_sales, total_sales, listed_at, url,
+              shop_name, shop_url, rank, price_range, sale_text, dropship_7d,
+              dropship_30d, dropship_heat, rebuy_rate, shop_return_rate,
+              quality_rate, shop_fans, attrs_json, is_pinned, status, expired,
+              suspicious, raw_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 f"mps_{snapshot_id}_{product['product_id']}",
@@ -386,6 +440,24 @@ def persist_snapshot(
                 int(product.get("total_sales") or 0),
                 product.get("listed_at", ""),
                 product.get("url", ""),
+                product.get("shop_name", ""),
+                product.get("shop_url", ""),
+                int(product.get("rank") or 0),
+                product.get("price_range", ""),
+                product.get("sale_text", ""),
+                product.get("dropship_7d", ""),
+                product.get("dropship_30d", ""),
+                int(product.get("dropship_heat") or 0),
+                product.get("rebuy_rate", ""),
+                product.get("shop_return_rate", ""),
+                product.get("quality_rate", ""),
+                int(product.get("shop_fans") or 0),
+                product.get("attrs_json", ""),
+                int(product.get("is_pinned") or 0),
+                product.get("status", ""),
+                int(product.get("expired") or 0),
+                int(product.get("suspicious") or 0),
+                product.get("raw_json", ""),
                 created_at,
             ),
         )
@@ -412,6 +484,25 @@ def persist_snapshot(
                     created_at,
                 ),
             )
+    for signal_type, score, value, product_id in analysis.get("signals", []):
+        conn.execute(
+            """
+            INSERT INTO monitor_signal (
+              id, tenant_id, snapshot_id, target_id, product_id, signal_type, signal_score, signal_value, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                f"sig_{uuid.uuid4().hex}",
+                tenant_id,
+                snapshot_id,
+                target_id,
+                product_id,
+                signal_type,
+                float(score or 1.0),
+                str(value or ""),
+                created_at,
+            ),
+        )
     conn.commit()
     return snapshot_id
 
