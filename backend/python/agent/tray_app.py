@@ -1019,7 +1019,7 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
         "aliexpress_crawl,aliexpress_login_open,aliexpress_session_probe,"
         "douyin_sync,douyin_products_sync,douyin_login_open,douyin_session_probe,"
         "1688_login_open,1688_session_probe,1688_products_sync,1688_orders_sync,"
-        "1688_peer_bestsellers_sync,"
+        "1688_peer_bestsellers_sync,1688_monitor_crawl,"
         "amazon_sync,amazon_write",
         flush=True,
     )

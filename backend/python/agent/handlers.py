@@ -531,6 +531,55 @@ def handle_1688_login_open(client: AgentApiClient, task: dict[str, Any]) -> None
         )
 
 
+def handle_1688_monitor_crawl(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    try:
+        from app.platforms.alibaba1688_monitor_adapter import Alibaba1688MonitorAdapter
+
+        tenant_id = int(payload.get("tenant_id") or 0)
+        target = {
+            "target_url": str(payload.get("target_url") or ""),
+            "crawl_strategy": str(payload.get("crawl_strategy") or "1688_shop_topn"),
+            "config_json": str(payload.get("config_json") or "{}"),
+        }
+        max_products = max(1, int(payload.get("top_n") or 20))
+        result = Alibaba1688MonitorAdapter().crawl_target(
+            tenant_id=tenant_id,
+            target=target,
+            max_products=max_products,
+        )
+        ingested = client.ingest_1688_monitor(
+            {
+                "tenant_id": tenant_id,
+                "target_id": str(payload.get("target_id") or ""),
+                "job_id": str(payload.get("job_id") or ""),
+                "snapshot_at": result["snapshot_at"],
+                "products": result["products"],
+            }
+        )
+        client.complete_task_with_retry(
+            task_id,
+            status="success",
+            result={
+                "snapshot_id": str(ingested.get("snapshot_id") or ""),
+                "product_count": int(ingested.get("product_count") or len(result["products"])),
+                "signal_count": int(ingested.get("signal_count") or 0),
+                "crawled_at": result["snapshot_at"],
+            },
+        )
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_a1688_error_code(message),
+            error_message=message,
+        )
+
+
 def handle_1688_products_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
     task_id = str(task.get("task_id") or task.get("id") or "")
     if not task_id:
@@ -742,6 +791,9 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
         return
     if task_type == "1688_login_open":
         handle_1688_login_open(client, task)
+        return
+    if task_type == "1688_monitor_crawl":
+        handle_1688_monitor_crawl(client, task)
         return
     if task_type == "1688_products_sync":
         handle_1688_products_sync(client, task)

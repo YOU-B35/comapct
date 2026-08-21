@@ -4,6 +4,7 @@ import com.crosshub.agent.entity.AgentTask;
 import com.crosshub.agent.service.impl.AgentServiceImpl;
 import com.crosshub.alibaba1688.service.Alibaba1688AgentTasks;
 import com.crosshub.alibaba1688.service.Alibaba1688SessionService;
+import com.crosshub.monitor.service.impl.MonitorJobLifecycle;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -11,9 +12,14 @@ import java.util.Map;
 @Component
 public class Alibaba1688AgentBridge implements AgentServiceImpl.Alibaba1688Bridge {
     private final Alibaba1688SessionService sessionService;
+    private final MonitorJobLifecycle monitorJobLifecycle;
 
-    public Alibaba1688AgentBridge(Alibaba1688SessionService sessionService) {
+    public Alibaba1688AgentBridge(
+            Alibaba1688SessionService sessionService,
+            MonitorJobLifecycle monitorJobLifecycle
+    ) {
         this.sessionService = sessionService;
+        this.monitorJobLifecycle = monitorJobLifecycle;
     }
 
     @Override
@@ -36,5 +42,6 @@ public class Alibaba1688AgentBridge implements AgentServiceImpl.Alibaba1688Bridg
             return;
         }
         sessionService.onAgentTaskCompleted(task, status, result, errorCode, errorMessage);
+        monitorJobLifecycle.onAgentTaskCompleted(task, status, errorMessage);
     }
 }

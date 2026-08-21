@@ -5,6 +5,7 @@ import com.crosshub.common.TenantCrawlCooldownService;
 import com.crosshub.config.CrawlerProperties;
 import com.crosshub.monitor.service.MonitorJobConflictException;
 import com.crosshub.monitor.service.MonitorService;
+import com.crosshub.monitor.service.impl.MonitorAgentTaskEnqueuer;
 import com.crosshub.monitor.util.Alibaba1688MonitorUrlValidator;
 import com.crosshub.monitor.util.TemuMonitorUrlValidator;
 import com.crosshub.security.AuthContext;
@@ -28,26 +29,29 @@ public class MonitorServiceImpl implements MonitorService {
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Set<String> ACTIVE_JOB_STATUSES = Set.of("pending", "running");
     private static final long RUNNING_TTL_SECONDS = 20 * 60;
-    private static final long PENDING_TTL_SECONDS = 5 * 60;
+    private static final long PENDING_TTL_SECONDS = 15 * 60;
 
     private final JdbcTemplate jdbc;
     private final DataScopeService dataScopeService;
     private final AuthContext authContext;
     private final CrawlerProperties crawlerProperties;
     private final TenantCrawlCooldownService crawlCooldownService;
+    private final MonitorAgentTaskEnqueuer monitorAgentTaskEnqueuer;
 
     public MonitorServiceImpl(
             JdbcTemplate jdbc,
             DataScopeService dataScopeService,
             AuthContext authContext,
             CrawlerProperties crawlerProperties,
-            TenantCrawlCooldownService crawlCooldownService
+            TenantCrawlCooldownService crawlCooldownService,
+            MonitorAgentTaskEnqueuer monitorAgentTaskEnqueuer
     ) {
         this.jdbc = jdbc;
         this.dataScopeService = dataScopeService;
         this.authContext = authContext;
         this.crawlerProperties = crawlerProperties;
         this.crawlCooldownService = crawlCooldownService;
+        this.monitorAgentTaskEnqueuer = monitorAgentTaskEnqueuer;
     }
 
     @Override
@@ -234,6 +238,13 @@ public class MonitorServiceImpl implements MonitorService {
                 userId,
                 reason
         );
+        Map<String, Object> enqueued = monitorAgentTaskEnqueuer.enqueue(tenantId, targetId, jobId);
+        if (!Boolean.TRUE.equals(enqueued.get("queued"))) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    AppErrorCode.A1688_AGENT_OFFLINE.getUserMessage()
+            );
+        }
         return toJobDto(Map.of("id", jobId, "status", "pending"));
     }
 
