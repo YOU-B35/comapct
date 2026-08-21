@@ -321,6 +321,45 @@ public class MonitorServiceImpl implements MonitorService {
         out.put("artifacts", artifacts);
         out.put("recent_launches", recentLaunches);
         out.put("sales_outliers", salesOutliers);
+        List<Map<String, Object>> products = List.of();
+        if (!latestSnapshotId.isBlank()) {
+            products = jdbc.query("""
+                    SELECT product_id, product_name, category, price, daily_sales, total_sales,
+                           listed_at, url, shop_name, shop_url, rank, price_range, sale_text,
+                           dropship_7d, dropship_30d, dropship_heat, rebuy_rate, shop_return_rate,
+                           quality_rate, shop_fans, is_pinned, suspicious
+                    FROM monitor_product_snapshot
+                    WHERE tenant_id = ? AND snapshot_id = ?
+                    ORDER BY rank ASC, product_id ASC
+                    LIMIT 200
+                    """, (rs, rn) -> {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("product_id", rs.getString("product_id"));
+                        row.put("product_name", rs.getString("product_name"));
+                        row.put("category", rs.getString("category"));
+                        row.put("price", rs.getDouble("price"));
+                        row.put("daily_sales", rs.getInt("daily_sales"));
+                        row.put("total_sales", rs.getInt("total_sales"));
+                        row.put("listed_at", rs.getString("listed_at"));
+                        row.put("url", rs.getString("url"));
+                        row.put("shop_name", rs.getString("shop_name"));
+                        row.put("shop_url", rs.getString("shop_url"));
+                        row.put("rank", rs.getInt("rank"));
+                        row.put("price_range", rs.getString("price_range"));
+                        row.put("sale_text", rs.getString("sale_text"));
+                        row.put("dropship_7d", rs.getString("dropship_7d"));
+                        row.put("dropship_30d", rs.getString("dropship_30d"));
+                        row.put("dropship_heat", rs.getInt("dropship_heat"));
+                        row.put("rebuy_rate", rs.getString("rebuy_rate"));
+                        row.put("shop_return_rate", rs.getString("shop_return_rate"));
+                        row.put("quality_rate", rs.getString("quality_rate"));
+                        row.put("shop_fans", rs.getInt("shop_fans"));
+                        row.put("is_pinned", rs.getInt("is_pinned"));
+                        row.put("suspicious", rs.getInt("suspicious"));
+                        return row;
+                    }, tenantId, latestSnapshotId);
+        }
+        out.put("products", products);
         return out;
     }
 
@@ -385,6 +424,70 @@ public class MonitorServiceImpl implements MonitorService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, AppErrorCode.NOT_FOUND.getUserMessage());
         }
         return file;
+    }
+
+    @Override
+    public List<Map<String, Object>> getTrend(String targetId, int days, String productId) {
+        Long tenantId = dataScopeService.requireTenantId();
+        requireTargetRow(targetId, tenantId);
+        int safeDays = Math.max(1, Math.min(days, 90));
+        String since = LocalDateTime.now().minusDays(safeDays).format(TS);
+        StringBuilder sql = new StringBuilder("""
+                SELECT p.product_id, p.product_name, s.snapshot_at, p.price, p.total_sales,
+                       p.daily_sales, p.rank, p.sale_text, p.is_pinned
+                FROM monitor_product_snapshot p
+                JOIN monitor_snapshot s ON s.id = p.snapshot_id
+                WHERE p.tenant_id = ? AND p.target_id = ? AND s.snapshot_at >= ?
+                """);
+        List<Object> args = new ArrayList<>(List.of(tenantId, targetId, since));
+        if (productId != null && !productId.isBlank()) {
+            sql.append(" AND p.product_id = ?");
+            args.add(productId.trim());
+        }
+        sql.append(" ORDER BY s.snapshot_at ASC, p.rank ASC");
+        return jdbc.query(sql.toString(), (rs, rn) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("product_id", rs.getString("product_id"));
+            row.put("product_name", rs.getString("product_name"));
+            row.put("snapshot_at", rs.getString("snapshot_at"));
+            row.put("price", rs.getDouble("price"));
+            row.put("total_sales", rs.getInt("total_sales"));
+            row.put("daily_sales", rs.getInt("daily_sales"));
+            row.put("rank", rs.getInt("rank"));
+            row.put("sale_text", rs.getString("sale_text"));
+            row.put("is_pinned", rs.getInt("is_pinned"));
+            return row;
+        }, args.toArray());
+    }
+
+    @Override
+    public List<Map<String, Object>> getSignals(String targetId, int limit) {
+        Long tenantId = dataScopeService.requireTenantId();
+        requireTargetRow(targetId, tenantId);
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        return jdbc.query("""
+                SELECT s.signal_type, s.signal_score, s.signal_value, s.created_at,
+                       p.product_id, p.product_name, p.price, p.total_sales, p.daily_sales, p.url
+                FROM monitor_signal s
+                LEFT JOIN monitor_product_snapshot p
+                  ON p.tenant_id = s.tenant_id AND p.snapshot_id = s.snapshot_id AND p.product_id = s.product_id
+                WHERE s.tenant_id = ? AND s.target_id = ?
+                ORDER BY s.created_at DESC
+                LIMIT ?
+                """, (rs, rn) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("signal_type", rs.getString("signal_type"));
+                    row.put("signal_score", rs.getDouble("signal_score"));
+                    row.put("signal_value", rs.getString("signal_value"));
+                    row.put("created_at", rs.getString("created_at"));
+                    row.put("product_id", rs.getString("product_id"));
+                    row.put("product_name", rs.getString("product_name"));
+                    row.put("price", rs.getDouble("price"));
+                    row.put("total_sales", rs.getInt("total_sales"));
+                    row.put("daily_sales", rs.getInt("daily_sales"));
+                    row.put("url", rs.getString("url"));
+                    return row;
+                }, tenantId, targetId, safeLimit);
     }
 
     private List<Map<String, Object>> loadSignalProducts(Long tenantId, String snapshotId, String signalType) {

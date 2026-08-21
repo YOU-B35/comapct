@@ -14,5 +14,7 @@ public interface MonitorService {
     Map<String, Object> getJob(String jobId);
     Map<String, Object> getLatest(String targetId);
     Map<String, Object> getHistory(String targetId);
+    List<Map<String, Object>> getTrend(String targetId, int days, String productId);
+    List<Map<String, Object>> getSignals(String targetId, int limit);
     Path resolveReportXlsx(String targetId);
 }

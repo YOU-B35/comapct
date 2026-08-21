@@ -77,6 +77,23 @@ public class MonitorController {
         return ApiResult.ok(monitorService.getHistory(id));
     }
 
+    @GetMapping("/targets/{id}/trend")
+    public Map<String, Object> trend(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(required = false) String product_id
+    ) {
+        return ApiResult.ok(monitorService.getTrend(id, days, product_id));
+    }
+
+    @GetMapping("/targets/{id}/signals")
+    public Map<String, Object> signals(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "50") int limit
+    ) {
+        return ApiResult.ok(monitorService.getSignals(id, limit));
+    }
+
     @GetMapping("/jobs/{jobId}")
     public Map<String, Object> job(@PathVariable String jobId) {
         return ApiResult.ok(monitorService.getJob(jobId));
