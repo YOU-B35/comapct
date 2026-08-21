@@ -26,6 +26,7 @@ import Alibaba1688DashboardPanel from '@/components/alibaba1688/Alibaba1688Dashb
 import Alibaba1688OrderDetailsPanel from '@/components/alibaba1688/Alibaba1688OrderDetailsPanel.vue'
 import Alibaba1688ProductAnalyticsPanel from '@/components/alibaba1688/Alibaba1688ProductAnalyticsPanel.vue'
 import Alibaba1688PeerBestsellersPanel from '@/components/alibaba1688/Alibaba1688PeerBestsellersPanel.vue'
+import Alibaba1688MonitorPanel from '@/components/alibaba1688/Alibaba1688MonitorPanel.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -354,6 +355,9 @@ onActivated(() => {
             :syncing="peerSyncing"
             @sync="syncPeerBestsellers"
           />
+        </el-tab-pane>
+        <el-tab-pane name="monitor" label="竞店监控">
+          <Alibaba1688MonitorPanel :backend-ready="backendReady" />
         </el-tab-pane>
         <el-tab-pane name="products" label="商品分类">
           <el-tabs v-model="activeTab" class="module-tabs">
