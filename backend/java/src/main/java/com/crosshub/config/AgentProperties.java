@@ -21,6 +21,7 @@ public class AgentProperties {
         private int maxAliExpress = 2;
         /** Amazon（紫鸟）并行上限 */
         private int maxAmazon = 1;
+        private int max1688 = 1;
         /** 全局浏览器槽位 */
         private int maxGlobal = 5;
         /** 单次 poll 最多认领任务数 */
@@ -34,6 +35,8 @@ public class AgentProperties {
         public void setMaxAliExpress(int maxAliExpress) { this.maxAliExpress = Math.max(1, maxAliExpress); }
         public int getMaxAmazon() { return maxAmazon; }
         public void setMaxAmazon(int maxAmazon) { this.maxAmazon = Math.max(1, maxAmazon); }
+        public int getMax1688() { return max1688; }
+        public void setMax1688(int max1688) { this.max1688 = Math.max(1, max1688); }
         public int getMaxGlobal() { return maxGlobal; }
         public void setMaxGlobal(int maxGlobal) { this.maxGlobal = Math.max(1, maxGlobal); }
         public int getMaxClaimBatch() { return maxClaimBatch; }

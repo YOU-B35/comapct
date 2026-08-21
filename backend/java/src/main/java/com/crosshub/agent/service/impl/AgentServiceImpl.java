@@ -96,10 +96,11 @@ public class AgentServiceImpl implements AgentService {
         AgentProperties.Concurrency cfg = agentProperties.getConcurrency();
         return new AgentTaskConcurrency.Limits(
                 cfg.getMaxTemu(),
-                cfg.getMaxAliExpress(),
-                cfg.getMaxAmazon(),
-                1,
-                cfg.getMaxGlobal(),
+                  cfg.getMaxAliExpress(),
+                  cfg.getMaxAmazon(),
+                  1,
+                  cfg.getMax1688(),
+                  cfg.getMaxGlobal(),
                 cfg.getMaxClaimBatch(),
                 cfg.getTemuParallelSessions()
         );

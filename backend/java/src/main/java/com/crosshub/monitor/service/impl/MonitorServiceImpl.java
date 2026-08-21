@@ -57,6 +57,7 @@ public class MonitorServiceImpl implements MonitorService {
     @Override
     public List<Map<String, Object>> listTargets(String platform) {
         Long tenantId = dataScopeService.requireTenantId();
+        seedDefault1688Targets(tenantId);
         String sql = """
                 SELECT * FROM monitor_target
                 WHERE tenant_id = ?
@@ -69,6 +70,47 @@ public class MonitorServiceImpl implements MonitorService {
         }
         sql += " ORDER BY updated_at DESC";
         return jdbc.query(sql, (rs, rn) -> toTargetDto(rsToMap(rs)), args.toArray());
+    }
+
+    /** 每个租户首次打开竞品监控时，自动创建默认的两家 1688 竞店目标。 */
+    private void seedDefault1688Targets(Long tenantId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(1) FROM monitor_target WHERE tenant_id = ? AND platform = '1688'",
+                Integer.class, tenantId
+        );
+        if (count != null && count > 0) {
+            return;
+        }
+        String now = now();
+        String[][] seeds = {
+                {"深圳市东博瑞户外用品有限公司", "https://shop16yx1905b2433.1688.com", "930671411701"},
+                {"义乌市寻渔记科技有限公司", "https://shop17682i6w5i484.1688.com", "867473865842"},
+                {"慈溪市酷诺钓具有限公司", "https://shop45996540o0794.1688.com", "979632972917"},
+        };
+        for (String[] seed : seeds) {
+            String targetId = "mt_" + UUID.randomUUID().toString().replace("-", "");
+            String configJson = "{\"top_n\":20,\"pinned_offer_ids\":[\"" + seed[2] + "\"]}";
+            jdbc.update(
+                    """
+                    INSERT INTO monitor_target (
+                      id, tenant_id, platform, target_type, label, target_url, host, status,
+                      crawl_strategy, freshness_minutes, config_json, latest_snapshot_id,
+                      latest_snapshot_at, created_at, updated_at
+                    ) VALUES (?, ?, '1688', 'shop', ?, ?, ?, 'active', '1688_shop_topn', 120, ?, NULL, NULL, ?, ?)
+                    """,
+                    targetId, tenantId, seed[0], seed[1], parseHost(seed[1]), configJson, now, now
+            );
+            String scheduleId = "msch_" + UUID.randomUUID().toString().replace("-", "");
+            jdbc.update(
+                    """
+                    INSERT INTO monitor_schedule (
+                      id, tenant_id, target_id, enabled, schedule_type, cron_expr, interval_minutes,
+                      next_run_at, last_run_at, max_products, retry_limit, created_at, updated_at
+                    ) VALUES (?, ?, ?, 1, 'interval', '', 120, NULL, NULL, 20, 1, ?, ?)
+                    """,
+                    scheduleId, tenantId, targetId, now, now
+            );
+        }
     }
 
     @Override

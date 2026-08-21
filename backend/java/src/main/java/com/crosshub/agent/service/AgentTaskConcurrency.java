@@ -25,7 +25,8 @@ public final class AgentTaskConcurrency {
     public static final int DEFAULT_MAX_TEMU = 3;
     public static final int DEFAULT_MAX_ALIEXPRESS = 2;
     public static final int DEFAULT_MAX_AMAZON = 1;
-    public static final int DEFAULT_MAX_GLOBAL = 5;
+    public static final int DEFAULT_MAX_1688 = 1;
+    public static final int DEFAULT_MAX_GLOBAL = 8;
     public static final int DEFAULT_MAX_CLAIM_BATCH = 5;
     public static final int DEFAULT_TEMU_PARALLEL_SESSIONS = 3;
 
@@ -34,6 +35,7 @@ public final class AgentTaskConcurrency {
         ALIEXPRESS,
         AMAZON,
         DOUYIN,
+        _1688,
         OTHER
     }
 
@@ -42,6 +44,7 @@ public final class AgentTaskConcurrency {
             int maxAliExpress,
             int maxAmazon,
             int maxDouyin,
+            int max1688,
             int maxGlobal,
             int maxClaimBatch,
             int temuParallelSessions
@@ -52,6 +55,7 @@ public final class AgentTaskConcurrency {
                     DEFAULT_MAX_ALIEXPRESS,
                     DEFAULT_MAX_AMAZON,
                     1,
+                    DEFAULT_MAX_1688,
                     DEFAULT_MAX_GLOBAL,
                     DEFAULT_MAX_CLAIM_BATCH,
                     DEFAULT_TEMU_PARALLEL_SESSIONS
@@ -81,6 +85,7 @@ public final class AgentTaskConcurrency {
         private int aliexpress;
         private int amazon;
         private int douyin;
+        private int browser1688;
         private int global;
 
         public State(Limits limits) {
@@ -104,6 +109,7 @@ public final class AgentTaskConcurrency {
                 case ALIEXPRESS -> aliexpress + req.browserSlots() <= limits.maxAliExpress();
                 case AMAZON -> amazon + req.browserSlots() <= limits.maxAmazon();
                 case DOUYIN -> douyin + req.browserSlots() <= limits.maxDouyin();
+                case _1688 -> browser1688 + req.browserSlots() <= limits.max1688();
                 case OTHER -> true;
             };
         }
@@ -119,6 +125,7 @@ public final class AgentTaskConcurrency {
                 case ALIEXPRESS -> aliexpress += req.browserSlots();
                 case AMAZON -> amazon += req.browserSlots();
                 case DOUYIN -> douyin += req.browserSlots();
+                case _1688 -> browser1688 += req.browserSlots();
                 case OTHER -> {
                 }
             }
@@ -237,7 +244,7 @@ public final class AgentTaskConcurrency {
                 "default"
         );
         String key = "1688:" + tenantId + ":" + normalizeKey(session);
-        return new Requirement(Family.DOUYIN, Set.of(key), 1);
+        return new Requirement(Family._1688, Set.of(key), 1);
     }
 
     @SuppressWarnings("unchecked")

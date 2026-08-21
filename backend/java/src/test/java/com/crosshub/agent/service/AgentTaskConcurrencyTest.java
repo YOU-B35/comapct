@@ -123,4 +123,28 @@ class AgentTaskConcurrencyTest {
         state.admit(login);
         assertFalse(state.canAdmit(discover));
     }
+
+    @Test
+    void douyinLoginAnd1688LoginRunInParallel() {
+        AgentTaskConcurrency.State state = new AgentTaskConcurrency.State(limits);
+        AgentTaskConcurrency.Requirement douyin = AgentTaskConcurrency.analyze(
+                com.crosshub.douyin.service.DouyinAgentTasks.LOGIN_OPEN,
+                Map.of("store_id", "dy-1"),
+                5L,
+                limits
+        );
+        AgentTaskConcurrency.Requirement a1688 = AgentTaskConcurrency.analyze(
+                com.crosshub.alibaba1688.service.Alibaba1688AgentTasks.LOGIN_OPEN,
+                Map.of("store_id", "1688-1"),
+                5L,
+                limits
+        );
+        assertEquals(AgentTaskConcurrency.Family.DOUYIN, douyin.family());
+        assertEquals(AgentTaskConcurrency.Family._1688, a1688.family());
+        assertTrue(state.canAdmit(douyin));
+        state.admit(douyin);
+        assertTrue(state.canAdmit(a1688));
+        state.admit(a1688);
+        assertFalse(state.canAdmit(a1688)); // 1688 cap 1
+    }
 }

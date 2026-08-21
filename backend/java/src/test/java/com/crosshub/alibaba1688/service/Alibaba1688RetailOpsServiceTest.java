@@ -559,7 +559,7 @@ class Alibaba1688RetailOpsServiceTest {
 
     private record Fixture(JdbcTemplate jdbc, Alibaba1688RetailOpsService service, Path tmp) {
         Fixture(JdbcTemplate jdbc, Path tmp) {
-            this(jdbc, new Alibaba1688RetailOpsService(jdbc, new ObjectMapper()), tmp);
+            this(jdbc, new Alibaba1688RetailOpsService(jdbc, new ObjectMapper(), new Alibaba1688StoreKeyResolver(jdbc, new ObjectMapper())), tmp);
         }
     }
 
