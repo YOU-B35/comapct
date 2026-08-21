@@ -46,3 +46,8 @@ export async function fetch1688MonitorSignals(targetId, limit = 50) {
   const res = await service.get(`/api/monitor/targets/${targetId}/signals`, { params: { limit } })
   return res?.data ?? res
 }
+
+export async function fetch1688MonitorJob(jobId) {
+  const res = await service.get(`/api/monitor/jobs/${jobId}`, { skipGlobalErrorToast: true })
+  return res?.data ?? res
+}

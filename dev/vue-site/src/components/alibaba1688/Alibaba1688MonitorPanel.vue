@@ -6,6 +6,7 @@ import {
   create1688MonitorTarget,
   delete1688MonitorTarget,
   fetch1688MonitorLatest,
+  fetch1688MonitorJob,
   fetch1688MonitorSignals,
   fetch1688MonitorTrend,
   list1688MonitorTargets,
@@ -24,6 +25,7 @@ const products = ref([])
 const signals = ref([])
 const trend = ref([])
 const trendProductId = ref('')
+let trendChart = null
 const loading = ref(false)
 const showAdd = ref(false)
 const form = ref({
@@ -118,17 +120,49 @@ async function loadTrend() {
 function renderTrend() {
   const chartEl = document.getElementById('a1688-monitor-trend')
   if (!chartEl) return
-  const chart = echarts.init(chartEl)
-  const seriesMap = {}
-  for (const row of trend.value) {
-    if (!seriesMap[row.product_id]) seriesMap[row.product_id] = []
-    seriesMap[row.product_id].push([row.snapshot_at, row.total_sales])
+  if (trendChart) {
+    trendChart.dispose()
+    trendChart = null
   }
-  chart.setOption({
+  trendChart = echarts.init(chartEl)
+  const rows = trend.value || []
+  if (!rows.length) {
+    trendChart.setOption({
+      title: { text: '暂无趋势数据：需要至少 2 次快照后展示（排程每 120 分钟抓取一次）', left: 'center', top: 'middle', textStyle: { fontSize: 13, color: '#909399' } },
+    })
+    return
+  }
+  const xLabels = rows.map((r) => String(r.snapshot_at || '').slice(5, 16))
+  if (trendProductId) {
+    const selected = rows.filter((r) => r.product_id === trendProductId)
+    if (selected.length) {
+      trendChart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['累计销量', '日增量'] },
+        xAxis: { type: 'category', data: selected.map((r) => String(r.snapshot_at || '').slice(5, 16)) },
+        yAxis: [
+          { type: 'value', name: '累计销量(件)' },
+          { type: 'value', name: '日增量(件)' },
+        ],
+        dataZoom: [{ type: 'inside' }],
+        series: [
+          { name: '累计销量', type: 'line', data: selected.map((r) => r.total_sales), showSymbol: true, yAxisIndex: 0 },
+          { name: '日增量', type: 'bar', data: selected.map((r) => r.daily_sales), yAxisIndex: 1 },
+        ],
+      })
+      return
+    }
+  }
+  const seriesMap = {}
+  for (const row of rows) {
+    if (!seriesMap[row.product_id]) seriesMap[row.product_id] = []
+    seriesMap[row.product_id].push([String(row.snapshot_at || '').slice(5, 16), row.total_sales])
+  }
+  trendChart.setOption({
     tooltip: { trigger: 'axis' },
     legend: { type: 'scroll' },
-    xAxis: { type: 'category' },
-    yAxis: { type: 'value' },
+    xAxis: { type: 'category', data: xLabels },
+    yAxis: { type: 'value', name: '累计销量(件)' },
     dataZoom: [{ type: 'inside' }, { type: 'slider' }],
     series: Object.entries(seriesMap).map(([pid, points]) => ({
       name: pid,
@@ -141,8 +175,29 @@ function renderTrend() {
 
 async function trigger(targetId) {
   try {
-    await trigger1688MonitorTarget(targetId, { force: true, bypass_cooldown: true, reason: 'manual refresh' })
-    ElMessage.success('已触发刷新，请稍后查看最新快照')
+    const data = await trigger1688MonitorTarget(targetId, { force: true, bypass_cooldown: true, reason: 'manual refresh' })
+    const jobId = data?.job_id || data?.jobId || data?.id
+    if (!jobId) {
+      ElMessage.success('已触发刷新，请稍后查看最新快照')
+      return
+    }
+    ElMessage.info('刷新任务已开始，正在等待采集完成…')
+    const deadline = Date.now() + 300000
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5000))
+      const job = await fetch1688MonitorJob(jobId)
+      const status = job?.status || job?.job_status
+      if (status === 'success') {
+        ElMessage.success('刷新完成')
+        await loadLatest()
+        return
+      }
+      if (status === 'failed') {
+        ElMessage.error(job?.error_message || '刷新失败，请查看任务详情')
+        return
+      }
+    }
+    ElMessage.warning('刷新任务仍在进行，可稍后在爆款榜查看最新快照')
   } catch (error) {
     ElMessage.error(error?.message || '触发失败')
   }
@@ -296,6 +351,9 @@ defineExpose({ loadTargets })
             </el-table-column>
             <el-table-column prop="shop_name" label="店铺" min-width="140" />
             <el-table-column prop="price" label="价格" width="70" />
+            <el-table-column prop="moq" label="起订量" width="70" />
+            <el-table-column prop="good_rate" label="好评率" width="80" />
+            <el-table-column prop="delivery_48h_rate" label="48h揽收" width="80" />
             <el-table-column prop="total_sales" label="累计销量" width="90" />
             <el-table-column prop="daily_sales" label="日增量" width="80" />
             <el-table-column prop="dropship_7d" label="代发7天" width="90" />

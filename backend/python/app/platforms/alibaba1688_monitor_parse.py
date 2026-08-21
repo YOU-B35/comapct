@@ -53,10 +53,14 @@ def parse_list_item(item: dict, *, rank: int) -> dict[str, Any]:
     url = str(item.get("offerDetailUrl") or "")
     if url.startswith("//"):
         url = "https:" + url
+    price_range = _price_range(item)
     return {
         "offer_id": str(item.get("id") or ""),
         "title": str(item.get("subject") or ""),
         "price": str(item.get("offerPrice") or ""),
+        "price_range": price_range,
+        "moq": str(item.get("quantityBegin") or ""),
+        "good_rate": str(item.get("goodRates") or ""),
         "sale_text": vague,
         "total_sales": parse_sales_text(vague),
         "rank": rank,
@@ -135,3 +139,22 @@ def _first_image(value: Any) -> str:
             return str(first.get("originalImageUrl") or first.get("imageUrl") or "")
         return str(first)
     return ""
+
+
+def _price_range(item: dict[str, Any]) -> str:
+    segments = item.get("priceSegments") or []
+    prices = []
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        for key in ("price", "beginPrice", "endPrice"):
+            raw = seg.get(key)
+            if raw in (None, ""):
+                continue
+            try:
+                prices.append(float(str(raw)))
+            except ValueError:
+                pass
+    if not prices:
+        return ""
+    return f"{min(prices):.2f}-{max(prices):.2f}"
