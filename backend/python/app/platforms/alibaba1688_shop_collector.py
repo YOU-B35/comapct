@@ -234,6 +234,8 @@ def _merge_detail(row: dict[str, Any], detail: dict[str, Any], shop: dict[str, A
             row["title"] = str(cur.get("title") or "")
         if not row.get("price"):
             row["price"] = str(cur.get("price") or "")
+        if not row.get("image_url") and cur.get("imageUrl"):
+            row["image_url"] = str(cur.get("imageUrl") or "")
         if not row.get("sale_text"):
             row["sale_text"] = str(cur.get("saleText") or "")
         row["total_sales"] = max(

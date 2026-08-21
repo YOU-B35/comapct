@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS monitor_product_snapshot (
   total_sales INTEGER NOT NULL DEFAULT 0,
   listed_at TEXT NOT NULL DEFAULT '',
   url TEXT NOT NULL DEFAULT '',
+  image_url TEXT NOT NULL DEFAULT '',
   shop_name TEXT NOT NULL DEFAULT '',
   shop_url TEXT NOT NULL DEFAULT '',
   rank INTEGER NOT NULL DEFAULT 0,

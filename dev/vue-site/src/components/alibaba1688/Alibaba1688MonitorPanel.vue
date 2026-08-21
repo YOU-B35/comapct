@@ -36,6 +36,49 @@ const form = ref({
   webhook_url: '',
 })
 
+const SIGNAL_TYPE_TEXT = {
+  price_change: '价格变动',
+  sales_surge: '销量异常',
+  delist_or_relist: '下架/恢复上架',
+  bestseller_new_entry: '新爆款上榜',
+  stock_warning: '缺货预警',
+  auth_or_risk: '登录/风控告警',
+  recent_launch: '新品上架',
+  sales_outlier: '销量异动',
+}
+
+function signalTypeText(type) {
+  return SIGNAL_TYPE_TEXT[type] || String(type || '')
+}
+
+function formatSignalValue(type, raw) {
+  let obj = raw
+  if (typeof raw === 'string') {
+    try {
+      obj = JSON.parse(raw)
+    } catch (e) {
+      return String(raw || '')
+    }
+  }
+  if (!obj || typeof obj !== 'object') return String(raw || '')
+  switch (type) {
+    case 'price_change':
+      return `价格变动：${obj.old ?? '-'} → ${obj.new ?? '-'}`
+    case 'sales_surge':
+      return `日增量 ${obj.delta ?? '-'}（历史均值 ${obj.avg ?? '-'}）`
+    case 'delist_or_relist':
+      return obj.status === 'relisted' ? '商品恢复上架' : '商品已下架'
+    case 'bestseller_new_entry':
+      return `新进入店铺爆款榜第 ${obj.rank ?? '-'} 名`
+    case 'auth_or_risk':
+      return obj.code ? `异常代码：${obj.code}` : '登录或风控异常'
+    case 'stock_warning':
+      return obj.text || '出现缺货/低库存信号'
+    default:
+      return String(raw || '')
+  }
+}
+
 async function loadTargets() {
   if (!props.backendReady) return
   try {
@@ -156,6 +199,10 @@ function thumbSrc(row) {
   return raw
 }
 
+function productInitial(row) {
+  return String(row?.product_name || row?.product_id || '?').slice(0, 1)
+}
+
 onMounted(() => void loadTargets())
 defineExpose({ loadTargets })
 </script>
@@ -233,11 +280,21 @@ defineExpose({ loadTargets })
             <el-table-column label="商品" min-width="220">
               <template #default="{ row }">
                 <a :href="row.url" target="_blank" rel="noopener">
-                  <el-image :src="thumbSrc(row)" fit="cover" style="width: 36px; height: 36px; vertical-align: middle" />
+                  <el-image
+                    v-if="thumbSrc(row)"
+                    :src="thumbSrc(row)"
+                    fit="cover"
+                    style="width: 36px; height: 36px; vertical-align: middle"
+                  />
+                  <span
+                    v-else
+                    style="display: inline-block; width: 36px; height: 36px; line-height: 36px; text-align: center; background: #f0f2f5; color: #909399; border-radius: 4px; vertical-align: middle"
+                  >{{ productInitial(row) }}</span>
                   <span style="margin-left: 6px">{{ row.product_name }}</span>
                 </a>
               </template>
             </el-table-column>
+            <el-table-column prop="shop_name" label="店铺" min-width="140" />
             <el-table-column prop="price" label="价格" width="70" />
             <el-table-column prop="total_sales" label="累计销量" width="90" />
             <el-table-column prop="daily_sales" label="日增量" width="80" />
@@ -269,9 +326,13 @@ defineExpose({ loadTargets })
       <template #header>告警信号</template>
       <el-table :data="signals" size="small">
         <el-table-column prop="created_at" label="时间" width="160" />
-        <el-table-column prop="signal_type" label="类型" width="140" />
+        <el-table-column label="类型" width="150">
+          <template #default="{ row }">{{ signalTypeText(row.signal_type) }}</template>
+        </el-table-column>
         <el-table-column prop="product_name" label="商品" min-width="180" />
-        <el-table-column prop="signal_value" label="详情" min-width="220" />
+        <el-table-column label="详情" min-width="220">
+          <template #default="{ row }">{{ formatSignalValue(row.signal_type, row.signal_value) }}</template>
+        </el-table-column>
       </el-table>
     </el-card>
   </div>

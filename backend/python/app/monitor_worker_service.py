@@ -420,12 +420,12 @@ def persist_snapshot(
             """
             INSERT INTO monitor_product_snapshot (
               id, tenant_id, snapshot_id, target_id, product_id, product_name,
-              category, price, daily_sales, total_sales, listed_at, url,
+              category, price, daily_sales, total_sales, listed_at, url, image_url,
               shop_name, shop_url, rank, price_range, sale_text, dropship_7d,
               dropship_30d, dropship_heat, rebuy_rate, shop_return_rate,
               quality_rate, shop_fans, attrs_json, is_pinned, status, expired,
               suspicious, raw_json, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 f"mps_{snapshot_id}_{product['product_id']}",
@@ -440,6 +440,7 @@ def persist_snapshot(
                 int(product.get("total_sales") or 0),
                 product.get("listed_at", ""),
                 product.get("url", ""),
+                product.get("image_url", ""),
                 product.get("shop_name", ""),
                 product.get("shop_url", ""),
                 int(product.get("rank") or 0),

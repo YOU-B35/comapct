@@ -26,6 +26,7 @@ class Alibaba1688MonitorAdapter(MonitorPlatformAdapter):
                     "total_sales": int(row.get("total_sales") or 0),
                     "listed_at": str(row.get("listed_at") or "")[:10],
                     "url": str(row.get("url") or ""),
+                    "image_url": str(row.get("image_url") or ""),
                     "shop_name": str(row.get("shop_name") or ""),
                     "shop_url": str(row.get("shop_url") or ""),
                     "rank": int(row.get("rank") or 0),

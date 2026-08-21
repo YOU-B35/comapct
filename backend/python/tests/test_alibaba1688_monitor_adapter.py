@@ -19,6 +19,7 @@ class Alibaba1688MonitorAdapterTest(unittest.TestCase):
                     "rank": 1,
                     "listed_at": "2024-08-15",
                     "url": "https://detail.1688.com/offer/930671411701.html",
+                    "image_url": "https://cbu01.alicdn.com/img/ibank/example.jpg",
                     "shop_name": "深圳市东博瑞户外用品有限公司",
                     "shop_url": "https://shop16yx1905b2433.1688.com",
                     "shop_fans": 722,
@@ -53,4 +54,5 @@ class Alibaba1688MonitorAdapterTest(unittest.TestCase):
         self.assertEqual(product["total_sales"], 100000)
         self.assertEqual(product["daily_sales"], 0)
         self.assertEqual(product["is_pinned"], 1)
+        self.assertEqual(product["image_url"], "https://cbu01.alicdn.com/img/ibank/example.jpg")
         self.assertEqual(product["shop_name"], "深圳市东博瑞户外用品有限公司")

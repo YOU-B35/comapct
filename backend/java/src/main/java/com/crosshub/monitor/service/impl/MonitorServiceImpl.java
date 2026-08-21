@@ -325,7 +325,7 @@ public class MonitorServiceImpl implements MonitorService {
         if (!latestSnapshotId.isBlank()) {
             products = jdbc.query("""
                     SELECT product_id, product_name, category, price, daily_sales, total_sales,
-                           listed_at, url, shop_name, shop_url, rank, price_range, sale_text,
+                           listed_at, url, image_url, shop_name, shop_url, rank, price_range, sale_text,
                            dropship_7d, dropship_30d, dropship_heat, rebuy_rate, shop_return_rate,
                            quality_rate, shop_fans, is_pinned, suspicious
                     FROM monitor_product_snapshot
@@ -342,6 +342,7 @@ public class MonitorServiceImpl implements MonitorService {
                         row.put("total_sales", rs.getInt("total_sales"));
                         row.put("listed_at", rs.getString("listed_at"));
                         row.put("url", rs.getString("url"));
+                        row.put("image_url", rs.getString("image_url"));
                         row.put("shop_name", rs.getString("shop_name"));
                         row.put("shop_url", rs.getString("shop_url"));
                         row.put("rank", rs.getInt("rank"));
