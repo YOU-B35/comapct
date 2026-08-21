@@ -475,6 +475,9 @@ async function handleOpenLogin() {
     } else {
       ElMessage.success(openRes?.message || '请在本机弹出的浏览器中完成登录（看任务栏是否已打开 Chrome）')
     }
+    if (props.platform === '1688' && openRes?.queued !== false) {
+      void poll1688LoginProgress()
+    }
     void loadSessionStatus()
     void startSessionPoll()
   } catch (err) {
@@ -482,6 +485,37 @@ async function handleOpenLogin() {
   } finally {
     openingKey.value = ''
   }
+}
+
+async function poll1688LoginProgress() {
+  const { fetchAlibaba1688LoginStatus } = await import('@/api/alibaba1688Api')
+  let warnedQueued = false
+  const deadline = Date.now() + 5 * 60 * 1000
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    try {
+      const st = await fetchAlibaba1688LoginStatus()
+      if (st?.status === 'running') {
+        ElMessage.info('登录窗口正在打开…请在运行本机助手的电脑上完成登录（留意任务栏 Chrome）')
+        return
+      }
+      if (st?.status === 'failed') {
+        ElMessage.error(st.error_message || '登录窗口打开失败，请重新点击「打开登录」')
+        return
+      }
+      if (st?.status === 'success' || sessionStatus.value?.logged_in) {
+        ElMessage.success('1688 已登录')
+        return
+      }
+      if (st?.status === 'pending' && !warnedQueued) {
+        warnedQueued = true
+        ElMessage.warning('登录任务排队中：前面有 1688 任务在执行，请稍候…')
+      }
+    } catch (err) {
+      return
+    }
+  }
+  ElMessage.warning('登录窗口打开较慢：请确认本机助手在运行；仍未弹出请重启 Sync Helper 后重试')
 }
 
 async function handleConfirmLogin() {

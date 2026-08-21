@@ -97,7 +97,7 @@ def _close(pw, context) -> None:
 
 
 def _session_payload(tenant_id: int, *, logged_in: bool, message: str) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "tenant_id": tenant_id,
         "ready": logged_in,
         "logged_in": logged_in,
@@ -107,6 +107,22 @@ def _session_payload(tenant_id: int, *, logged_in: bool, message: str) -> dict[s
         "shop_count": 0,
         "shops": [],
     }
+    return payload
+
+
+def _extract_shop_identity(page) -> dict[str, Any]:
+    """从卖家工作台页面尽力提取真实店铺名，用于默认会话归属解析。"""
+    import re
+
+    info: dict[str, Any] = {}
+    try:
+        text = page.evaluate("() => document.body ? document.body.innerText : ''") or ""
+        m = re.search(r"([^\n]{2,40})\n首页", text)
+        if m:
+            info["store_name"] = m.group(1).strip()
+    except Exception:
+        pass
+    return info
 
 
 def probe_session(tenant_id: int, store_id: str | None = None) -> dict[str, Any]:
@@ -124,11 +140,17 @@ def probe_session(tenant_id: int, store_id: str | None = None) -> dict[str, Any]
             f"[1688Probe] tenant={tenant_id} logged_in={logged_in} url={getattr(page, 'url', '')!r}",
             flush=True,
         )
-        return _session_payload(
+        payload = _session_payload(
             tenant_id,
             logged_in=logged_in,
             message="1688 已登录" if logged_in else "1688 未登录，请打开登录窗口完成登录",
         )
+        if logged_in:
+            identity = _extract_shop_identity(page)
+            if identity.get("store_name"):
+                payload["shops"] = [{"store_name": identity["store_name"]}]
+                payload["shop_count"] = 1
+        return payload
     finally:
         _close(pw, context)
 

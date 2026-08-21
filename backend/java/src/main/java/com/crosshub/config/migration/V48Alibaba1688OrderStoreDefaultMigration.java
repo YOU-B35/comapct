@@ -44,12 +44,49 @@ public class V48Alibaba1688OrderStoreDefaultMigration {
                 continue;
             }
             int orders = jdbc.update(
-                    "UPDATE alibaba1688_order SET store_id = ? WHERE tenant_id = ? AND store_id = 'default'",
-                    defaultAccountId, tenantId
+                    """
+                    UPDATE alibaba1688_order SET store_id = ?
+                    WHERE tenant_id = ? AND store_id = 'default'
+                      AND order_no NOT IN (
+                        SELECT order_no FROM alibaba1688_order
+                        WHERE tenant_id = ? AND store_id = ?
+                      )
+                    """,
+                    defaultAccountId, tenantId, tenantId, defaultAccountId
             );
             int items = jdbc.update(
-                    "UPDATE alibaba1688_order_item SET store_id = ? WHERE tenant_id = ? AND store_id = 'default'",
-                    defaultAccountId, tenantId
+                    """
+                    UPDATE alibaba1688_order_item SET store_id = ?
+                    WHERE tenant_id = ? AND store_id = 'default'
+                      AND (order_no, line_id) NOT IN (
+                        SELECT order_no, line_id FROM alibaba1688_order_item
+                        WHERE tenant_id = ? AND store_id = ?
+                      )
+                    """,
+                    defaultAccountId, tenantId, tenantId, defaultAccountId
+            );
+            // 清理仍滞留在 default 的重复订单/明细（与目标店铺重复，无需保留）
+            jdbc.update(
+                    """
+                    DELETE FROM alibaba1688_order_item
+                    WHERE tenant_id = ? AND store_id = 'default'
+                      AND (order_no, line_id) IN (
+                        SELECT order_no, line_id FROM alibaba1688_order_item
+                        WHERE tenant_id = ? AND store_id = ?
+                      )
+                    """,
+                    tenantId, tenantId, defaultAccountId
+            );
+            jdbc.update(
+                    """
+                    DELETE FROM alibaba1688_order
+                    WHERE tenant_id = ? AND store_id = 'default'
+                      AND order_no IN (
+                        SELECT order_no FROM alibaba1688_order
+                        WHERE tenant_id = ? AND store_id = ?
+                      )
+                    """,
+                    tenantId, tenantId, defaultAccountId
             );
             totalOrders += orders;
             totalItems += items;

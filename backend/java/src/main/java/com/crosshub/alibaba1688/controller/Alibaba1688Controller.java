@@ -65,6 +65,11 @@ public class Alibaba1688Controller {
         return ApiResult.ok(sessionService.session(sid));
     }
 
+    @GetMapping("/login/status")
+    public Map<String, Object> loginStatus() {
+        return ApiResult.ok(sessionService.latestLoginStatus());
+    }
+
     @PostMapping("/login/open")
     public ResponseEntity<Map<String, Object>> loginOpen(
             @RequestParam(required = false) String storeId,

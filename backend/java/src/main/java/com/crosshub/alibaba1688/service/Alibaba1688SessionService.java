@@ -97,6 +97,37 @@ public class Alibaba1688SessionService {
         return out;
     }
 
+    /** 最新 1688 登录任务状态，供前端实时反馈登录窗口是否已打开。 */
+    public Map<String, Object> latestLoginStatus() {
+        Long tenantId = dataScopeService.requireTenantId();
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                """
+                SELECT id, status, started_at, finished_at, error_code, error_message
+                FROM agent_task
+                WHERE tenant_id = ? AND task_type = '1688_login_open'
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                tenantId
+        );
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (rows.isEmpty()) {
+            out.put("task_id", "");
+            out.put("status", "");
+            out.put("has_task", false);
+        } else {
+            Map<String, Object> row = rows.get(0);
+            out.put("task_id", String.valueOf(row.get("id")));
+            out.put("status", String.valueOf(row.get("status")));
+            out.put("started_at", String.valueOf(row.get("started_at")));
+            out.put("finished_at", String.valueOf(row.get("finished_at")));
+            out.put("error_code", String.valueOf(row.get("error_code")));
+            out.put("error_message", String.valueOf(row.get("error_message")));
+            out.put("has_task", true);
+        }
+        out.put("agent_online", agentPresenceService.isAgentOnline(tenantId));
+        return out;
+    }
+
     @Transactional
     public Map<String, Object> enqueueLoginOpen() {
         return enqueueLoginOpen(null);

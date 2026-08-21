@@ -130,6 +130,11 @@ export async function fetchAlibaba1688Session({ storeId } = {}) {
   return res?.data ?? res ?? {}
 }
 
+export async function fetchAlibaba1688LoginStatus() {
+  const res = await service.get('/api/1688/login/status', { skipGlobalErrorToast: true })
+  return res?.data ?? res ?? {}
+}
+
 export async function enqueueAlibaba1688Login({ storeId } = {}) {
   const res = await service.post('/api/1688/login/open', {}, {
     params: storeId && storeId !== 'all' ? { storeId } : {},

@@ -45,6 +45,19 @@ _DOUYIN_BROWSER_TASK_TYPES = frozenset(
     }
 )
 
+# 1688 只有一个浏览器 profile，所有 1688 浏览器任务进程内串行，避免并发抢占同一登录态
+_1688_BROWSER_LOCK = threading.Lock()
+_1688_BROWSER_TASK_TYPES = frozenset(
+    {
+        "1688_session_probe",
+        "1688_login_open",
+        "1688_products_sync",
+        "1688_orders_sync",
+        "1688_peer_bestsellers_sync",
+        "1688_monitor_crawl",
+    }
+)
+
 
 def _clear_panel_logging_in(session_key: str | None) -> None:
     key = str(session_key or "").strip()
@@ -786,23 +799,20 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
             elif task_type == "douyin_products_sync":
                 handle_douyin_products_sync(client, task)
         return
-    if task_type == "1688_session_probe":
-        handle_1688_session_probe(client, task)
-        return
-    if task_type == "1688_login_open":
-        handle_1688_login_open(client, task)
-        return
-    if task_type == "1688_monitor_crawl":
-        handle_1688_monitor_crawl(client, task)
-        return
-    if task_type == "1688_products_sync":
-        handle_1688_products_sync(client, task)
-        return
-    if task_type == "1688_orders_sync":
-        handle_1688_orders_sync(client, task)
-        return
-    if task_type == "1688_peer_bestsellers_sync":
-        handle_1688_peer_bestsellers_sync(client, task)
+    if task_type in _1688_BROWSER_TASK_TYPES:
+        with _1688_BROWSER_LOCK:
+            if task_type == "1688_session_probe":
+                handle_1688_session_probe(client, task)
+            elif task_type == "1688_login_open":
+                handle_1688_login_open(client, task)
+            elif task_type == "1688_monitor_crawl":
+                handle_1688_monitor_crawl(client, task)
+            elif task_type == "1688_products_sync":
+                handle_1688_products_sync(client, task)
+            elif task_type == "1688_orders_sync":
+                handle_1688_orders_sync(client, task)
+            elif task_type == "1688_peer_bestsellers_sync":
+                handle_1688_peer_bestsellers_sync(client, task)
         return
     task_id = str(task.get("task_id") or "")
     if task_id:

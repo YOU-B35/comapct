@@ -39,6 +39,7 @@ public class Alibaba1688ProductService {
     private final Alibaba1688ProductCategoryRepository categoryRepository;
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final Alibaba1688StoreKeyResolver storeKeyResolver;
 
     public Alibaba1688ProductService(
             DataScopeService dataScopeService,
@@ -48,7 +49,8 @@ public class Alibaba1688ProductService {
             Alibaba1688ProductRepository productRepository,
             Alibaba1688ProductCategoryRepository categoryRepository,
             JdbcTemplate jdbc,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            Alibaba1688StoreKeyResolver storeKeyResolver
     ) {
         this.dataScopeService = dataScopeService;
         this.authContext = authContext;
@@ -58,6 +60,7 @@ public class Alibaba1688ProductService {
         this.categoryRepository = categoryRepository;
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.storeKeyResolver = storeKeyResolver;
     }
 
     @Transactional
@@ -94,8 +97,9 @@ public class Alibaba1688ProductService {
             body = Map.of();
         }
         String defaultStoreId = text(body.get("store_id"));
-        if (defaultStoreId.isBlank()) {
-            defaultStoreId = "default";
+        if (defaultStoreId.isBlank() || "default".equalsIgnoreCase(defaultStoreId)) {
+            String resolved = tenantId == null ? "" : storeKeyResolver.resolveDefaultAccountId(tenantId);
+            defaultStoreId = resolved == null || resolved.isBlank() ? "default" : resolved;
         }
         boolean resetGrowth = truthy(body.get("reset_growth_fields"));
         if (resetGrowth) {

@@ -731,7 +731,7 @@ const extractVideoFilename = (value) => {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /** 轮询 GET /publish/jobs/:id，直到 success/failed 或超时 */
-const pollPublishJob = async (jobId, timeoutMs = 180000) => {
+const pollPublishJob = async (jobId, timeoutMs = 900000) => {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
     try {
@@ -1057,20 +1057,12 @@ const confirmPublish = async (tab) => {
     }
   })
 
-  // 发布前先校验所选账号 cookie，失效账号及时提示，避免提交后才发现
+  // 发布前快速检查：只拦截已知失效账号（本地状态，不额外调 headless 校验，避免增加等待）
   const invalidAccounts = []
-  await Promise.all(
-    (tab.selectedAccounts || []).map(async (accountId) => {
-      const acc = accountStore.accounts.find((a) => a.id === accountId)
-      if (!acc) return
-      try {
-        const res = await http.post('/checkAccount', { id: accountId })
-        if (res?.data?.valid === false) invalidAccounts.push(`${acc.name}（${acc.platform}）`)
-      } catch (e) {
-        // 校验接口异常不阻塞发布
-      }
-    })
-  )
+  for (const accountId of tab.selectedAccounts || []) {
+    const acc = accountStore.accounts.find((a) => a.id === accountId)
+    if (acc && acc.status === '异常') invalidAccounts.push(`${acc.name}（${acc.platform}）`)
+  }
   if (invalidAccounts.length) {
     const names = [...new Set(invalidAccounts)]
     notifyCookieInvalid(names)
@@ -1092,7 +1084,7 @@ const confirmPublish = async (tab) => {
       }
       const polled = await Promise.all(
         pending.map(async (item) => {
-          const finalJob = await pollPublishJob(item.job_id, 600000)
+          const finalJob = await pollPublishJob(item.job_id, 900000)
           if (!finalJob) return item
           const ok = finalJob.status === 'success'
           const cookieInvalid = !ok && (

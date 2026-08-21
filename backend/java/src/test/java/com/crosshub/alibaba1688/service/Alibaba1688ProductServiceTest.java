@@ -85,7 +85,8 @@ class Alibaba1688ProductServiceTest {
                 productRepository,
                 mock(Alibaba1688ProductCategoryRepository.class),
                 mock(JdbcTemplate.class),
-                new ObjectMapper()
+                new ObjectMapper(),
+                new Alibaba1688StoreKeyResolver(mock(JdbcTemplate.class), new ObjectMapper())
         );
 
         Map<String, Object> product = new LinkedHashMap<>();
@@ -129,7 +130,8 @@ class Alibaba1688ProductServiceTest {
                 productRepository,
                 mock(Alibaba1688ProductCategoryRepository.class),
                 mock(JdbcTemplate.class),
-                new ObjectMapper()
+                new ObjectMapper(),
+                new Alibaba1688StoreKeyResolver(mock(JdbcTemplate.class), new ObjectMapper())
         );
 
         Map<String, Object> product = new LinkedHashMap<>();
@@ -224,7 +226,8 @@ class Alibaba1688ProductServiceTest {
                 productRepository,
                 categoryRepository,
                 mock(JdbcTemplate.class),
-                new ObjectMapper()
+                new ObjectMapper(),
+                new Alibaba1688StoreKeyResolver(mock(JdbcTemplate.class), new ObjectMapper())
         );
     }
 

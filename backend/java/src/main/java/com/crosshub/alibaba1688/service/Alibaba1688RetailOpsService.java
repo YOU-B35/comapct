@@ -49,7 +49,7 @@ public class Alibaba1688RetailOpsService {
             body = Map.of();
         }
         String storeId = text(body.get("store_id"));
-        if (storeId.isBlank()) {
+        if (storeId.isBlank() || "default".equalsIgnoreCase(storeId)) {
             storeId = defaultStoreId(tenantId);
         }
         syncActualStoreIdentity(tenantId, storeId, listOf(body.get("orders")));

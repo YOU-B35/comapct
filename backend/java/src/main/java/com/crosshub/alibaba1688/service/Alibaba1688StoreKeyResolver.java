@@ -39,16 +39,44 @@ public class Alibaba1688StoreKeyResolver {
                         new TypeReference<Map<String, Object>>() {}
                 );
                 Object shopsRaw = payload.get("shops");
-                if (shopsRaw instanceof List<?> shops && !shops.isEmpty() && shops.get(0) instanceof Map<?, ?> first) {
-                    Object shopId = first.get("id");
-                    if (shopId != null && !String.valueOf(shopId).isBlank()) {
-                        String candidate = String.valueOf(shopId);
-                        Integer exists = jdbc.queryForObject(
-                                "SELECT COUNT(1) FROM platform_account WHERE id = ? AND tenant_id = ? AND platform = '1688'",
-                                Integer.class, candidate, tenantId
-                        );
-                        if (exists != null && exists > 0) {
-                            return candidate;
+                if (shopsRaw instanceof List<?> shops) {
+                    for (Object item : shops) {
+                        if (!(item instanceof Map<?, ?> shop)) {
+                            continue;
+                        }
+                        // 1) 会话里的真实店铺 ID（探活/登录时写入）
+                        Object shopId = shop.get("id");
+                        if (shopId != null && !String.valueOf(shopId).isBlank()) {
+                            Integer exists = jdbc.queryForObject(
+                                    "SELECT COUNT(1) FROM platform_account WHERE id = ? AND tenant_id = ? AND platform = '1688'",
+                                    Integer.class, String.valueOf(shopId), tenantId
+                            );
+                            if (exists != null && exists > 0) {
+                                return String.valueOf(shopId);
+                            }
+                        }
+                        // 2) 会员ID（external_shop_id）匹配
+                        Object memberId = shop.get("external_shop_id") == null
+                                ? shop.get("member_id") : shop.get("external_shop_id");
+                        if (memberId != null && !String.valueOf(memberId).isBlank()) {
+                            List<String> matched = jdbc.queryForList(
+                                    "SELECT id FROM platform_account WHERE tenant_id = ? AND platform = '1688' AND external_shop_id = ? LIMIT 1",
+                                    String.class, tenantId, String.valueOf(memberId)
+                            );
+                            if (!matched.isEmpty()) {
+                                return matched.get(0);
+                            }
+                        }
+                        // 3) 店铺名匹配（探活时从工作台页面提取的真实名称）
+                        Object storeName = shop.get("store_name") == null ? shop.get("storeName") : shop.get("store_name");
+                        if (storeName != null && !String.valueOf(storeName).isBlank()) {
+                            List<String> matched = jdbc.queryForList(
+                                    "SELECT id FROM platform_account WHERE tenant_id = ? AND platform = '1688' AND store_name = ? LIMIT 1",
+                                    String.class, tenantId, String.valueOf(storeName)
+                            );
+                            if (!matched.isEmpty()) {
+                                return matched.get(0);
+                            }
                         }
                     }
                 }

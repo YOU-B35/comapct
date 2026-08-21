@@ -12,6 +12,7 @@ import com.crosshub.auth.entity.AppUser;
 import com.crosshub.auth.repository.AppUserRepository;
 import com.crosshub.common.ApiResult;
 import com.crosshub.common.AppErrorCode;
+import com.crosshub.common.SqliteBusy;
 import com.crosshub.platform.dto.StorePayload;
 import com.crosshub.platform.entity.PlatformAccount;
 import com.crosshub.platform.repository.PlatformAccountRepository;
@@ -234,7 +235,8 @@ public class AgentController {
                     "Agent 未认证"
             );
         }
-        return Map.of("success", true, "data", temuAgentService.ingestFromAgent(tenantId, payload));
+        return Map.of("success", true, "data",
+                SqliteBusy.retry(() -> temuAgentService.ingestFromAgent(tenantId, payload)));
     }
 
     /** Agent：登录窗口内会话就绪时即时上报，供网站状态栏刷新。 */
