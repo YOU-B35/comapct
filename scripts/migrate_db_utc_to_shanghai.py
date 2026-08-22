@@ -2,11 +2,13 @@
 """Migrate server-clock naive UTC timestamps to Asia/Shanghai (+8 hours).
 
 Usage:
-  python scripts/migrate_db_utc_to_shanghai.py --db /data/crosshub/data/crosshub.db --dry-run
-  python scripts/migrate_db_utc_to_shanghai.py --db /data/crosshub/data/crosshub.db
+  python scripts/migrate_db_utc_to_shanghai.py --db /data/crosshub/data/crosshub.db --cutoff '2026-08-22 13:45:00' --dry-run
+  python scripts/migrate_db_utc_to_shanghai.py --db /data/crosshub/data/crosshub.db --cutoff '2026-08-22 13:45:00'
 
 Only whitelisted "system clock" columns are touched. Platform/business time
-columns and any ISO-with-offset values are never modified.
+columns and any ISO-with-offset values are never modified. When --cutoff is
+given, only rows whose value is strictly older than the cutoff are shifted
+(rows written after the container switched to Asia/Shanghai are left alone).
 """
 
 import argparse
@@ -52,36 +54,39 @@ def _table_columns(conn):
     }
 
 
-def migrate(conn, dry_run=False):
+def migrate(conn, dry_run=False, cutoff=None):
     """Return (table, column, affected_rows) tuples for changed columns."""
     changed = []
     for table, columns in _table_columns(conn).items():
         for col in columns:
             if col not in CLOCK_COLUMNS or col in PLATFORM_COLUMNS:
                 continue
-            like = (
-                f"SELECT COUNT(*) FROM \"{table}\" "
-                f"WHERE (\"{col}\" LIKE '____-__-__ __:__%' "
+            where = (
+                f'("{col}" LIKE \'____-__-__ __:__%\' '
                 f"OR \"{col}\" LIKE '____-__-__T__:__%') "
                 f"AND \"{col}\" NOT LIKE '%Z' "
                 f"AND \"{col}\" NOT LIKE '%+%'"
             )
-            count = conn.execute(like).fetchone()[0]
+            params = []
+            if cutoff:
+                where += f' AND "{col}" < ?'
+                params.append(cutoff)
+            like = f"SELECT COUNT(*) FROM \"{table}\" WHERE {where}"
+            count = conn.execute(like, params).fetchone()[0]
             if not count:
                 continue
             if dry_run:
                 sample = conn.execute(
-                    f'SELECT "{col}" FROM "{table}" WHERE "{col}" IS NOT NULL LIMIT 1'
+                    f'SELECT "{col}" FROM "{table}" WHERE {where} LIMIT 1',
+                    params,
                 ).fetchone()
                 print(f"[dry-run] {table}.{col}: {count} row(s), sample={sample[0] if sample else ''}")
             else:
                 cur = conn.execute(
                     f'UPDATE "{table}" SET "{col}" = '
                     f"datetime(\"{col}\", '+8 hours') "
-                    f'WHERE (("{col}" LIKE \'____-__-__ __:__%\' '
-                    f"OR \"{col}\" LIKE '____-__-__T__:__%') "
-                    f"AND \"{col}\" NOT LIKE '%Z' "
-                    f"AND \"{col}\" NOT LIKE '%+%')"
+                    f"WHERE {where}",
+                    params,
                 )
                 print(f"[apply] {table}.{col}: {cur.rowcount} row(s)")
             changed.append((table, col, count))
@@ -93,6 +98,7 @@ def main(argv=None):
     parser.add_argument("--db", required=True, help="Path to SQLite database")
     parser.add_argument("--dry-run", action="store_true", help="Only report, do not write")
     parser.add_argument("--backup-dir", help="Directory for timestamped backup (default: DB directory)")
+    parser.add_argument("--cutoff", help="Only shift rows with value strictly older than this naive timestamp")
     args = parser.parse_args(argv)
 
     if not args.dry_run:
@@ -106,7 +112,7 @@ def main(argv=None):
 
     conn = sqlite3.connect(args.db)
     try:
-        migrate(conn, dry_run=args.dry_run)
+        migrate(conn, dry_run=args.dry_run, cutoff=args.cutoff)
         if not args.dry_run:
             conn.commit()
     finally:
