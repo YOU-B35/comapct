@@ -104,17 +104,17 @@ defineExpose({ load })
       <el-table-column prop="shopName" label="店铺名称" min-width="150" show-overflow-tooltip>
         <template #default="{ row }">{{ row.shopName || '-' }}</template>
       </el-table-column>
-      <el-table-column label="单价" width="100" align="right">
+      <el-table-column label="单价" width="100" align="right" sortable :sort-method="(a, b) => Number(a.price || 0) - Number(b.price || 0)">
         <template #default="{ row }">{{ row.price ? '¥' + row.price : '-' }}</template>
       </el-table-column>
-      <el-table-column label="销量（平台已售）" width="130" align="right">
+      <el-table-column label="销量（平台已售）" width="130" align="right" sortable :sort-method="(a, b) => Number(a.sales || 0) - Number(b.sales || 0)">
         <template #default="{ row }">{{ row.saleText || row.sales || '-' }}</template>
       </el-table-column>
-      <el-table-column label="商品质量分" width="100" align="center">
+      <el-table-column label="商品质量分" width="100" align="center" sortable :sort-method="(a, b) => Number(a.qualityScore || 0) - Number(b.qualityScore || 0)">
         <template #default="{ row }">{{ row.qualityScore || '-' }}</template>
       </el-table-column>
       <el-table-column prop="suggestion" label="追踪建议" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="syncedAt" label="抓取时间" width="150" />
+      <el-table-column prop="syncedAt" label="抓取时间" width="150" sortable />
     </el-table>
 
     <div class="pagination-row">
