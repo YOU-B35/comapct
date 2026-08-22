@@ -156,22 +156,22 @@ defineExpose({ load })
       </el-table-column>
       <el-table-column prop="orderNo" label="订单号" min-width="160" show-overflow-tooltip />
       <el-table-column prop="skuText" label="SKU" min-width="120" show-overflow-tooltip />
-      <el-table-column prop="quantity" label="数量" width="70" align="right" />
-      <el-table-column label="单价" width="90" align="right">
+      <el-table-column prop="quantity" label="数量" width="70" align="right" sortable />
+      <el-table-column label="单价" width="90" align="right" sortable :sort-method="(a, b) => Number(a.unitPrice || 0) - Number(b.unitPrice || 0)">
         <template #default="{ row }">{{ row.unitPrice || '—' }}</template>
       </el-table-column>
-      <el-table-column label="行金额" width="100" align="right">
+      <el-table-column label="行金额" width="100" align="right" sortable :sort-method="(a, b) => Number(a.itemAmount || 0) - Number(b.itemAmount || 0)">
         <template #default="{ row }">{{ row.itemAmount || '0' }}</template>
       </el-table-column>
-      <el-table-column label="订单实付" width="100" align="right">
+      <el-table-column label="订单实付" width="100" align="right" sortable :sort-method="(a, b) => Number(a.paidAmount || 0) - Number(b.paidAmount || 0)">
         <template #default="{ row }">{{ row.paidAmount || '0' }}</template>
       </el-table-column>
-      <el-table-column label="退款金额" width="100" align="right">
+      <el-table-column label="退款金额" width="100" align="right" sortable :sort-method="(a, b) => Number(a.refundedAmount || 0) - Number(b.refundedAmount || 0)">
         <template #default="{ row }">{{ row.refundedAmount || '0' }}</template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="90" />
-      <el-table-column prop="paidAt" label="支付时间" width="150" />
-      <el-table-column prop="refundedAt" label="退款时间" width="150">
+      <el-table-column prop="paidAt" label="支付时间" width="150" sortable />
+      <el-table-column prop="refundedAt" label="退款时间" width="150" sortable>
         <template #default="{ row }">{{ formatUtc8(row.refundedAt) }}</template>
       </el-table-column>
       <el-table-column prop="buyerMasked" label="买家" width="90" />
