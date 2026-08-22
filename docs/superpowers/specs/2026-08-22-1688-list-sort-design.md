@@ -64,6 +64,24 @@
 | 支付时间 | `paidAt` | `sortable` |
 | 退款时间 | `refundedAt` | `sortable` |
 
+### 2.5 `dev/vue-site/src/components/alibaba1688/Alibaba1688MonitorPanel.vue`（竞店监控·爆款榜商品列表）
+
+表格数据源 `products`（本地全量快照，无分页），可排序列：
+
+| 列 | 字段 | 方式 |
+| --- | --- | --- |
+| 排名 | `rank` | `sortable` |
+| 价格 | `price` | `sortable` |
+| 起订量 | `moq` | `sortable` |
+| 好评率 | `good_rate` | `sortable` |
+| 48h揽收 | `delivery_48h_rate` | `sortable` |
+| 累计销量 | `total_sales` | `sortable` |
+| 日增量 | `daily_sales` | `sortable` |
+| 代发7天 | `dropship_7d` | `sortable` |
+| 复购率 | `rebuy_rate` | `sortable` |
+
+文本列（商品、店铺、状态）不加排序；本列表为本地全量数据，排序对整个商品列表生效。
+
 ## 3. 实现方式
 
 - 数值型且直接绑定 `prop` 的列：加 `sortable` 即可。
