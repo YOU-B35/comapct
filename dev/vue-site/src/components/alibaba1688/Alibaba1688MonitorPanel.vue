@@ -1,5 +1,5 @@
 <script setup>
-import { formatUtc8 } from '@/utils/time'
+import { formatUtc8, toUtc8Date } from '@/utils/time'
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
@@ -8,6 +8,7 @@ import {
   delete1688MonitorTarget,
   fetch1688MonitorLatest,
   fetch1688MonitorJob,
+  fetch1688MonitorJobs,
   fetch1688MonitorSignals,
   fetch1688MonitorTrend,
   list1688MonitorTargets,
@@ -28,6 +29,8 @@ const trend = ref([])
 const trendProductId = ref('')
 let trendChart = null
 const loading = ref(false)
+const jobs = ref([])
+const loadingJobs = ref(false)
 const showAdd = ref(false)
 const form = ref({
   label: '',
@@ -102,12 +105,37 @@ async function loadLatest() {
     latest.value = data
     products.value = Array.isArray(data?.products) ? data.products : []
     signals.value = await fetch1688MonitorSignals(selectedTargetId.value, 50)
+    await loadJobs()
     await loadTrend()
   } catch (error) {
     ElMessage.error(error?.message || '加载快照失败')
   } finally {
     loading.value = false
   }
+}
+
+async function loadJobs() {
+  if (!selectedTargetId.value) return
+  loadingJobs.value = true
+  try {
+    const data = await fetch1688MonitorJobs(selectedTargetId.value, 20)
+    jobs.value = Array.isArray(data?.jobs) ? data.jobs : []
+  } catch (e) {
+    jobs.value = []
+  } finally {
+    loadingJobs.value = false
+  }
+}
+
+function formatJobDuration(row) {
+  const start = toUtc8Date(row?.queued_at)
+  const end = toUtc8Date(row?.finished_at)
+  if (!start || !end) return '—'
+  const sec = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))
+  if (sec < 60) return `${sec} 秒`
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return s ? `${m} 分 ${s} 秒` : `${m} 分钟`
 }
 
 async function loadTrend() {
@@ -195,12 +223,15 @@ async function trigger(targetId) {
       }
       if (status === 'failed') {
         ElMessage.error(job?.error_message || '刷新失败，请查看任务详情')
+        await loadJobs()
         return
       }
     }
     ElMessage.warning('刷新任务仍在进行，可稍后在爆款榜查看最新快照')
+    await loadJobs()
   } catch (error) {
     ElMessage.error(error?.message || '触发失败')
+    await loadJobs()
   }
 }
 
@@ -367,6 +398,36 @@ defineExpose({ loadTargets })
               </template>
             </el-table-column>
           </el-table>
+          <div style="margin-top: 12px">
+            <div style="font-weight: 600; margin-bottom: 8px">刷新记录</div>
+            <el-table :data="jobs" v-loading="loadingJobs" size="small" max-height="260" empty-text="暂无刷新记录">
+              <el-table-column label="发起时间" width="150">
+                <template #default="{ row }">{{ formatUtc8(row.queued_at) }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="80">
+                <template #default="{ row }">
+                  <el-tag v-if="row.status === 'success'" type="success" size="small">成功</el-tag>
+                  <el-tag v-else-if="row.status === 'failed'" type="danger" size="small">失败</el-tag>
+                  <el-tag v-else type="warning" size="small">进行中</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="开始时间" width="150">
+                <template #default="{ row }">{{ row.started_at ? formatUtc8(row.started_at) : '—' }}</template>
+              </el-table-column>
+              <el-table-column label="结束时间" width="150">
+                <template #default="{ row }">{{ row.finished_at ? formatUtc8(row.finished_at) : '—' }}</template>
+              </el-table-column>
+              <el-table-column label="耗时" width="90">
+                <template #default="{ row }">{{ formatJobDuration(row) }}</template>
+              </el-table-column>
+              <el-table-column label="触发方式" width="90">
+                <template #default="{ row }">{{ row.trigger_type === 'manual' ? '手动' : row.trigger_type === 'scheduled' ? '定时' : (row.trigger_type || '—') }}</template>
+              </el-table-column>
+              <el-table-column label="失败原因" min-width="160" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.error_message || '—' }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
         </el-card>
       </el-col>
     </el-row>

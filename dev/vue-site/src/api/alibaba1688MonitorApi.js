@@ -51,3 +51,11 @@ export async function fetch1688MonitorJob(jobId) {
   const res = await service.get(`/api/monitor/jobs/${jobId}`, { skipGlobalErrorToast: true })
   return res?.data ?? res
 }
+
+export async function fetch1688MonitorJobs(targetId, limit = 20) {
+  const res = await service.get('/api/monitor/jobs', {
+    params: { target_id: targetId, limit },
+    skipGlobalErrorToast: true,
+  })
+  return res?.data ?? res
+}
