@@ -211,6 +211,7 @@ async function trigger(targetId) {
       return
     }
     ElMessage.info('刷新任务已开始，正在等待采集完成…')
+    await loadJobs()
     const deadline = Date.now() + 300000
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 5000))
