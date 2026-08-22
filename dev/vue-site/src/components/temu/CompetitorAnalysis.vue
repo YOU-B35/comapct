@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Link, Refresh, Search, Setting } from '@element-plus/icons-vue'
@@ -648,7 +649,7 @@ onBeforeUnmount(() => {
           </el-table-column>
           <el-table-column label="最近爬取" width="160">
             <template #default="{ row }">
-              <el-text v-if="row.lastAnalyzedAt" size="small">{{ row.lastAnalyzedAt }}</el-text>
+              <el-text v-if="row.lastAnalyzedAt" size="small">{{ formatUtc8(row.lastAnalyzedAt) }}</el-text>
               <el-text v-else size="small" type="info">未爬取</el-text>
             </template>
           </el-table-column>

@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Link } from '@element-plus/icons-vue'
@@ -278,7 +279,7 @@ defineExpose({ reload: loadStatus, online })
         <div class="bind-code">{{ bindInfo.code }}</div>
         <p class="bind-ttl">
           有效期约 {{ ttlLabel || '10 分钟' }}
-          <span v-if="bindInfo.expires_at">（至 {{ bindInfo.expires_at }} UTC）</span>
+          <span v-if="bindInfo.expires_at">（至 {{ formatUtc8(bindInfo.expires_at) }}）</span>
         </p>
       </template>
       <p v-else class="bind-hint">正在生成绑定码…</p>

@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -201,7 +202,7 @@ defineExpose({ finishConfirm, setFilter })
           <template v-if="row.confirmed">
             <el-text size="small">{{ row.appealNote || '—' }}</el-text>
             <el-text size="small" type="info" tag="p" class="confirm-meta">
-              {{ row.confirmedBy }} · {{ row.confirmedAt }}
+              {{ row.confirmedBy }} · {{ formatUtc8(row.confirmedAt) }}
             </el-text>
           </template>
           <el-text v-else size="small" type="info">—</el-text>

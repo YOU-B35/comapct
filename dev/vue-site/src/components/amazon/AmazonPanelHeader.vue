@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import SyncSummaryLine from '@/components/common/SyncSummaryLine.vue'
 
 defineProps({
@@ -46,7 +47,7 @@ const emit = defineEmits(['action', 'secondaryAction', 'open-history'])
         :summary-text="summaryText"
         @open-history="emit('open-history')"
       />
-      <el-text v-else-if="syncedAt" size="small" type="info">最近同步 {{ syncedAt }}</el-text>
+      <el-text v-else-if="syncedAt" size="small" type="info">最近同步 {{ formatUtc8(syncedAt) }}</el-text>
     </div>
   </div>
 </template>

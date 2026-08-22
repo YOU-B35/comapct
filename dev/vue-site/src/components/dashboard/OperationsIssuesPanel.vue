@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -297,7 +298,7 @@ watch(() => props.overview, initFromOverview, { immediate: true })
         <div>
           <span class="panel-title">待处理问题</span>
           <el-text v-if="overview?.syncedAt" size="small" type="info">
-            同步于 {{ overview.syncedAt }}
+            同步于 {{ formatUtc8(overview.syncedAt) }}
           </el-text>
         </div>
         <el-tag

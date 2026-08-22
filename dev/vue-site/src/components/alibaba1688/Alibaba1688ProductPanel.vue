@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, watch } from 'vue'
 import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 
@@ -49,7 +50,7 @@ function displayPrice(row) {
     <div class="toolbar">
       <el-text type="info" size="small">
         共 {{ total }} 条
-        <template v-if="syncState?.syncedAt"> · 分类同步于 {{ syncState.syncedAt }}</template>
+        <template v-if="syncState?.syncedAt"> · 分类同步于 {{ formatUtc8(syncState.syncedAt) }}</template>
       </el-text>
       <div class="toolbar-actions">
         <el-button size="small" :loading="loading" @click="emit('refresh')">刷新</el-button>

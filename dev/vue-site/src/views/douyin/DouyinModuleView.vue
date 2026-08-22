@@ -1,5 +1,6 @@
 ﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { formatUtc8 } from '@/utils/time'
 import { ElMessage } from 'element-plus'
 import { fetchDouyinStores } from '@/api/platformAccounts'
 import {
@@ -1348,7 +1349,7 @@ onMounted(() => {
                 </button>
               </div>
               <span class="period-bar__note">
-                当前：{{ compassPeriodLabel }}<template v-if="compassSyncedAt"> · 同步 {{ compassSyncedAt }}</template>
+                当前：{{ compassPeriodLabel }}<template v-if="compassSyncedAt"> · 同步 {{ formatUtc8(compassSyncedAt) }}</template>
               </span>
             </div>
 
@@ -1569,7 +1570,7 @@ onMounted(() => {
                 {{ rankCategoryName }}{{ rankReportDay ? ` · ${rankReportDay}` : '' }}
               </template>
               <template v-if="rankSyncedAt">
-                <template v-if="rankCategoryName"> · </template>同步 {{ rankSyncedAt }}
+                <template v-if="rankCategoryName"> · </template>同步 {{ formatUtc8(rankSyncedAt) }}
               </template>
               <template v-if="rankProducts.length">
                 <template v-if="rankCategoryName || rankSyncedAt"> · </template>{{ rankProducts.length }} 条
@@ -1794,7 +1795,7 @@ onMounted(() => {
             >
               <template v-if="opportunityCategoryName">{{ opportunityCategoryName }}</template>
               <template v-if="opportunitySyncedAt">
-                <template v-if="opportunityCategoryName"> · </template>同步 {{ opportunitySyncedAt }}
+                <template v-if="opportunityCategoryName"> · </template>同步 {{ formatUtc8(opportunitySyncedAt) }}
               </template>
               <template v-if="opportunityProducts.length">
                 <template v-if="opportunityCategoryName || opportunitySyncedAt"> · </template>{{ opportunityProducts.length }} 条
@@ -2023,7 +2024,7 @@ onMounted(() => {
                       同步商品
                     </el-button>
                     <el-text v-if="productsSyncedAt" size="small" type="info" class="detail-toolbar__meta">
-                      同步 {{ productsSyncedAt }}
+                      同步 {{ formatUtc8(productsSyncedAt) }}
                     </el-text>
                   </template>
                 </div>
@@ -2117,7 +2118,7 @@ onMounted(() => {
                     <template #default="{ row }">{{ row.qualityScore == null ? '—' : row.qualityScore }}</template>
                   </el-table-column>
                   <el-table-column prop="publishedAt" label="上架时间" min-width="150" show-overflow-tooltip>
-                    <template #default="{ row }">{{ row.publishedAt || '—' }}</template>
+                    <template #default="{ row }">{{ formatUtc8(row.publishedAt) }}</template>
                   </el-table-column>
                   <el-table-column label="好评率" width="90" align="right">
                     <template #default="{ row }">

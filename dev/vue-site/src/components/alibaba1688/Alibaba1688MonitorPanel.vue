@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
@@ -132,14 +133,14 @@ function renderTrend() {
     })
     return
   }
-  const xLabels = rows.map((r) => String(r.snapshot_at || '').slice(5, 16))
+  const xLabels = rows.map((r) => formatUtc8(r.snapshot_at).slice(5, 16))
   if (trendProductId) {
     const selected = rows.filter((r) => r.product_id === trendProductId)
     if (selected.length) {
       trendChart.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: ['累计销量', '日增量'] },
-        xAxis: { type: 'category', data: selected.map((r) => String(r.snapshot_at || '').slice(5, 16)) },
+        xAxis: { type: 'category', data: selected.map((r) => formatUtc8(r.snapshot_at).slice(5, 16)) },
         yAxis: [
           { type: 'value', name: '累计销量(件)' },
           { type: 'value', name: '日增量(件)' },
@@ -156,7 +157,7 @@ function renderTrend() {
   const seriesMap = {}
   for (const row of rows) {
     if (!seriesMap[row.product_id]) seriesMap[row.product_id] = []
-    seriesMap[row.product_id].push([String(row.snapshot_at || '').slice(5, 16), row.total_sales])
+    seriesMap[row.product_id].push([formatUtc8(row.snapshot_at).slice(5, 16), row.total_sales])
   }
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
@@ -327,7 +328,7 @@ defineExpose({ loadTargets })
           <template #header>
             爆款榜
             <span v-if="latest?.latest_snapshot_at" style="float: right; font-size: 12px; color: #999">
-              最近快照：{{ latest.latest_snapshot_at }}
+              最近快照：{{ formatUtc8(latest.latest_snapshot_at) }}
             </span>
           </template>
           <el-table :data="products" size="small" max-height="420">

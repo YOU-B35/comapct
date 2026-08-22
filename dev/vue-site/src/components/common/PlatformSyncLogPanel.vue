@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed } from 'vue'
 import { ArrowDown, ArrowUp, CircleCheck, CircleClose, Loading, Refresh, Warning } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
@@ -94,12 +95,12 @@ function statusIcon(status) {
           重新同步
         </el-button>
         <el-text v-if="syncStore.lastFinishedAt" size="small" type="info">
-          {{ syncStore.lastFinishedAt }}
+          {{ formatUtc8(syncStore.lastFinishedAt) }}
         </el-text>
       </div>
       <div v-else-if="syncStore.lastFinishedAt" class="sync-log-panel__actions">
         <el-text size="small" type="info">
-          最近状态更新：{{ syncStore.lastFinishedAt }}
+          最近状态更新：{{ formatUtc8(syncStore.lastFinishedAt) }}
         </el-text>
       </div>
 

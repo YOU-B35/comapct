@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed } from 'vue'
 import { summarizeSellerNews } from '@/utils/amazon'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
@@ -61,7 +62,7 @@ const sorted = computed(() =>
           <el-tag v-if="item.importance === 'high'" type="danger" size="small" effect="plain">重要</el-tag>
           <el-tag size="small" effect="plain">{{ item.category }}</el-tag>
           <span v-if="showStoreColumn" class="news-store">{{ storeNameMap[item.storeId] }}</span>
-          <span class="news-time">{{ item.publishedAt }}</span>
+          <span class="news-time">{{ formatUtc8(item.publishedAt) }}</span>
         </div>
         <h4 class="news-title">{{ item.title }}</h4>
         <p class="news-summary">{{ item.summaryPlain }}</p>

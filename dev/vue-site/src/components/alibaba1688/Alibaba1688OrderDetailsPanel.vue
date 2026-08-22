@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchAlibaba1688Orders } from '@/api/alibaba1688Api'
@@ -171,7 +172,7 @@ defineExpose({ load })
       <el-table-column prop="status" label="状态" width="90" />
       <el-table-column prop="paidAt" label="支付时间" width="150" />
       <el-table-column prop="refundedAt" label="退款时间" width="150">
-        <template #default="{ row }">{{ row.refundedAt || '—' }}</template>
+        <template #default="{ row }">{{ formatUtc8(row.refundedAt) }}</template>
       </el-table-column>
       <el-table-column prop="buyerMasked" label="买家" width="90" />
     </el-table>

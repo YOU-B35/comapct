@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed } from 'vue'
 import { ChatDotRound, WarningFilled } from '@element-plus/icons-vue'
 import { TASK_PLATFORM_OPTIONS, PLATFORM_LABELS } from '@/constants/assignedTasks'
@@ -90,8 +91,8 @@ const displayTimeline = computed(() =>
         <el-descriptions-item label="任务类型">{{ task.category || '—' }}</el-descriptions-item>
         <el-descriptions-item label="截止时间">{{ task.due || '—' }}</el-descriptions-item>
         <el-descriptions-item label="分配人">{{ task.assignedBy || '企业管理员' }}</el-descriptions-item>
-        <el-descriptions-item label="分配时间">{{ task.assignedAt || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="最近更新">{{ task.updatedAt || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="分配时间">{{ formatUtc8(task.assignedAt) }}</el-descriptions-item>
+        <el-descriptions-item label="最近更新">{{ formatUtc8(task.updatedAt) }}</el-descriptions-item>
       </el-descriptions>
 
       <div v-if="task.description" class="desc-block">

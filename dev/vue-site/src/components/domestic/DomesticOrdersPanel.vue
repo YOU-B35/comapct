@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed } from 'vue'
 import { DOMESTIC_ORDER_STATUS_TYPE } from '@/constants/domesticShared'
 import { summarizeDomesticOrders } from '@/utils/domesticPlatform'
@@ -74,7 +75,7 @@ function statusType(order) {
           {{ actionLabel }}
         </el-button>
         <el-text v-if="syncedAt" size="small" type="info" class="domestic-panel__toolbar-meta">
-          同步 {{ syncedAt }}
+          同步 {{ formatUtc8(syncedAt) }}
         </el-text>
       </div>
     </div>

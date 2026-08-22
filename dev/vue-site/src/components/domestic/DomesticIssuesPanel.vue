@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, ref, watch } from 'vue'
 import { summarizeDomesticIssues } from '@/utils/domesticPlatform'
 import DomesticPanelHeader from '@/components/domestic/DomesticPanelHeader.vue'
@@ -124,7 +125,7 @@ defineExpose({ finishResolve, setFilter })
           刷新预警
         </el-button>
         <el-text v-if="syncedAt" size="small" type="info" class="domestic-panel__toolbar-meta">
-          同步 {{ syncedAt }}
+          同步 {{ formatUtc8(syncedAt) }}
         </el-text>
       </div>
     </div>

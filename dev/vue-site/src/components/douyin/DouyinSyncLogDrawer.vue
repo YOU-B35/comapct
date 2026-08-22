@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, nextTick, ref, watch } from 'vue'
 import {
   CircleCheck,
@@ -153,10 +154,10 @@ function logLevelLabel(level) {
             步骤 {{ doneCount }}/{{ totalCount || '—' }}
           </el-text>
           <el-text v-if="run.startedAt" size="small" type="info">
-            开始 {{ run.startedAt }}
+            开始 {{ formatUtc8(run.startedAt) }}
           </el-text>
           <el-text v-if="run.finishedAt" size="small" type="info">
-            结束 {{ run.finishedAt }}
+            结束 {{ formatUtc8(run.finishedAt) }}
           </el-text>
         </div>
       </div>
@@ -188,7 +189,7 @@ function logLevelLabel(level) {
               <p v-if="step.message" class="sync-log__step-msg">{{ step.message }}</p>
               <p v-if="step.error" class="sync-log__step-err">{{ step.error }}</p>
               <el-text v-if="step.updatedAt" size="small" type="info">
-                {{ step.updatedAt }}
+                {{ formatUtc8(step.updatedAt) }}
               </el-text>
             </div>
           </li>

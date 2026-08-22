@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChatDotRound, Right, UserFilled } from '@element-plus/icons-vue'
@@ -33,7 +34,7 @@ function goPlatform(route) {
         <h3 class="daily-report__title">今日运营日报</h3>
         <p class="daily-report__sub">
           {{ report?.date || '—' }}
-          <span v-if="report?.syncedAt"> · 数据同步 {{ report.syncedAt }}</span>
+          <span v-if="report?.syncedAt"> · 数据同步 {{ formatUtc8(report.syncedAt) }}</span>
         </p>
       </div>
       <el-tag type="info" effect="plain" size="small">每日汇总</el-tag>
@@ -158,7 +159,7 @@ function goPlatform(route) {
                 {{ item.outcomeLabel }}
               </el-tag>
               <el-tag size="small" effect="plain">{{ item.platform }}</el-tag>
-              <span class="feedback-item__time">{{ item.submittedAt }}</span>
+              <span class="feedback-item__time">{{ formatUtc8(item.submittedAt) }}</span>
             </div>
           </div>
           <h5 class="feedback-item__task">{{ item.taskTitle }}</h5>

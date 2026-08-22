@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -320,7 +321,7 @@ onUnmounted(() => {
               催 {{ row.shipUrges.length }}
             </el-tag>
             <el-text v-if="row.lastUrgedAt" size="small" type="warning" class="urge-time">
-              {{ row.lastUrgedAt.slice(5, 16) }}
+              {{ formatUtc8(row.lastUrgedAt).slice(5, 16) }}
             </el-text>
           </template>
           <el-text v-else type="info" size="small">—</el-text>

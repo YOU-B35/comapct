@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed } from 'vue'
 import { Document, Files } from '@element-plus/icons-vue'
 import { SOURCE_TYPE_OPTIONS } from '@/constants/warehouseOrders'
@@ -38,7 +39,7 @@ const itemSummary = computed(() => summarizeItems(props.order?.items || []))
         <el-tag :type="statusTagType(order.status)" effect="light">
           {{ statusLabel(order.status) }}
         </el-tag>
-        <span class="detail-time">提交于 {{ order.submittedAt }}</span>
+        <span class="detail-time">提交于 {{ formatUtc8(order.submittedAt) }}</span>
       </div>
 
       <el-descriptions :column="1" border class="detail-block">
@@ -123,7 +124,7 @@ const itemSummary = computed(() => summarizeItems(props.order?.items || []))
         />
         <el-descriptions :column="1" border class="detail-block">
           <el-descriptions-item v-if="order.warehouseReview.estimatedShipAt" label="预计出库">
-            {{ order.warehouseReview.estimatedShipAt }}
+            {{ formatUtc8(order.warehouseReview.estimatedShipAt) }}
           </el-descriptions-item>
           <el-descriptions-item v-if="order.warehouseReview.missingMaterials" label="缺少材料">
             {{ order.warehouseReview.missingMaterials }}
@@ -138,7 +139,7 @@ const itemSummary = computed(() => summarizeItems(props.order?.items || []))
             {{ order.warehouseReview.reviewRemark }}
           </el-descriptions-item>
           <el-descriptions-item label="审批人">
-            {{ order.warehouseReview.reviewedByName }} · {{ order.warehouseReview.reviewedAt }}
+            {{ order.warehouseReview.reviewedByName }} · {{ formatUtc8(order.warehouseReview.reviewedAt) }}
           </el-descriptions-item>
         </el-descriptions>
 
@@ -149,7 +150,7 @@ const itemSummary = computed(() => summarizeItems(props.order?.items || []))
               {{ order.warehouseReview.releaseRemark }}
             </el-descriptions-item>
             <el-descriptions-item label="确认人">
-              {{ order.warehouseReview.releasedByName }} · {{ order.warehouseReview.releasedAt }}
+              {{ order.warehouseReview.releasedByName }} · {{ formatUtc8(order.warehouseReview.releasedAt) }}
             </el-descriptions-item>
           </el-descriptions>
         </template>

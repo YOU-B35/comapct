@@ -1,3 +1,5 @@
+import { formatUtc8 } from './time.js'
+
 function parseSyncTimestamp(value) {
   const raw = String(value || '').trim()
   if (!raw) return null
@@ -19,11 +21,8 @@ export function formatSyncDuration(startedAt, finishedAt) {
 }
 
 export function formatSyncClock(isoLike) {
-  const ms = parseSyncTimestamp(isoLike)
-  if (ms == null) return ''
-  const d = new Date(ms)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const s = formatUtc8(isoLike, { seconds: false })
+  return s === '—' ? '' : s
 }
 
 export function formatTriggerLabel(job = {}) {

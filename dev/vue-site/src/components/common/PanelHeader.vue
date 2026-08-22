@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { Refresh } from '@element-plus/icons-vue'
 
 defineProps({
@@ -26,7 +27,7 @@ const emit = defineEmits(['action', 'secondaryAction'])
     <div class="panel-header__side">
       <span v-if="syncedAt" class="panel-header__sync">
         <i class="panel-header__sync-dot" aria-hidden="true" />
-        {{ syncedPrefix }} {{ syncedAt }}
+        {{ syncedPrefix }} {{ formatUtc8(syncedAt) }}
       </span>
       <slot name="actions">
         <el-button

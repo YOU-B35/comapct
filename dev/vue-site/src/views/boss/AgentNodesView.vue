@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -65,7 +66,7 @@ onMounted(loadAll)
           :local-process-online="localAgentOnline"
         />
         <p v-if="integration.node_name" class="meta">节点：{{ integration.node_name }}</p>
-        <p v-if="integration.last_heartbeat_at" class="meta">最近心跳：{{ integration.last_heartbeat_at }}</p>
+        <p v-if="integration.last_heartbeat_at" class="meta">最近心跳：{{ formatUtc8(integration.last_heartbeat_at) }}</p>
       </div>
     </PageSection>
   </PageScroll>

@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, ref } from 'vue'
 import { COUPON_STATUS } from '@/constants/amazonDaily'
 import { summarizeCoupons } from '@/utils/amazon'
@@ -79,7 +80,7 @@ function statusMeta(row) {
       <AssigneeTableColumn />
       <el-table-column prop="discount" label="力度" width="80" />
       <el-table-column label="有效期" min-width="180">
-        <template #default="{ row }">{{ row.startAt }} ~ {{ row.endAt }}</template>
+        <template #default="{ row }">{{ formatUtc8(row.startAt) }} ~ {{ formatUtc8(row.endAt) }}</template>
       </el-table-column>
       <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">

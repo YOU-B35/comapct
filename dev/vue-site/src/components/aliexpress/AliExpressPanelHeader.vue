@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { Refresh } from '@element-plus/icons-vue'
 import SyncSummaryLine from '@/components/common/SyncSummaryLine.vue'
 
@@ -26,7 +27,7 @@ defineEmits(['action', 'open-history'])
         :summary-text="summaryText"
         @open-history="$emit('open-history')"
       />
-      <el-text v-else-if="syncedAt" size="small" type="info">最近同步 {{ syncedAt }}</el-text>
+      <el-text v-else-if="syncedAt" size="small" type="info">最近同步 {{ formatUtc8(syncedAt) }}</el-text>
       <el-button type="primary" :icon="Refresh" :loading="loading" @click="$emit('action')">
         {{ actionLabel }}
       </el-button>
