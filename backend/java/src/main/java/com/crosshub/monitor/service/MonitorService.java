@@ -12,6 +12,7 @@ public interface MonitorService {
     Map<String, Object> updateSchedule(String targetId, Map<String, Object> payload);
     Map<String, Object> trigger(String targetId, Map<String, Object> payload);
     Map<String, Object> getJob(String jobId);
+    List<Map<String, Object>> listRecentJobs(String targetId, int limit);
     Map<String, Object> getLatest(String targetId);
     Map<String, Object> getHistory(String targetId);
     List<Map<String, Object>> getTrend(String targetId, int days, String productId);

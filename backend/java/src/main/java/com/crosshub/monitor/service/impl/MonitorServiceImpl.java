@@ -314,6 +314,23 @@ public class MonitorServiceImpl implements MonitorService {
     }
 
     @Override
+    public List<Map<String, Object>> listRecentJobs(String targetId, int limit) {
+        Long tenantId = dataScopeService.requireTenantId();
+        requireTargetRow(targetId, tenantId);
+        reconcileStaleJobs(tenantId, targetId);
+        return jdbc.query(
+                """
+                SELECT * FROM monitor_job
+                WHERE tenant_id = ? AND target_id = ?
+                ORDER BY queued_at DESC
+                LIMIT ?
+                """,
+                (rs, rn) -> toJobDto(rsToMap(rs)),
+                tenantId, targetId, Math.min(Math.max(limit, 1), 100)
+        );
+    }
+
+    @Override
     public Map<String, Object> getLatest(String targetId) {
         Long tenantId = dataScopeService.requireTenantId();
         Map<String, Object> target = requireTargetRow(targetId, tenantId);

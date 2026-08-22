@@ -99,6 +99,14 @@ public class MonitorController {
         return ApiResult.ok(monitorService.getJob(jobId));
     }
 
+    @GetMapping("/jobs")
+    public Map<String, Object> jobs(
+            @RequestParam("target_id") String targetId,
+            @RequestParam(defaultValue = "20") int limit
+    ) {
+        return ApiResult.ok(Map.of("jobs", monitorService.listRecentJobs(targetId, limit)));
+    }
+
     @GetMapping("/targets/{id}/report.xlsx")
     public ResponseEntity<Resource> report(@PathVariable String id) {
         Path file = monitorService.resolveReportXlsx(id);
