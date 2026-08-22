@@ -4,12 +4,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.db import connect
 
+SHANGHAI = ZoneInfo("Asia/Shanghai")
+
 
 def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _row_id(row) -> str:

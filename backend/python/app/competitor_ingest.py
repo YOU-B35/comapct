@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from .crawler.competitor_crawler import crawl_competitor_products
 from .db import connect, init_schema, seed_users
+
+SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def init_competitor_schema(conn: sqlite3.Connection) -> None:
@@ -71,7 +74,7 @@ def replace_competitor_snapshot(
         """,
         (tenant_id, competitor_id, snapshot_date),
     )
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
     for product in products:
         conn.execute(
             """
@@ -126,7 +129,7 @@ def run_competitor_ingest(
             payload["snapshot_date"],
             payload["products"],
         )
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
         conn.execute(
             """
             UPDATE temu_competitor

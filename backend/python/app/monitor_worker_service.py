@@ -8,6 +8,9 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from xml.sax.saxutils import escape
+from zoneinfo import ZoneInfo
+
+SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def process_next_pending_job(
@@ -713,7 +716,7 @@ def column_name(index: int) -> str:
 
 
 def now_text() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def bool_value(value: object) -> bool:

@@ -4,7 +4,9 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
+SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 JIT_STATUS_MAP = {
     "wait_seller_send_goods": "待发货",
@@ -27,7 +29,7 @@ def _today_text() -> str:
 
 
 def _now_text() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _pick_list(payload: dict[str, Any]) -> list[dict[str, Any]]:
