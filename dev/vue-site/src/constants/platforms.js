@@ -9,7 +9,7 @@ export const DTC_PLATFORMS = DTC_STORE_PLATFORMS
 
 export const MARKETPLACE_PLATFORMS = ['temu', 'aliexpress', '1688', 'amazon', 'walmart']
 
-export const DOMESTIC_PLATFORMS = ['pdd', 'douyin', 'channels']
+export const DOMESTIC_PLATFORMS = ['pdd', 'taobao', 'douyin', 'channels']
 
 export const PROCUREMENT_PLATFORMS = ['1688']
 
@@ -33,6 +33,7 @@ export const MARKETPLACE_PLATFORM_OPTIONS = [
 
 export const DOMESTIC_PLATFORM_OPTIONS = [
   { value: 'pdd', label: '拼多多' },
+  { value: 'taobao', label: '淘宝' },
   { value: 'douyin', label: '抖音' },
   { value: 'channels', label: '视频号' },
 ]
@@ -55,6 +56,7 @@ const DTC_STORE_LABELS = {
 
 const DOMESTIC_PLATFORM_LABELS = {
   pdd: '拼多多',
+  taobao: '淘宝',
   douyin: '抖音',
   channels: '视频号',
 }

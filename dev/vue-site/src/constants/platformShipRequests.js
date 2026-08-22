@@ -7,12 +7,14 @@ export const SHIP_REQUEST_TYPES = {
 
 export const PLATFORM_ORDER_STORAGE_KEYS = {
   pdd: 'crosshub_pdd_orders',
+  taobao: 'crosshub_taobao_orders',
   douyin: 'crosshub_douyin_orders',
   channels: 'crosshub_channels_orders',
 }
 
 export const PLATFORM_ORDER_LABELS = {
   pdd: '拼多多',
+  taobao: '淘宝',
   douyin: '抖音',
   channels: '视频号',
   '1688': '1688',

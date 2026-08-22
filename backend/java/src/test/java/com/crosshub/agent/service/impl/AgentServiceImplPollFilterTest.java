@@ -65,6 +65,8 @@ class AgentServiceImplPollFilterTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 

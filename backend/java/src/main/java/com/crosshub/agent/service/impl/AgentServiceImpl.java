@@ -59,6 +59,8 @@ public class AgentServiceImpl implements AgentService {
     private final TemuBridge temuBridge;
     private final DouyinBridge douyinBridge;
     private final Alibaba1688Bridge alibaba1688Bridge;
+    private final PddBridge pddBridge;
+    private final TaobaoBridge taobaoBridge;
     private final TransactionTemplate transactionTemplate;
     private final AgentProperties agentProperties;
 
@@ -75,7 +77,9 @@ public class AgentServiceImpl implements AgentService {
             @Autowired(required = false) @Lazy AmazonWriteBridge amazonWriteBridge,
             @Autowired(required = false) @Lazy TemuBridge temuBridge,
             @Autowired(required = false) @Lazy DouyinBridge douyinBridge,
-            @Autowired(required = false) @Lazy Alibaba1688Bridge alibaba1688Bridge
+            @Autowired(required = false) @Lazy Alibaba1688Bridge alibaba1688Bridge,
+            @Autowired(required = false) @Lazy PddBridge pddBridge,
+            @Autowired(required = false) @Lazy TaobaoBridge taobaoBridge
     ) {
         this.agentRepository = agentRepository;
         this.taskRepository = taskRepository;
@@ -90,6 +94,8 @@ public class AgentServiceImpl implements AgentService {
         this.temuBridge = temuBridge;
         this.douyinBridge = douyinBridge;
         this.alibaba1688Bridge = alibaba1688Bridge;
+        this.pddBridge = pddBridge;
+        this.taobaoBridge = taobaoBridge;
     }
 
     private AgentTaskConcurrency.Limits concurrencyLimits() {
@@ -122,6 +128,16 @@ public class AgentServiceImpl implements AgentService {
     }
 
     public interface Alibaba1688Bridge {
+        void onAgentTaskStarted(AgentTask task);
+        void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
+    }
+
+    public interface PddBridge {
+        void onAgentTaskStarted(AgentTask task);
+        void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
+    }
+
+    public interface TaobaoBridge {
         void onAgentTaskStarted(AgentTask task);
         void onAgentTaskCompleted(AgentTask task, String status, Map<String, Object> result, String errorCode, String errorMessage);
     }
@@ -321,6 +337,12 @@ public class AgentServiceImpl implements AgentService {
         if (alibaba1688Bridge != null) {
             alibaba1688Bridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
         }
+        if (pddBridge != null) {
+            pddBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
+        }
+        if (taobaoBridge != null) {
+            taobaoBridge.onAgentTaskCompleted(task, normalized, result, task.getErrorCode(), task.getErrorMessage());
+        }
         return Map.of("task_id", task.getId(), "status", task.getStatus());
     }
 
@@ -340,6 +362,12 @@ public class AgentServiceImpl implements AgentService {
         }
         if (alibaba1688Bridge != null) {
             alibaba1688Bridge.onAgentTaskStarted(task);
+        }
+        if (pddBridge != null) {
+            pddBridge.onAgentTaskStarted(task);
+        }
+        if (taobaoBridge != null) {
+            taobaoBridge.onAgentTaskStarted(task);
         }
     }
 
@@ -411,6 +439,24 @@ public class AgentServiceImpl implements AgentService {
             }
             if (alibaba1688Bridge != null) {
                 alibaba1688Bridge.onAgentTaskCompleted(
+                        task,
+                        "failed",
+                        Map.of(),
+                        task.getErrorCode(),
+                        task.getErrorMessage()
+                );
+            }
+            if (pddBridge != null) {
+                pddBridge.onAgentTaskCompleted(
+                        task,
+                        "failed",
+                        Map.of(),
+                        task.getErrorCode(),
+                        task.getErrorMessage()
+                );
+            }
+            if (taobaoBridge != null) {
+                taobaoBridge.onAgentTaskCompleted(
                         task,
                         "failed",
                         Map.of(),

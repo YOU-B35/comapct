@@ -30,7 +30,7 @@ import java.util.UUID;
 public class PlatformAccountServiceImpl implements PlatformAccountService {
     private static final DateTimeFormatter BOUND_AT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final List<String> ALLOWED_PLATFORMS = List.of(
-            "temu", "aliexpress", "1688", "amazon", "walmart", "pdd", "douyin", "channels", "shopify", "wordpress", "dtc"
+            "temu", "aliexpress", "1688", "amazon", "walmart", "pdd", "taobao", "douyin", "channels", "shopify", "wordpress", "dtc"
     );
 
     private final PlatformAccountRepository repository;

@@ -32,6 +32,7 @@ const platformGroups = [
     label: '国内电商',
     options: [
       { value: 'pdd', label: '拼多多' },
+      { value: 'taobao', label: '淘宝' },
       { value: 'douyin', label: '抖音' },
       { value: 'channels', label: '视频号' },
     ],

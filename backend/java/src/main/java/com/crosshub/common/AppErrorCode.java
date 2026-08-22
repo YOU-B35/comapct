@@ -133,7 +133,37 @@ public enum AppErrorCode {
             "无法获取罗盘商品榜数据，请确认已登录罗盘后重试"
     ),
     DY_OPPORTUNITY_SOURCE_UNAVAILABLE("DY_OPPORTUNITY_SOURCE_UNAVAILABLE", "无法获取商机中心数据，请确认已登录并打开商机中心后重试"),
-    DY_ISSUES_SOURCE_UNCONFIGURED("DY_ISSUES_SOURCE_UNCONFIGURED", "内容预警数据源尚未配置（订单可照常同步）");
+    DY_ISSUES_SOURCE_UNCONFIGURED("DY_ISSUES_SOURCE_UNCONFIGURED", "内容预警数据源尚未配置（订单可照常同步）"),
+
+    PDD_AGENT_OFFLINE("PDD_AGENT_OFFLINE", "本机同步助手未在线，请先启动 CrossHub-Sync-Helper"),
+    PDD_NOT_LOGGED_IN("PDD_NOT_LOGGED_IN", "拼多多商家后台未登录，请打开登录窗口完成登录"),
+    PDD_LOGIN_FAILED("PDD_LOGIN_FAILED", "拼多多登录失败，请重试打开登录窗口"),
+    PDD_SHOP_MAPPING_REQUIRED("PDD_SHOP_MAPPING_REQUIRED", "请先在账户绑定中填写拼多多店铺外部 ID"),
+    PDD_SYNC_IN_PROGRESS("PDD_SYNC_IN_PROGRESS", "已有拼多多同步任务进行中"),
+    PDD_SYNC_TIMEOUT("PDD_SYNC_TIMEOUT", "拼多多同步超时，请重试"),
+    PDD_SYNC_FAILED("PDD_SYNC_FAILED", "拼多多同步失败"),
+    PDD_PROFILE_BUSY("PDD_PROFILE_BUSY", "拼多多浏览器任务进行中，请稍候"),
+    PDD_ORDERS_NEED_DAY0("PDD_ORDERS_NEED_DAY0", "拼多多订单接口尚未完成 Day0 探测，暂不可同步"),
+    PDD_ORDERS_SOURCE_UNAVAILABLE("PDD_ORDERS_SOURCE_UNAVAILABLE", "无法获取拼多多订单列表，请检查后台改版或登录态"),
+    PDD_PRODUCTS_NEED_DAY0("PDD_PRODUCTS_NEED_DAY0", "拼多多商品接口尚未完成 Day0 探测，暂不可同步"),
+    PDD_PRODUCTS_SOURCE_UNAVAILABLE("PDD_PRODUCTS_SOURCE_UNAVAILABLE", "无法获取拼多多商品列表，请确认已登录并打开商品管理后重试"),
+    PDD_COMPASS_SOURCE_UNAVAILABLE("PDD_COMPASS_SOURCE_UNAVAILABLE", "无法获取拼多多经营罗盘数据，请确认已登录罗盘后重试"),
+    PDD_ISSUES_SOURCE_UNCONFIGURED("PDD_ISSUES_SOURCE_UNCONFIGURED", "拼多多工单预警数据源尚未配置（订单可照常同步）"),
+
+    TAOBAO_AGENT_OFFLINE("TAOBAO_AGENT_OFFLINE", "本机同步助手未在线，请先启动 CrossHub-Sync-Helper"),
+    TAOBAO_NOT_LOGGED_IN("TAOBAO_NOT_LOGGED_IN", "淘宝卖家后台未登录，请打开登录窗口完成登录"),
+    TAOBAO_LOGIN_FAILED("TAOBAO_LOGIN_FAILED", "淘宝登录失败，请重试打开登录窗口"),
+    TAOBAO_SHOP_MAPPING_REQUIRED("TAOBAO_SHOP_MAPPING_REQUIRED", "请先在账户绑定中填写淘宝店铺外部 ID"),
+    TAOBAO_SYNC_IN_PROGRESS("TAOBAO_SYNC_IN_PROGRESS", "已有淘宝同步任务进行中"),
+    TAOBAO_SYNC_TIMEOUT("TAOBAO_SYNC_TIMEOUT", "淘宝同步超时，请重试"),
+    TAOBAO_SYNC_FAILED("TAOBAO_SYNC_FAILED", "淘宝同步失败"),
+    TAOBAO_PROFILE_BUSY("TAOBAO_PROFILE_BUSY", "淘宝浏览器任务进行中，请稍候"),
+    TAOBAO_ORDERS_NEED_DAY0("TAOBAO_ORDERS_NEED_DAY0", "淘宝订单接口尚未完成 Day0 探测，暂不可同步"),
+    TAOBAO_ORDERS_SOURCE_UNAVAILABLE("TAOBAO_ORDERS_SOURCE_UNAVAILABLE", "无法获取淘宝订单列表，请检查后台改版或登录态"),
+    TAOBAO_PRODUCTS_NEED_DAY0("TAOBAO_PRODUCTS_NEED_DAY0", "淘宝商品接口尚未完成 Day0 探测，暂不可同步"),
+    TAOBAO_PRODUCTS_SOURCE_UNAVAILABLE("TAOBAO_PRODUCTS_SOURCE_UNAVAILABLE", "无法获取淘宝商品列表，请确认已登录并打开商品管理后重试"),
+    TAOBAO_COMPASS_SOURCE_UNAVAILABLE("TAOBAO_COMPASS_SOURCE_UNAVAILABLE", "无法获取淘宝生意参谋数据，请确认已登录生意参谋后重试"),
+    TAOBAO_ISSUES_SOURCE_UNCONFIGURED("TAOBAO_ISSUES_SOURCE_UNCONFIGURED", "工单预警数据源尚未配置（订单可照常同步）");
 
     private static final Map<String, AppErrorCode> BY_CODE = new HashMap<>();
     private static final Map<String, AppErrorCode> BY_REASON = new HashMap<>();
@@ -198,6 +228,23 @@ public enum AppErrorCode {
         BY_REASON.put("1688 订单同步失败", A1688_ORDERS_SYNC_FAILED);
         BY_REASON.put("1688 同步超时", A1688_SYNC_TIMEOUT);
         BY_REASON.put("1688 浏览器任务进行中", A1688_PROFILE_BUSY);
+        BY_REASON.put("PDD_AGENT_OFFLINE", PDD_AGENT_OFFLINE);
+        BY_REASON.put("PDD_LOGIN_FAILED", PDD_LOGIN_FAILED);
+        BY_REASON.put("PDD_SYNC_FAILED", PDD_SYNC_FAILED);
+        BY_REASON.put("PDD_SYNC_TIMEOUT", PDD_SYNC_TIMEOUT);
+        BY_REASON.put("PDD_PROFILE_BUSY", PDD_PROFILE_BUSY);
+        BY_REASON.put("拼多多登录失败", PDD_LOGIN_FAILED);
+        BY_REASON.put("拼多多同步失败", PDD_SYNC_FAILED);
+        BY_REASON.put("拼多多同步超时", PDD_SYNC_TIMEOUT);
+        BY_REASON.put("拼多多浏览器任务进行中", PDD_PROFILE_BUSY);
+        BY_REASON.put("TAOBAO_LOGIN_FAILED", TAOBAO_LOGIN_FAILED);
+        BY_REASON.put("TAOBAO_SYNC_FAILED", TAOBAO_SYNC_FAILED);
+        BY_REASON.put("TAOBAO_SYNC_TIMEOUT", TAOBAO_SYNC_TIMEOUT);
+        BY_REASON.put("TAOBAO_PROFILE_BUSY", TAOBAO_PROFILE_BUSY);
+        BY_REASON.put("淘宝登录失败", TAOBAO_LOGIN_FAILED);
+        BY_REASON.put("淘宝同步失败", TAOBAO_SYNC_FAILED);
+        BY_REASON.put("淘宝同步超时", TAOBAO_SYNC_TIMEOUT);
+        BY_REASON.put("淘宝浏览器任务进行中", TAOBAO_PROFILE_BUSY);
     }
 
     private final String code;

@@ -2,6 +2,7 @@ import { createDomesticOrdersLocal, createDomesticIssuesLocal } from './domestic
 import { PDD_ORDERS_SEED, PDD_ISSUES_SEED } from '@/constants/pddDemo'
 import { DOUYIN_ORDERS_SEED, DOUYIN_ISSUES_SEED } from '@/constants/douyinDemo'
 import { CHANNELS_ORDERS_SEED, CHANNELS_ISSUES_SEED } from '@/constants/channelsDemo'
+import { TAOBAO_ORDERS_SEED, TAOBAO_ISSUES_SEED } from '@/constants/taobaoDemo'
 
 const pddOrders = createDomesticOrdersLocal({
   storageKey: 'crosshub_pdd_orders',
@@ -45,9 +46,25 @@ const channelsIssues = createDomesticIssuesLocal({
   refreshMessage: '已刷新视频号运营预警',
 })
 
+const taobaoOrders = createDomesticOrdersLocal({
+  storageKey: 'crosshub_taobao_orders',
+  seedOrders: TAOBAO_ORDERS_SEED,
+  orderPrefix: 'TB',
+  refreshMessage: '已刷新淘宝今日订单',
+  channels: ['天猫', '淘宝', '聚划算'],
+})
+
+const taobaoIssues = createDomesticIssuesLocal({
+  storageKey: 'crosshub_taobao_issues',
+  seedIssues: TAOBAO_ISSUES_SEED,
+  refreshMessage: '已刷新淘宝运营预警',
+})
+
 export const pddOrdersLocal = pddOrders
 export const pddIssuesLocal = pddIssues
 export const douyinOrdersLocal = douyinOrders
 export const douyinIssuesLocal = douyinIssues
 export const channelsOrdersLocal = channelsOrders
 export const channelsIssuesLocal = channelsIssues
+export const taobaoOrdersLocal = taobaoOrders
+export const taobaoIssuesLocal = taobaoIssues

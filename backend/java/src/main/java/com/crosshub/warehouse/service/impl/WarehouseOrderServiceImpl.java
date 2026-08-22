@@ -31,6 +31,7 @@ public class WarehouseOrderServiceImpl implements WarehouseOrderService {
             Map.entry("walmart", "Walmart"),
             Map.entry("1688", "1688"),
             Map.entry("pdd", "拼多多"),
+            Map.entry("taobao", "淘宝"),
             Map.entry("douyin", "抖音"),
             Map.entry("channels", "视频号"),
             Map.entry("shopify", "Shopify"),

@@ -5,6 +5,8 @@ import {
   douyinIssuesLocal,
   channelsOrdersLocal,
   channelsIssuesLocal,
+  taobaoOrdersLocal,
+  taobaoIssuesLocal,
 } from './domesticStoresLocal'
 import {
   canUseDouyinBackend,
@@ -14,6 +16,20 @@ import {
   syncDouyinIssues,
   resolveDouyinIssueApi,
 } from './douyinApi'
+import {
+  canUsePddBackend,
+  syncPddOrdersToday,
+  fetchPddIssues,
+  syncPddIssues,
+  resolvePddIssueApi,
+} from './pddApi'
+import {
+  canUseTaobaoBackend,
+  syncTaobaoOrdersToday,
+  fetchTaobaoIssues,
+  syncTaobaoIssues,
+  resolveTaobaoIssueApi,
+} from './taobaoApi'
 import { useAuthStore } from '@/stores/auth'
 
 function authForBackend() {
@@ -25,23 +41,107 @@ function authForBackend() {
 }
 
 export async function fetchTodayPddOrders(stores, options = {}) {
+  const auth = authForBackend()
+  if (canUsePddBackend(auth)) {
+    return syncPddOrdersToday(stores, options)
+  }
   return pddOrdersLocal.syncTodayOrders(stores, options)
 }
 
 export function loadCachedPddOrders(stores) {
+  const auth = authForBackend()
+  if (canUsePddBackend(auth)) {
+    return { items: [], syncedAt: '' }
+  }
   return pddOrdersLocal.fetchCachedOrders(stores)
 }
 
-export function loadPddIssues(stores) {
+export async function loadPddIssues(stores, options = {}) {
+  const auth = authForBackend()
+  if (canUsePddBackend(auth)) {
+    const storeId = options.storeId || null
+    const data = await fetchPddIssues({ storeId })
+    return {
+      success: true,
+      data: {
+        issues: data.items || [],
+        syncedAt: data.synced_at || '',
+      },
+    }
+  }
   return pddIssuesLocal.fetchIssues(stores)
 }
 
 export async function crawlPddIssues(stores, options = {}) {
+  const auth = authForBackend()
+  if (canUsePddBackend(auth)) {
+    return syncPddIssues({
+      force: options.force !== false,
+      storeId: options.storeId || null,
+      refresh: options.refresh !== false,
+    })
+  }
   return pddIssuesLocal.syncIssues(stores, options)
 }
 
-export function resolvePddIssue(id, payload) {
+export async function resolvePddIssue(id, payload) {
+  const auth = authForBackend()
+  if (canUsePddBackend(auth)) {
+    return resolvePddIssueApi(id, payload)
+  }
   return pddIssuesLocal.resolveIssue(id, payload)
+}
+
+export async function fetchTodayTaobaoOrders(stores, options = {}) {
+  const auth = authForBackend()
+  if (canUseTaobaoBackend(auth)) {
+    return syncTaobaoOrdersToday(stores, options)
+  }
+  return taobaoOrdersLocal.syncTodayOrders(stores, options)
+}
+
+export function loadCachedTaobaoOrders(stores) {
+  const auth = authForBackend()
+  if (canUseTaobaoBackend(auth)) {
+    return { items: [], syncedAt: '' }
+  }
+  return taobaoOrdersLocal.fetchCachedOrders(stores)
+}
+
+export async function loadTaobaoIssues(stores, options = {}) {
+  const auth = authForBackend()
+  if (canUseTaobaoBackend(auth)) {
+    const storeId = options.storeId || null
+    const data = await fetchTaobaoIssues({ storeId })
+    return {
+      success: true,
+      data: {
+        issues: data.items || [],
+        syncedAt: data.synced_at || '',
+      },
+    }
+  }
+  return taobaoIssuesLocal.fetchIssues(stores)
+}
+
+export async function crawlTaobaoIssues(stores, options = {}) {
+  const auth = authForBackend()
+  if (canUseTaobaoBackend(auth)) {
+    return syncTaobaoIssues({
+      force: options.force !== false,
+      storeId: options.storeId || null,
+      refresh: options.refresh !== false,
+    })
+  }
+  return taobaoIssuesLocal.syncIssues(stores, options)
+}
+
+export async function resolveTaobaoIssue(id, payload) {
+  const auth = authForBackend()
+  if (canUseTaobaoBackend(auth)) {
+    return resolveTaobaoIssueApi(id, payload)
+  }
+  return taobaoIssuesLocal.resolveIssue(id, payload)
 }
 
 export async function fetchTodayDouyinOrders(stores, options = {}) {

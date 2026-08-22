@@ -8,7 +8,7 @@ import { loadScoped, resolveTenantId, saveScoped, isDemoTemplateEnabled } from '
 const STORAGE_KEY = 'crosshub_platform_accounts'
 const REMOVED_DEMO_IDS_KEY = 'crosshub_removed_demo_store_ids'
 
-const ALLOWED_PLATFORMS = ['temu', 'aliexpress', '1688', 'amazon', 'walmart', 'pdd', 'douyin', 'channels', 'shopify', 'wordpress']
+const ALLOWED_PLATFORMS = ['temu', 'aliexpress', '1688', 'amazon', 'walmart', 'pdd', 'taobao', 'douyin', 'channels', 'shopify', 'wordpress']
 
 const DEMO_STORES = [
   {
@@ -106,6 +106,22 @@ const DEMO_STORES = [
     account: 'pdd.outdoor@yituo-outdoor.com',
     password: 'Pdd@Demo456',
     boundAt: '2026-06-24 14:30:00',
+  },
+  {
+    id: 'demo_taobao_1',
+    platform: 'taobao',
+    storeName: '亿拓户外淘宝旗舰店',
+    account: 'taobao@yituo-outdoor.com',
+    password: 'Taobao@Demo123',
+    boundAt: '2026-08-22 13:00:00',
+  },
+  {
+    id: 'demo_taobao_2',
+    platform: 'taobao',
+    storeName: '亿拓天猫露营专营店',
+    account: 'taobao.outdoor@yituo-outdoor.com',
+    password: 'Taobao@Demo456',
+    boundAt: '2026-08-22 14:30:00',
   },
   {
     id: 'demo_douyin_1',

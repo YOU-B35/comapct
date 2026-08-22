@@ -102,6 +102,7 @@ const platformLabels = computed(() => {
     amazon: 'Amazon',
     walmart: 'Walmart',
     pdd: '拼多多',
+    taobao: '淘宝',
     douyin: '抖音',
     channels: '视频号',
     '1688': '1688',

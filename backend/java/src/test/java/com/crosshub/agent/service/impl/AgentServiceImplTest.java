@@ -63,8 +63,10 @@ class AgentServiceImplTest {
                 amazonSyncBridge,
                 amazonWriteBridge,
                 temuBridge,
-                null,
-                null
+                null, // DouyinBridge
+                null, // Alibaba1688Bridge
+                null, // PddBridge
+                null  // TaobaoBridge
         );
 
         Map<String, Object> result = service.completeTask(

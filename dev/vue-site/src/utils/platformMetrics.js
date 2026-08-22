@@ -24,7 +24,7 @@ function primaryOwner(employees, platformKey, assigneeMap, storeIds) {
 }
 
 export function buildPlatformSalesRows(payload) {
-  const { temu, aliexpress, walmart, pdd, douyin, channels, amazon, alibaba1688, dtc, employees = [] } = payload
+  const { temu, aliexpress, walmart, pdd, taobao, douyin, channels, amazon, alibaba1688, dtc, employees = [] } = payload
   const assigneeMap = buildStoreAssigneeMap(employees)
   const rows = []
 
@@ -87,6 +87,7 @@ export function buildPlatformSalesRows(payload) {
 
   for (const item of [
     { key: 'pdd', name: '拼多多', data: pdd },
+    { key: 'taobao', name: '淘宝', data: taobao },
     { key: 'douyin', name: '抖音', data: douyin },
     { key: 'channels', name: '视频号', data: channels },
   ]) {

@@ -209,7 +209,7 @@ const TOOL_MENU_CODES = new Set([
   'employee.auto_upload',
 ])
 
-const PLATFORM_PATH_RE = /^\/(boss|employee)\/(temu|aliexpress|amazon|walmart|pdd|douyin|channels|1688|dtc)(\/|$)/
+const PLATFORM_PATH_RE = /^\/(boss|employee)\/(temu|aliexpress|amazon|walmart|pdd|taobao|douyin|channels|1688|dtc)(\/|$)/
 const TOOLS_PATH_RE = /^\/(boss|employee)\/(ai-image|ai|sau|auto-upload)(\/|$)/
 
 function isPlatformMenu(menu) {

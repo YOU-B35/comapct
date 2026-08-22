@@ -20,7 +20,7 @@ import { ensureAmazonDailyData } from './amazonDailyLocal'
 import { ensureAmazonBossData } from './amazonBossLocal'
 import { fetchCachedWalmartOrders } from './walmartOrdersLocal'
 import { fetchWalmartListingIssues } from './walmartListingsLocal'
-import { loadCachedPddOrders, loadPddIssues, loadCachedDouyinOrders, loadDouyinIssues, loadCachedChannelsOrders, loadChannelsIssues } from './domesticPlatforms'
+import { loadCachedPddOrders, loadPddIssues, loadCachedDouyinOrders, loadDouyinIssues, loadCachedChannelsOrders, loadChannelsIssues, loadCachedTaobaoOrders, loadTaobaoIssues } from './domesticPlatforms'
 
 function getAuth() {
   return useAuthStore()
@@ -110,6 +110,15 @@ export async function fetchPddStores() {
   const res = await fetchStores('pdd')
   if (!canUsePlatformAccountsBackend()) {
     ensureDomesticStoreData(res.data, loadCachedPddOrders, loadPddIssues)
+  }
+  return res
+}
+
+/** 获取淘宝运营已绑定的全部店铺 */
+export async function fetchTaobaoStores() {
+  const res = await fetchStores('taobao')
+  if (!canUsePlatformAccountsBackend()) {
+    ensureDomesticStoreData(res.data, loadCachedTaobaoOrders, loadTaobaoIssues)
   }
   return res
 }

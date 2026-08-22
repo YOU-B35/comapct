@@ -5,6 +5,7 @@ import { DTC_ORDER_STATUSES } from '@/constants/dtcOrders'
 import { PURCHASE_ORDER_STATUSES, SUPPLIER_ALERT_TYPES } from '@/constants/alibaba1688'
 import { buildDomesticPlatformSection } from '@/utils/domesticPlatform'
 import { PDD_ISSUE_TYPES } from '@/constants/pddDemo'
+import { TAOBAO_ISSUE_TYPES } from '@/constants/taobaoDemo'
 import { DOUYIN_ISSUE_TYPES } from '@/constants/douyinDemo'
 import { CHANNELS_ISSUE_TYPES } from '@/constants/channelsDemo'
 import { attachAssignee, buildStoreAssigneeMap, resolveStoreAssignee } from '@/utils/storeAssignment'
@@ -718,7 +719,7 @@ function build1688Section({ purchaseOrders, supplierAlerts, stores }, storeNameM
 }
 
 export function buildOperationsOverview(payload) {
-  const { temu, aliexpress, walmart, pdd, douyin, channels, amazon, dtc, alibaba1688, storeNameMaps, employees } = payload
+  const { temu, aliexpress, walmart, pdd, taobao, douyin, channels, amazon, dtc, alibaba1688, storeNameMaps, employees } = payload
   const assigneeMap = buildStoreAssigneeMap(employees)
 
   const platforms = [
@@ -729,6 +730,12 @@ export function buildOperationsOverview(payload) {
       { id: 'pdd', name: '拼多多', route: '/boss/pdd', issueTypeMap: PDD_ISSUE_TYPES },
       pdd,
       storeNameMaps.pdd,
+      assigneeMap,
+    ),
+    buildDomesticPlatformSection(
+      { id: 'taobao', name: '淘宝', route: '/boss/taobao', issueTypeMap: TAOBAO_ISSUE_TYPES },
+      taobao,
+      storeNameMaps.taobao,
       assigneeMap,
     ),
     buildDomesticPlatformSection(

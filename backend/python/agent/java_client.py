@@ -188,6 +188,72 @@ class AgentApiClient:
             body = resp.json()
             return body.get("data") if isinstance(body, dict) else {}
 
+    def ingest_pdd_orders(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/pdd/orders/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_pdd_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/pdd/products/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_pdd_compass(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/pdd/compass/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_taobao_orders(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/taobao/orders/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_taobao_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/taobao/products/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
+    def ingest_taobao_compass(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/taobao/compass/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
     def report_temu_session(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Push Temu seller session snapshot while login window is still open."""
         with httpx.Client(timeout=30.0) as client:

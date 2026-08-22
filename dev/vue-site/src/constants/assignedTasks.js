@@ -23,6 +23,7 @@ export const TASK_PLATFORM_OPTIONS = [
   { value: 'amazon', label: 'Amazon' },
   { value: 'walmart', label: 'Walmart' },
   { value: 'pdd', label: '拼多多' },
+  { value: 'taobao', label: '淘宝' },
   { value: 'douyin', label: '抖音' },
   { value: 'channels', label: '视频号' },
   { value: '1688', label: '1688' },

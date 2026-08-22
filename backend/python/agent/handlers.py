@@ -58,6 +58,28 @@ _1688_BROWSER_TASK_TYPES = frozenset(
     }
 )
 
+# 拼多多只有一个浏览器 profile（按 tenant 隔离 user-data-dir），进程内串行避免并发抢占同一登录态
+_PDD_BROWSER_LOCK = threading.Lock()
+_PDD_BROWSER_TASK_TYPES = frozenset(
+    {
+        "pdd_session_probe",
+        "pdd_login_open",
+        "pdd_sync",
+        "pdd_products_sync",
+    }
+)
+
+# 淘宝只有一个浏览器 profile（按 tenant 隔离 user-data-dir），进程内串行避免并发抢占同一登录态
+_TAOBAO_BROWSER_LOCK = threading.Lock()
+_TAOBAO_BROWSER_TASK_TYPES = frozenset(
+    {
+        "taobao_session_probe",
+        "taobao_login_open",
+        "taobao_sync",
+        "taobao_products_sync",
+    }
+)
+
 
 def _clear_panel_logging_in(session_key: str | None) -> None:
     key = str(session_key or "").strip()
@@ -745,6 +767,288 @@ def handle_douyin_products_sync(client: AgentApiClient, task: dict[str, Any]) ->
         )
 
 
+def _pdd_error_code(message: str, default: str = "PDD_SYNC_FAILED") -> str:
+    text = message or ""
+    for code in (
+        "PDD_AGENT_OFFLINE",
+        "PDD_NOT_LOGGED_IN",
+        "PDD_LOGIN_FAILED",
+        "PDD_SHOP_MAPPING_REQUIRED",
+        "PDD_SYNC_IN_PROGRESS",
+        "PDD_SYNC_TIMEOUT",
+        "PDD_SYNC_FAILED",
+        "PDD_PROFILE_BUSY",
+        "PDD_ORDERS_NEED_DAY0",
+        "PDD_ORDERS_SOURCE_UNAVAILABLE",
+        "PDD_PRODUCTS_NEED_DAY0",
+        "PDD_PRODUCTS_SOURCE_UNAVAILABLE",
+        "PDD_COMPASS_SOURCE_UNAVAILABLE",
+    ):
+        if text.startswith(code) or code in text:
+            return code
+    if "未登录" in text or "login" in text.lower():
+        return "PDD_NOT_LOGGED_IN"
+    if "罗盘" in text:
+        return "PDD_COMPASS_SOURCE_UNAVAILABLE"
+    if "订单" in text:
+        return "PDD_ORDERS_SOURCE_UNAVAILABLE"
+    if "商品" in text:
+        return "PDD_PRODUCTS_SOURCE_UNAVAILABLE"
+    if "timeout" in text.lower() or "超时" in text:
+        return "PDD_SYNC_TIMEOUT"
+    return default
+
+
+def handle_pdd_session_probe(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or None
+    try:
+        from agent.pdd_tasks import probe_session as pdd_probe_session
+
+        session = pdd_probe_session(tenant_id, store_id)
+        client.complete_task_with_retry(task_id, status="success", result={"session": session})
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_pdd_error_code(message, "PDD_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_pdd_login_open(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or None
+    try:
+        from agent.pdd_tasks import open_login_window as pdd_open_login_window
+
+        session = pdd_open_login_window(tenant_id, timeout_seconds=600, store_id=store_id)
+        client.complete_task_with_retry(task_id, status="success", result={"session": session})
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_pdd_error_code(message, "PDD_LOGIN_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_pdd_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    """拼多多订单/罗盘同步。scope: orders | compass | all（默认 orders）"""
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        payload = task.get("payload") or {}
+        scope = str(payload.get("scope") or "orders").strip().lower()
+        if scope == "compass":
+            from agent.pdd_tasks import run_compass_sync
+
+            result = run_compass_sync(client, task)
+        elif scope == "all":
+            from agent.pdd_tasks import run_compass_sync, run_orders_sync
+
+            result = run_orders_sync(client, task)
+            try:
+                compass_result = run_compass_sync(client, task)
+                result["compass"] = compass_result
+                result["partial"] = bool(result.get("partial")) or bool(compass_result.get("partial"))
+                result["message"] = (
+                    f"{result.get('message') or ''}；{compass_result.get('message') or ''}"
+                ).strip("；")
+                result["scope"] = "all"
+            except Exception as compass_exc:  # noqa: BLE001
+                result["partial"] = True
+                result["compass"] = None
+                result["message"] = (
+                    f"{result.get('message') or ''}；罗盘同步失败: {compass_exc}"
+                ).strip("；")
+                result["scope"] = "all"
+        else:
+            from agent.pdd_tasks import run_orders_sync
+
+            result = run_orders_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_pdd_error_code(message, "PDD_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_pdd_products_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        from agent.pdd_tasks import run_products_sync
+
+        result = run_products_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_pdd_error_code(message, "PDD_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def _taobao_error_code(message: str, default: str = "TAOBAO_SYNC_FAILED") -> str:
+    text = message or ""
+    for code in (
+        "TAOBAO_AGENT_OFFLINE",
+        "TAOBAO_NOT_LOGGED_IN",
+        "TAOBAO_LOGIN_FAILED",
+        "TAOBAO_SHOP_MAPPING_REQUIRED",
+        "TAOBAO_SYNC_IN_PROGRESS",
+        "TAOBAO_SYNC_TIMEOUT",
+        "TAOBAO_SYNC_FAILED",
+        "TAOBAO_PROFILE_BUSY",
+        "TAOBAO_ORDERS_NEED_DAY0",
+        "TAOBAO_ORDERS_SOURCE_UNAVAILABLE",
+        "TAOBAO_PRODUCTS_NEED_DAY0",
+        "TAOBAO_PRODUCTS_SOURCE_UNAVAILABLE",
+        "TAOBAO_COMPASS_SOURCE_UNAVAILABLE",
+    ):
+        if text.startswith(code) or code in text:
+            return code
+    if "未登录" in text or "login" in text.lower():
+        return "TAOBAO_NOT_LOGGED_IN"
+    if "生意参谋" in text or "罗盘" in text:
+        return "TAOBAO_COMPASS_SOURCE_UNAVAILABLE"
+    if "订单" in text:
+        return "TAOBAO_ORDERS_SOURCE_UNAVAILABLE"
+    if "商品" in text:
+        return "TAOBAO_PRODUCTS_SOURCE_UNAVAILABLE"
+    if "timeout" in text.lower() or "超时" in text:
+        return "TAOBAO_SYNC_TIMEOUT"
+    return default
+
+
+def handle_taobao_session_probe(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or None
+    try:
+        from agent.taobao_tasks import probe_session as taobao_probe_session
+
+        session = taobao_probe_session(tenant_id, store_id)
+        client.complete_task_with_retry(task_id, status="success", result={"session": session})
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_taobao_error_code(message, "TAOBAO_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_taobao_login_open(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    store_id = str(payload.get("store_id") or "").strip() or None
+    try:
+        from agent.taobao_tasks import open_login_window as taobao_open_login_window
+
+        session = taobao_open_login_window(tenant_id, timeout_seconds=600, store_id=store_id)
+        client.complete_task_with_retry(task_id, status="success", result={"session": session})
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_taobao_error_code(message, "TAOBAO_LOGIN_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_taobao_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    """淘宝订单/生意参谋同步。scope: orders | compass | all（默认 orders）"""
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        payload = task.get("payload") or {}
+        scope = str(payload.get("scope") or "orders").strip().lower()
+        if scope == "compass":
+            from agent.taobao_tasks import run_compass_sync
+
+            result = run_compass_sync(client, task)
+        elif scope == "all":
+            from agent.taobao_tasks import run_compass_sync, run_orders_sync
+
+            result = run_orders_sync(client, task)
+            try:
+                compass_result = run_compass_sync(client, task)
+                result["compass"] = compass_result
+                result["partial"] = bool(result.get("partial")) or bool(compass_result.get("partial"))
+                result["message"] = (
+                    f"{result.get('message') or ''}；{compass_result.get('message') or ''}"
+                ).strip("；")
+                result["scope"] = "all"
+            except Exception as compass_exc:  # noqa: BLE001
+                result["partial"] = True
+                result["compass"] = None
+                result["message"] = (
+                    f"{result.get('message') or ''}；生意参谋同步失败: {compass_exc}"
+                ).strip("；")
+                result["scope"] = "all"
+        else:
+            from agent.taobao_tasks import run_orders_sync
+
+            result = run_orders_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_taobao_error_code(message, "TAOBAO_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_taobao_products_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        from agent.taobao_tasks import run_products_sync
+
+        result = run_products_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_taobao_error_code(message, "TAOBAO_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
 def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
     task_type = str(task.get("task_type") or "")
     if task_type in {"ziniao_discover", "amazon_ziniao_discover"}:
@@ -813,6 +1117,28 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
                 handle_1688_orders_sync(client, task)
             elif task_type == "1688_peer_bestsellers_sync":
                 handle_1688_peer_bestsellers_sync(client, task)
+        return
+    if task_type in _PDD_BROWSER_TASK_TYPES:
+        with _PDD_BROWSER_LOCK:
+            if task_type == "pdd_session_probe":
+                handle_pdd_session_probe(client, task)
+            elif task_type == "pdd_login_open":
+                handle_pdd_login_open(client, task)
+            elif task_type == "pdd_sync":
+                handle_pdd_sync(client, task)
+            elif task_type == "pdd_products_sync":
+                handle_pdd_products_sync(client, task)
+        return
+    if task_type in _TAOBAO_BROWSER_TASK_TYPES:
+        with _TAOBAO_BROWSER_LOCK:
+            if task_type == "taobao_session_probe":
+                handle_taobao_session_probe(client, task)
+            elif task_type == "taobao_login_open":
+                handle_taobao_login_open(client, task)
+            elif task_type == "taobao_sync":
+                handle_taobao_sync(client, task)
+            elif task_type == "taobao_products_sync":
+                handle_taobao_products_sync(client, task)
         return
     task_id = str(task.get("task_id") or "")
     if task_id:

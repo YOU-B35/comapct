@@ -1,4 +1,4 @@
-import { fetchPlatformStores, fetchAllPlatformStores, fetchAliExpressStores, fetchWalmartStores, fetchPddStores, fetchDouyinStores, fetchChannelsStores, fetchAmazonStores, fetchAlibaba1688Stores, fetchDtcStores } from './platformAccounts'
+import { fetchPlatformStores, fetchAllPlatformStores, fetchAliExpressStores, fetchWalmartStores, fetchPddStores, fetchTaobaoStores, fetchDouyinStores, fetchChannelsStores, fetchAmazonStores, fetchAlibaba1688Stores, fetchDtcStores } from './platformAccounts'
 import { canUseTemuBackend, fetchTemuOperationalData, fetchTemuStores } from './temuApi'
 import { hasBackendSession } from './backendSession'
 import { DTC_PLATFORMS } from '@/constants/platforms'
@@ -19,9 +19,10 @@ import { loadCachedWalmartOrders, loadWalmartListingIssues } from './walmart'
 import { enrichListingIssue } from '@/utils/walmart'
 import { enrichDomesticIssue } from '@/utils/domesticPlatform'
 import { PDD_ISSUE_TYPES } from '@/constants/pddDemo'
+import { TAOBAO_ISSUE_TYPES } from '@/constants/taobaoDemo'
 import { DOUYIN_ISSUE_TYPES } from '@/constants/douyinDemo'
 import { CHANNELS_ISSUE_TYPES } from '@/constants/channelsDemo'
-import { loadCachedPddOrders, loadPddIssues, loadCachedDouyinOrders, loadDouyinIssues, loadCachedChannelsOrders, loadChannelsIssues } from './domesticPlatforms'
+import { loadCachedPddOrders, loadPddIssues, loadCachedTaobaoOrders, loadTaobaoIssues, loadCachedDouyinOrders, loadDouyinIssues, loadCachedChannelsOrders, loadChannelsIssues } from './domesticPlatforms'
 import { canUseDouyinBackend, fetchDouyinOrdersToday } from './douyinApi'
 import { ensureAliexpressDemoData } from './aliexpressDemoLocal'
 import { loadAlibaba1688DemoData } from './alibaba1688DemoLocal'
@@ -108,6 +109,7 @@ async function loadBoundStoresByPlatform(auth) {
       aliexpress: filterStoresByPlatform(all, 'aliexpress'),
       walmart: filterStoresByPlatform(all, 'walmart'),
       pdd: filterStoresByPlatform(all, 'pdd'),
+      taobao: filterStoresByPlatform(all, 'taobao'),
       douyin: filterStoresByPlatform(all, 'douyin'),
       channels: filterStoresByPlatform(all, 'channels'),
       amazon: filterStoresByPlatform(all, 'amazon'),
@@ -121,6 +123,7 @@ async function loadBoundStoresByPlatform(auth) {
     aeStoresRes,
     walmartStoresRes,
     pddStoresRes,
+    taobaoStoresRes,
     douyinStoresRes,
     channelsStoresRes,
     amazonStoresRes,
@@ -131,6 +134,7 @@ async function loadBoundStoresByPlatform(auth) {
     fetchAliExpressStores(),
     fetchWalmartStores(),
     fetchPddStores(),
+    fetchTaobaoStores(),
     fetchDouyinStores(),
     fetchChannelsStores(),
     fetchAmazonStores(),
@@ -143,6 +147,7 @@ async function loadBoundStoresByPlatform(auth) {
     aliexpress: scopeStores(aeStoresRes.data || [], auth),
     walmart: scopeStores(walmartStoresRes.data || [], auth),
     pdd: scopeStores(pddStoresRes.data || [], auth),
+    taobao: scopeStores(taobaoStoresRes.data || [], auth),
     douyin: scopeStores(douyinStoresRes.data || [], auth),
     channels: scopeStores(channelsStoresRes.data || [], auth),
     amazon: scopeStores(amazonStoresRes.data || [], auth),
@@ -168,6 +173,7 @@ export async function loadOperationsOverview(auth = null) {
   const aeStores = storeMap.aliexpress || []
   const walmartStores = storeMap.walmart || []
   const pddStores = storeMap.pdd || []
+  const taobaoStores = storeMap.taobao || []
   const douyinStores = storeMap.douyin || []
   const channelsStores = storeMap.channels || []
   const amazonStores = storeMap.amazon || []
@@ -178,6 +184,7 @@ export async function loadOperationsOverview(auth = null) {
   const aeStoreIds = aeStores.map((store) => store.id)
   const walmartStoreIds = walmartStores.map((store) => store.id)
   const pddStoreIds = pddStores.map((store) => store.id)
+  const taobaoStoreIds = taobaoStores.map((store) => store.id)
   const douyinStoreIds = douyinStores.map((store) => store.id)
   const channelsStoreIds = channelsStores.map((store) => store.id)
   const amazonStoreIds = amazonStores.map((store) => store.id)
@@ -229,6 +236,16 @@ export async function loadOperationsOverview(auth = null) {
     ? filterByStoreIds(
         loadPddIssues(pddStores).data.issues.map((issue) => enrichDomesticIssue(issue, PDD_ISSUE_TYPES)),
         pddStoreIds,
+      )
+    : []
+
+  const taobaoOrders = demoMode && taobaoStores.length
+    ? filterByStoreIds(loadCachedTaobaoOrders(taobaoStores).data.orders, taobaoStoreIds)
+    : []
+  const taobaoIssues = demoMode && taobaoStores.length
+    ? filterByStoreIds(
+        loadTaobaoIssues(taobaoStores).data.issues.map((issue) => enrichDomesticIssue(issue, TAOBAO_ISSUE_TYPES)),
+        taobaoStoreIds,
       )
     : []
 
@@ -356,6 +373,11 @@ export async function loadOperationsOverview(auth = null) {
     orders: pddOrders,
     issues: pddIssues,
   }
+  const taobaoPayload = {
+    stores: taobaoStores,
+    orders: taobaoOrders,
+    issues: taobaoIssues,
+  }
   const douyinPayload = {
     stores: douyinStores,
     orders: douyinOrders,
@@ -393,6 +415,7 @@ export async function loadOperationsOverview(auth = null) {
     aliexpress: Object.fromEntries(aeStores.map((store) => [store.id, store.storeName])),
     walmart: Object.fromEntries(walmartStores.map((store) => [store.id, store.storeName])),
     pdd: Object.fromEntries(pddStores.map((store) => [store.id, store.storeName])),
+    taobao: Object.fromEntries(taobaoStores.map((store) => [store.id, store.storeName])),
     douyin: Object.fromEntries(douyinStores.map((store) => [store.id, store.storeName])),
     channels: Object.fromEntries(channelsStores.map((store) => [store.id, store.storeName])),
     amazon: Object.fromEntries(amazonStores.map((store) => [store.id, store.storeName])),
@@ -405,6 +428,7 @@ export async function loadOperationsOverview(auth = null) {
     aliexpress: aliexpressPayload,
     walmart: walmartPayload,
     pdd: pddPayload,
+    taobao: taobaoPayload,
     douyin: douyinPayload,
     channels: channelsPayload,
     amazon: amazonPayload,
@@ -419,6 +443,7 @@ export async function loadOperationsOverview(auth = null) {
     aliexpress: aliexpressPayload,
     walmart: walmartPayload,
     pdd: pddPayload,
+    taobao: taobaoPayload,
     douyin: douyinPayload,
     channels: channelsPayload,
     amazon: amazonPayload,
@@ -459,6 +484,7 @@ export async function loadOperationsOverview(auth = null) {
         aliexpress: aeStores,
         walmart: walmartStores,
         pdd: pddStores,
+        taobao: taobaoStores,
         douyin: douyinStores,
         channels: channelsStores,
         amazon: amazonStores,
