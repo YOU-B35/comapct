@@ -70,13 +70,13 @@ function displayPrice(row) {
       <el-table-column v-if="showStoreColumn" label="店铺" min-width="130">
         <template #default="{ row }">{{ storeNameMap[row.storeId] || row.storeId || '—' }}</template>
       </el-table-column>
-      <el-table-column label="价格" width="110" align="right">
+      <el-table-column label="价格" width="110" align="right" sortable :sort-method="(a, b) => Number(a.price || 0) - Number(b.price || 0)">
         <template #default="{ row }">{{ displayPrice(row) }}</template>
       </el-table-column>
-      <el-table-column prop="stock" label="库存" width="90" align="right" />
-      <el-table-column prop="gmv1d" label="今日销售额" width="120" align="right" />
-      <el-table-column prop="gmv30d" label="30天销售额" width="130" align="right" />
-      <el-table-column prop="syncedAt" label="同步时间" width="160" />
+      <el-table-column prop="stock" label="库存" width="90" align="right" sortable />
+      <el-table-column prop="gmv1d" label="今日销售额" width="120" align="right" sortable />
+      <el-table-column prop="gmv30d" label="30天销售额" width="130" align="right" sortable />
+      <el-table-column prop="syncedAt" label="同步时间" width="160" sortable />
     </el-table>
 
     <div class="pagination-row">
