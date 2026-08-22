@@ -332,7 +332,7 @@ defineExpose({ loadTargets })
             </span>
           </template>
           <el-table :data="products" size="small" max-height="420">
-            <el-table-column prop="rank" label="排名" width="55" />
+            <el-table-column prop="rank" label="排名" width="55" sortable />
             <el-table-column label="商品" min-width="220">
               <template #default="{ row }">
                 <a :href="row.url" target="_blank" rel="noopener">
@@ -352,14 +352,14 @@ defineExpose({ loadTargets })
               </template>
             </el-table-column>
             <el-table-column prop="shop_name" label="店铺" min-width="140" />
-            <el-table-column prop="price" label="价格" width="70" />
-            <el-table-column prop="moq" label="起订量" width="70" />
-            <el-table-column prop="good_rate" label="好评率" width="80" />
-            <el-table-column prop="delivery_48h_rate" label="48h揽收" width="80" />
-            <el-table-column prop="total_sales" label="累计销量" width="90" />
-            <el-table-column prop="daily_sales" label="日增量" width="80" />
-            <el-table-column prop="dropship_7d" label="代发7天" width="90" />
-            <el-table-column prop="rebuy_rate" label="复购率" width="90" />
+            <el-table-column prop="price" label="价格" width="70" sortable />
+            <el-table-column prop="moq" label="起订量" width="70" sortable />
+            <el-table-column prop="good_rate" label="好评率" width="80" sortable />
+            <el-table-column prop="delivery_48h_rate" label="48h揽收" width="80" sortable />
+            <el-table-column prop="total_sales" label="累计销量" width="90" sortable />
+            <el-table-column prop="daily_sales" label="日增量" width="80" sortable />
+            <el-table-column prop="dropship_7d" label="代发7天" width="90" sortable />
+            <el-table-column prop="rebuy_rate" label="复购率" width="90" sortable />
             <el-table-column label="状态" width="70">
               <template #default="{ row }">
                 <el-tag v-if="row.expired" type="danger" size="small">下架</el-tag>
