@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import {
   ASSIGNED_TASKS_SEED,
   PLATFORM_LABELS,
@@ -9,7 +10,7 @@ const STORAGE_KEY = 'crosshub_assigned_tasks'
 const SEED_FLAG_KEY = 'crosshub_assigned_tasks_seeded'
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 function loadAll(tenantId = resolveTenantId()) {

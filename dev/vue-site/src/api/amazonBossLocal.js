@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { loadScoped, resolveTenantId, saveScoped } from '@/utils/tenantStorage'
 import { TOP_PRODUCTS_SEED, OUTBOUND_ORDERS_SEED } from '@/constants/amazonBoss'
 
@@ -6,11 +7,11 @@ const STORAGE_KEY = 'crosshub_amazon_boss'
 const EMPTY = { date: '', syncedAt: '', products: [], outboundOrders: [] }
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10)
+  return nowUtc8DateString()
 }
 
 function loadAll(tenantId = resolveTenantId()) {

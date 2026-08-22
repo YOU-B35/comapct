@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { loadScoped, resolveTenantId, saveScoped } from '@/utils/tenantStorage'
 import {
   ALIEXPRESS_ORDER_COUNTRIES,
@@ -10,11 +11,11 @@ import {
 const ORDERS_STORAGE_KEY = 'crosshub_aliexpress_orders'
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10)
+  return nowUtc8DateString()
 }
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 const EMPTY_ORDERS = { date: '', syncedAt: '', items: [] }

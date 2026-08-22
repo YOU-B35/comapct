@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { AMAZON_DAILY_STEPS } from '@/constants/amazonDaily'
 
 function hoursSince(dateStr) {
@@ -67,7 +68,7 @@ export function summarizeSellerNews(news = []) {
     total: news.length,
     highPriority: high.length,
     today: news.filter((n) => {
-      const today = new Date().toISOString().slice(0, 10)
+      const today = nowUtc8DateString()
       return String(n.publishedAt || '').startsWith(today)
     }).length,
   }

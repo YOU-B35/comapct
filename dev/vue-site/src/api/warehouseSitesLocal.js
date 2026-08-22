@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import {
   WAREHOUSE_SITES_SEED,
   WAREHOUSE_SITES_STORAGE_KEY,
@@ -59,7 +60,7 @@ export function saveLocalWarehouseSite(payload) {
   const validation = validateSiteInput({ ...payload, sites })
   if (validation.error) return { error: validation.error }
 
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  const now = nowUtc8String()
   if (id) {
     const index = sites.findIndex((item) => item.id === id)
     if (index === -1) return { error: '仓库不存在' }

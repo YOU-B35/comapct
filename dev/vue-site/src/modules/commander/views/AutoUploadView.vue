@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, onMounted, watch } from 'vue'
 import {
   Document,
@@ -141,20 +142,7 @@ function shortId(id) {
 
 function formatTaskTime(row) {
   const raw = row?.createAt ?? row?.createTime ?? row?.updateTime ?? row?.created_at
-  if (raw == null || raw === '') return '—'
-  let ms
-  if (typeof raw === 'number') {
-    ms = raw < 1e12 ? raw * 1000 : raw
-  } else if (/^\d+$/.test(String(raw).trim())) {
-    const n = Number(raw)
-    ms = n < 1e12 ? n * 1000 : n
-  } else {
-    ms = Date.parse(raw)
-  }
-  if (Number.isNaN(ms)) return String(raw)
-  const d = new Date(ms)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return raw == null || raw === '' ? '—' : formatUtc8(raw)
 }
 
 function statusMeta(row) {

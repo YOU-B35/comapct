@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { ensureAliexpressDemoData } from './aliexpressDemoLocal'
 import { ensureAmazonDailyData } from './amazonDailyLocal'
 import { ensureDtcDemoData } from './dtcDemoLocal'
@@ -234,7 +235,7 @@ function upsertLocalStore(stores, payload) {
   const validation = validateStoreInput({ ...payload, stores })
   if (validation.error) return { error: validation.error }
 
-  const boundAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  const boundAt = nowUtc8String()
 
   if (id) {
     const index = stores.findIndex((s) => s.id === id)

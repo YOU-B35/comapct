@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { DEMO_COMPETITORS } from '@/constants/temuCompetitors'
 import { loadScoped, resolveTenantId, saveScoped } from '@/utils/tenantStorage'
 
@@ -37,7 +38,7 @@ export function ensureDemoCompetitors() {
   const existing = loadAll()
   const demoById = Object.fromEntries(DEMO_COMPETITORS.map((c) => [c.id, c]))
   const custom = existing.filter((item) => !demoById[item.id])
-  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  const now = nowUtc8String()
   const demos = DEMO_COMPETITORS.map((item) => ({
     ...item,
     lastAnalyzedAt: item.lastAnalyzedAt || now,
@@ -65,7 +66,7 @@ export function saveLocalCompetitor({ id, label, url }) {
     return { error: `该网址已添加为「${duplicate.label}」` }
   }
 
-  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  const now = nowUtc8String()
 
   if (id) {
     const index = competitors.findIndex((item) => item.id === id)
@@ -106,7 +107,7 @@ export function markCompetitorAnalyzed(id) {
   const competitors = loadAll()
   const index = competitors.findIndex((item) => item.id === id)
   if (index === -1) return
-  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  const now = nowUtc8String()
   competitors[index] = { ...competitors[index], lastAnalyzedAt: now }
   saveAll(competitors)
 }

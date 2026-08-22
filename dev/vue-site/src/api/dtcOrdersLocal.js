@@ -1,10 +1,11 @@
+﻿import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 ﻿import { loadScoped, resolveTenantId, saveScoped } from '@/utils/tenantStorage'
 import { DTC_ORDERS_SEED } from '@/constants/dtcOrders'
 
 const STORAGE_KEY = 'crosshub_dtc_orders'
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10)
+  return nowUtc8DateString()
 }
 
 function loadState() {

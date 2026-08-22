@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { nowUtc8String } from '@/utils/time'
 import { computed, ref } from 'vue'
 import { runPlatformAutoSync, buildPlatformSyncTargets, hydratePlatformSyncFromBackend } from '@/api/platformSync'
 import { canUseTemuBackend, fetchPlatformSyncStatus, formatCrawlError } from '@/api/temuApi'
@@ -229,7 +230,7 @@ export const usePlatformSyncStore = defineStore('platformSync', () => {
     bindAuth(auth)
 
     if (!force && isPlatformCrawlInCooldown(auth)) {
-      cooldownSkippedAt.value = new Date().toLocaleString('zh-CN', { hour12: false })
+      cooldownSkippedAt.value = nowUtc8String()
       lastError.value = `同步冷却中，${formatCooldownRemaining(getCooldownRemainingMs(auth))}后可再次同步`
       sessionStorage.setItem(SESSION_SYNC_KEY, '1')
       await loadPlatformSyncStatus(auth)
@@ -245,7 +246,7 @@ export const usePlatformSyncStore = defineStore('platformSync', () => {
         force,
       })
       updateItems(result.items || [])
-      lastFinishedAt.value = new Date().toLocaleString('zh-CN', { hour12: false })
+      lastFinishedAt.value = nowUtc8String()
       if (result.cooldown) {
         lastError.value = result.message || lastError.value
       } else if (!result.skipped) {
@@ -267,7 +268,7 @@ export const usePlatformSyncStore = defineStore('platformSync', () => {
     await loadPlatformSyncStatus(auth)
     if (!shouldAutoSync(auth)) {
       if (isPlatformCrawlInCooldown(auth)) {
-        cooldownSkippedAt.value = new Date().toLocaleString('zh-CN', { hour12: false })
+        cooldownSkippedAt.value = nowUtc8String()
       }
       sessionStorage.setItem(SESSION_SYNC_KEY, '1')
       return

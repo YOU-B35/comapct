@@ -216,7 +216,7 @@
                         <div class="material-name">{{ material.filename }}</div>
                         <div class="material-details">
                           <span class="file-size">{{ material.filesize }}MB</span>
-                          <span class="upload-time">{{ material.upload_time }}</span>
+                          <span class="upload-time">{{ formatUtc8(material.upload_time) }}</span>
                         </div>
                       </div>
                     </el-checkbox>
@@ -531,6 +531,7 @@
 </template>
 
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { ref, reactive, computed, onMounted, onActivated } from 'vue'
 import { Upload, Plus, Close, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElNotification } from 'element-plus'

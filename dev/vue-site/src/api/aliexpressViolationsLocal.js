@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { loadScoped, resolveTenantId, saveScoped } from '@/utils/tenantStorage'
 import {
   ALIEXPRESS_OPERATOR,
@@ -18,7 +19,7 @@ function saveAll(state, tenantId = resolveTenantId()) {
 }
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 function hashStoreId(id) {
@@ -40,7 +41,7 @@ function varyFine(base, storeId, index) {
 }
 
 function buildTimeToday(hour, minute) {
-  const date = new Date().toISOString().slice(0, 10)
+  const date = nowUtc8DateString()
   return `${date} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
 }
 
@@ -125,7 +126,7 @@ function ensureStoreViolations(stores, existingItems) {
 }
 
 function syncAppealResultsFromPlatform(items) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = nowUtc8DateString()
   return items.map((item) => {
     if (item.appealStatus !== 'appealed' || item.appealResult !== 'pending') {
       return item

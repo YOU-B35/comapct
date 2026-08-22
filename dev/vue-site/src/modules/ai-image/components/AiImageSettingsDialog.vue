@@ -1,4 +1,5 @@
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { computed, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { AI_IMAGE_QUALITIES, AI_IMAGE_RATIOS } from '../constants'
@@ -88,11 +89,7 @@ function onResetStats() {
 }
 
 function formatTime(ts) {
-  if (!ts) return '—'
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return '—'
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return ts ? formatUtc8(ts, { seconds: false }) : '—'
 }
 </script>
 

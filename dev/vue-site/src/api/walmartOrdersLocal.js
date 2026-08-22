@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { loadScoped, resolveTenantId, saveScoped } from '@/utils/tenantStorage'
 import { WALMART_ORDERS_SEED, WFS_ORDER_STATUSES, SELLER_ORDER_STATUSES } from '@/constants/walmartDemo'
 
@@ -6,11 +7,11 @@ const STORAGE_KEY = 'crosshub_walmart_orders'
 const EMPTY = { date: '', syncedAt: '', items: [] }
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10)
+  return nowUtc8DateString()
 }
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 function loadState(tenantId = resolveTenantId()) {

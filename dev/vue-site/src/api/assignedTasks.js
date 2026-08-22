@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { hasBackendSession } from './backendSession'
 import {
   createBackendAssignedTask,
@@ -195,7 +196,7 @@ export async function syncAssignedTaskFeedback(taskId, payload, auth = null) {
     return updateBackendAssignedTaskStatus(taskId, status, {
       lastOutcome: outcome,
       lastFeedback: (feedback || '').trim(),
-      lastFeedbackAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      lastFeedbackAt: nowUtc8String(),
       lastFeedbackBy: name,
     })
   }
@@ -205,7 +206,7 @@ export async function syncAssignedTaskFeedback(taskId, payload, auth = null) {
   return updateLocalAssignedTaskStatus(taskId, status, {
     lastOutcome: outcome,
     lastFeedback: (feedback || '').trim(),
-    lastFeedbackAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    lastFeedbackAt: nowUtc8String(),
     lastFeedbackBy: name || task.assignee,
   })
 }

@@ -217,6 +217,7 @@
 </template>
 
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { ref, computed, onMounted, onUnmounted, onActivated } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -402,7 +403,7 @@ const formatMetricValue = (value) => {
 
 const formatTime = (value) => {
   if (!value) return '-'
-  return value
+  return formatUtc8(value)
 }
 
 const detailExtraFields = computed(() => {

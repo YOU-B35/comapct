@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { loadScoped, resolveTenantId, saveScoped } from '@/utils/tenantStorage'
 import {
   ACCOUNT_METRICS_SEED,
@@ -32,7 +33,7 @@ function saveAll(data, tenantId = resolveTenantId()) {
 }
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 function mergeSeeds(existing, seeds, boundIds, idKey = 'id') {

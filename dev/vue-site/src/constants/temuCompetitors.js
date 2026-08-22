@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { formatMoneyDecimal } from '@/utils/format'
 import { dateOffset } from '@/utils/date'
 
@@ -240,7 +241,7 @@ export function buildDemoSnapshots(competitorId) {
   return builder().map(({ daysAgo, products }) => {
     const date = dateOffset(daysAgo)
     const crawledAt = daysAgo === 0
-      ? now.toISOString().replace('T', ' ').slice(0, 19)
+      ? nowUtc8String()
       : `${date} 08:00:00`
     return {
       competitorId,

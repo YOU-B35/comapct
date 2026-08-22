@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { calcTaskStats } from '@/utils/operations'
 import { OUTCOME_MAP } from '@/constants/opsFeedbackDemo'
 
@@ -103,7 +104,7 @@ export function buildDailyOpsReport({ overview, platformSales, employees, tasks,
   const needHelpFeedbacks = feedbacks.filter((f) => f.outcome === 'need_help' || f.outcome === 'blocked').length
 
   return {
-    date: new Date().toISOString().slice(0, 10),
+    date: nowUtc8DateString(),
     syncedAt: overview?.syncedAt || '',
     stats: {
       totalIssues: overview?.totalIssues ?? 0,

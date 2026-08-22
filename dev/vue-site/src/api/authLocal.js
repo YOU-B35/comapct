@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { setLocalTenantId } from '@/utils/tenantStorage'
 import { fetchLocalEmployees, saveLocalEmployee } from './employeesLocal'
 
@@ -71,7 +72,7 @@ export function registerLocalUser({ company, account, password }) {
     company: companyName,
     account: acc,
     password: pwd,
-    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    createdAt: nowUtc8String(),
   }
   users.push(user)
   saveAll(users)

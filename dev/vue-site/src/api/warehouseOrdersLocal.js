@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import {
   ORDER_STATUS_MAP,
   SOURCE_TYPE_OPTIONS,
@@ -21,7 +22,7 @@ const PLATFORM_LABELS = {
 }
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 function persistLinkedPlatformOrder(order) {
@@ -69,7 +70,7 @@ function patchSeedWarehouses(tenantId = resolveTenantId()) {
 }
 
 function nextOrderNo() {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const date = nowUtc8DateString().replace(/-/g, '')
   const count = loadAll().filter((item) => String(item.orderNo || '').includes(date)).length + 1
   return `WH${date}${String(count).padStart(3, '0')}`
 }

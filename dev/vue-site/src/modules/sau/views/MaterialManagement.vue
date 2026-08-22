@@ -138,7 +138,7 @@
         <div v-else class="file-info">
           <p>文件名: {{ currentMaterial.filename }}</p>
           <p>文件大小: {{ currentMaterial.filesize }} MB</p>
-          <p>上传时间: {{ currentMaterial.upload_time }}</p>
+          <p>上传时间: {{ formatUtc8(currentMaterial.upload_time) }}</p>
           <el-button type="primary" @click="downloadFile(currentMaterial)">下载文件</el-button>
         </div>
       </div>
@@ -147,6 +147,7 @@
 </template>
 
 <script setup>
+import { formatUtc8 } from '@/utils/time'
 import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { Refresh, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'

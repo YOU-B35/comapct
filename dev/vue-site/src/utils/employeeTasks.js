@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { demoPlanTasks } from '@/utils/operations'
 import { filterTasksForAuth } from '@/utils/operations'
 import { fetchAssignedTasksForCenter } from '@/api/assignedTasks'
@@ -81,7 +82,7 @@ function makeIssueTask({
     storeName: storeName || '—',
     assignee: assignee || '未分配',
     route: EMPLOYEE_ROUTES[platformKey] || '',
-    updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+    updatedAt: nowUtc8String().slice(0, 16),
   }
 }
 

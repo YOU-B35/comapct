@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { PLATFORM_ORDER_STORAGE_KEYS } from '@/constants/platformShipRequests'
 import {
   appendLocalWarehouseShipUrge,
@@ -17,7 +18,7 @@ import {
 } from '@/utils/platformShipToWarehouse'
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 function resolveSubmitter(auth) {

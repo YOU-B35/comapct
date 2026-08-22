@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { ORDER_STATUS_MAP } from '@/constants/warehouseOrders'
 
 export function formatFileSize(bytes = 0) {
@@ -36,7 +37,7 @@ export function attachmentFromUpload(file) {
     name: file.name,
     size: file.size || 0,
     mime: file.type || '',
-    uploadedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    uploadedAt: nowUtc8String(),
   }
 }
 
@@ -46,7 +47,7 @@ export function normalizeUploadedFiles(files = [], prefix = 'att') {
     name: file.name,
     size: file.size || 0,
     mime: file.mime || '',
-    uploadedAt: file.uploadedAt || new Date().toISOString().replace('T', ' ').slice(0, 19),
+    uploadedAt: file.uploadedAt || nowUtc8String(),
   }))
 }
 

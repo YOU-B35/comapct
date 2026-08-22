@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { hasBackendSession } from './backendSession'
 import { createBackendWarehouseOrderFromPlatform, fetchBackendWarehouseOrders } from './warehouseOrdersApi'
 import { buildWarehouseFeedbackPatch } from './platformOrderWarehouseSync'
@@ -88,7 +89,7 @@ export async function pushPlatformOrderToWarehouse(auth, payload) {
     warehouseStatus: warehouseOrder.status,
     sourceOrderRef,
     shipRequestType: 'push',
-    shipPushedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    shipPushedAt: nowUtc8String(),
   }
 
   return {

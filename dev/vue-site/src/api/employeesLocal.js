@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { DEMO_EMPLOYEES } from '@/constants/employees'
 import { validateStoreAssignmentConflict } from '@/utils/storeAssignment'
 import { loadScoped, resolveTenantId, saveScoped, isDemoTemplateEnabled } from '@/utils/tenantStorage'
@@ -83,7 +84,7 @@ export function saveLocalEmployee(payload) {
   const codes = Array.isArray(menuCodes)
     ? menuCodes.filter((code) => code === 'employee.warehouse')
     : []
-  const boundAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  const boundAt = nowUtc8String()
 
   if (id) {
     const index = employees.findIndex((item) => item.id === id)

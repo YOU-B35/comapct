@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { OPS_FEEDBACK_SEED, OUTCOME_MAP } from '@/constants/opsFeedbackDemo'
 import { loadScoped, resolveTenantId, saveScoped, isDemoTemplateEnabled } from '@/utils/tenantStorage'
 
@@ -5,11 +6,11 @@ const STORAGE_KEY = 'crosshub_ops_feedback'
 const SEED_FLAG_KEY = 'crosshub_ops_feedback_seeded'
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10)
+  return nowUtc8DateString()
 }
 
 function nowText() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19)
+  return nowUtc8String()
 }
 
 function loadAll(tenantId = resolveTenantId()) {

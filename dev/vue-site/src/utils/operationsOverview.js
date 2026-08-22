@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { TEMU_RESTOCK_STATUS_LABELS } from '@/constants/temuOps'
 import { resolveTemuRestockStatus } from '@/api/temuRestock'
 import { DTC_ORDER_STATUSES } from '@/constants/dtcOrders'
@@ -18,7 +19,7 @@ const SELLER_PENDING = new Set(['待确认', '待发货'])
 const SELLER_SHIPPED = new Set(['已发货'])
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10)
+  return nowUtc8DateString()
 }
 
 function withStoreName(item, storeNameMap) {
@@ -752,7 +753,7 @@ export function buildOperationsOverview(payload) {
   return {
     platforms,
     totalIssues,
-    syncedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    syncedAt: nowUtc8String(),
   }
 }
 

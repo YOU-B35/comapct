@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { loadAlibaba1688DemoData } from './alibaba1688DemoLocal'
 import { enrichPurchaseOrder, enrichSupplierAlert } from '@/utils/alibaba1688'
 import {
@@ -21,7 +22,7 @@ function demoPayload(stores = []) {
       supplierAlerts: data.supplierAlerts.map(enrichSupplierAlert),
       supplierRanking: [],
       overview: null,
-      syncedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      syncedAt: nowUtc8String(),
     },
   }
 }
@@ -53,7 +54,7 @@ export function loadAlibaba1688PurchaseOrders(stores = []) {
     success: true,
     data: {
       orders: data.purchaseOrders.map(enrichPurchaseOrder),
-      syncedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      syncedAt: nowUtc8String(),
     },
   }
 }
@@ -64,7 +65,7 @@ export function loadAlibaba1688SupplierAlerts(stores = []) {
     success: true,
     data: {
       alerts: data.supplierAlerts.map(enrichSupplierAlert),
-      syncedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      syncedAt: nowUtc8String(),
     },
   }
 }

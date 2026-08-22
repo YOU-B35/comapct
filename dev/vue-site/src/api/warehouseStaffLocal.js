@@ -1,3 +1,4 @@
+import { nowUtc8DateString, nowUtc8String } from '@/utils/time'
 import { WAREHOUSE_DEFAULT_ROLE, WAREHOUSE_USERS, WAREHOUSE_STAFF_STORAGE_KEY } from '@/constants/warehouseStaff'
 import { loadScoped, resolveTenantId, saveScoped, isDemoTemplateEnabled } from '@/utils/tenantStorage'
 
@@ -60,7 +61,7 @@ export function saveLocalWarehouseStaff(payload) {
   const validation = validateStaffInput({ ...payload, staff })
   if (validation.error) return { error: validation.error }
 
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  const now = nowUtc8String()
   if (id) {
     const index = staff.findIndex((item) => item.id === id)
     if (index === -1) return { error: '仓库人员不存在' }
