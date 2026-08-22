@@ -21,6 +21,7 @@ Start-CrosshubLauncherWindow -Name "java" -LauncherPath $javaLauncher -ScriptLin
     ". '$Root\scripts\env-java.ps1'"
     "Set-Location '$Root\backend\java'"
     "`$env:SPRING_PROFILES_ACTIVE='dev'"
+    "`$env:JAVA_TOOL_OPTIONS='-Duser.timezone=Asia/Shanghai'"
     "mvn -q spring-boot:run"
 )
 

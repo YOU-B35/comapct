@@ -3,6 +3,7 @@
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "_launcher-utils.ps1")
+$env:JAVA_TOOL_OPTIONS = '-Duser.timezone=Asia/Shanghai'
 
 Write-Host "==> compile Java API" -ForegroundColor Cyan
 . (Join-Path $PSScriptRoot "env-java.ps1")
@@ -22,6 +23,7 @@ Start-CrosshubLauncherWindow -Name "java" -LauncherPath $javaLauncher -ScriptLin
     "`$env:SPRING_PROFILES_ACTIVE='dev'"
     # Pin main DB — avoid inheriting a worktree CROSSHUB_DB_PATH from the parent shell
     "`$env:CROSSHUB_DB_PATH='$Root\backend\data\crosshub.db'"
+    "`$env:JAVA_TOOL_OPTIONS='-Duser.timezone=Asia/Shanghai'"
     "mvn -q -DskipTests spring-boot:run"
 )
 

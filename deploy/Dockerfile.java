@@ -13,6 +13,7 @@ ENV CROSSHUB_PYTHON_DIR=/opt/crosshub/python
 ENV TEMU_PROFILE_ROOT=/data/temu-browser-profile
 ENV TEMU_HEADLESS=1
 ENV TEMU_BROWSER_CHANNEL=
+ENV TZ=Asia/Shanghai
 
 EXPOSE 18080
-ENTRYPOINT ["java", "-jar", "/app/app.jar", "--server.port=18080"]
+ENTRYPOINT ["java", "-Duser.timezone=Asia/Shanghai", "-jar", "/app/app.jar", "--server.port=18080"]

@@ -2,6 +2,7 @@
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "_launcher-utils.ps1")
+$env:JAVA_TOOL_OPTIONS = '-Duser.timezone=Asia/Shanghai'
 
 $env:NODE_HOME = if ($env:NODE_HOME) { $env:NODE_HOME } else { "D:\dev\env\tools\node" }
 $env:PATH = "$env:NODE_HOME;$env:PATH"
@@ -27,6 +28,7 @@ Start-CrosshubLauncherWindow -Name "java" -LauncherPath $javaLauncher -ScriptLin
     ". '$Root\scripts\env-java.ps1'"
     "Set-Location '$Root\backend\java'"
     "`$env:SPRING_PROFILES_ACTIVE='dev'"
+    "`$env:JAVA_TOOL_OPTIONS='-Duser.timezone=Asia/Shanghai'"
     "mvn -q spring-boot:run"
 )
 
