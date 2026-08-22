@@ -581,6 +581,13 @@ watch(online, () => {
   // Online alone must not start live session probes.
 })
 
+watch(() => props.storeId, () => {
+  // 切换店铺后重新加载该店铺的会话状态，避免状态栏停留在上一个店铺的登录态
+  if (props.storeId == null) return
+  sessionStatus.value = {}
+  loadSessionStatus()
+})
+
 onMounted(async () => {
   await reload()
   startHelperPoll()
