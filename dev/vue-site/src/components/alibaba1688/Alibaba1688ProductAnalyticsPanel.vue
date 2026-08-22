@@ -99,17 +99,17 @@ defineExpose({ load })
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="单价" width="110" align="right">
+      <el-table-column label="单价" width="110" align="right" sortable :sort-method="(a, b) => Number(a.price || 0) - Number(b.price || 0)">
         <template #default="{ row }">{{ row.price || '—' }}</template>
       </el-table-column>
-      <el-table-column label="销量" width="90" align="right">
+      <el-table-column label="销量" width="90" align="right" sortable :sort-method="(a, b) => Number(a.salesQty || 0) - Number(b.salesQty || 0)">
         <template #default="{ row }">{{ formatAnalyticsAmount(row.salesQty) }}</template>
       </el-table-column>
-      <el-table-column label="销售额" width="120" align="right">
+      <el-table-column label="销售额" width="120" align="right" sortable :sort-method="(a, b) => Number(a.salesAmount || 0) - Number(b.salesAmount || 0)">
         <template #default="{ row }">{{ formatAnalyticsAmount(row.salesAmount) }}</template>
       </el-table-column>
-      <el-table-column v-if="type === 'recent_sales'" prop="productUpdatedAt" label="上架时间" width="140" />
-      <el-table-column prop="stock" label="库存" width="90" align="right" />
+      <el-table-column v-if="type === 'recent_sales'" prop="productUpdatedAt" label="上架时间" width="140" sortable />
+      <el-table-column prop="stock" label="库存" width="90" align="right" sortable />
       <el-table-column prop="status" label="状态" width="100" />
       <el-table-column v-if="type === 'bestsellers'" label="档位" width="100">
         <template #default="{ row }">
