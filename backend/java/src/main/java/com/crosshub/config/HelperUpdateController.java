@@ -11,7 +11,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/helper")
 public class HelperUpdateController {
-    public static final String HELPER_VERSION = "2026.08.22.1";
+    public static final String HELPER_VERSION = "2026.08.24.1";
     public static final String HELPER_DOWNLOAD_URL =
             "https://www.yoto.work/crosshub/downloads/CrossHub-Sync-Helper.zip";
 

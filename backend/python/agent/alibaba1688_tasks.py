@@ -41,6 +41,42 @@ def _looks_logged_in(page, context) -> bool:
     return any(m in content for m in markers) and "密码登录" not in content and "扫码登录" not in content
 
 
+def _run_in_clean_thread(fn, *, timeout: float | None = None):
+    """Playwright Sync API cannot run when the current thread already has an asyncio loop
+    (Helper tray/flask may install one). Always execute browser work on a fresh thread.
+    """
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(fn)
+        return fut.result(timeout=timeout)
+
+
+def _a1688_launch_kwargs(*, headless: bool, args: list[str] | None = None) -> dict[str, Any]:
+    """默认 Playwright 内置 Chromium；冻结态无内置浏览器时回退系统 Chrome/Edge。"""
+    import sys
+
+    from app.browser.context import _bundled_chromium_ready, _system_chrome_path
+    from app.config import BROWSER_CHANNEL
+
+    kwargs: dict[str, Any] = {
+        "headless": headless,
+        "viewport": {"width": 1280, "height": 900},
+        "locale": "zh-CN",
+        "args": list(args or []),
+    }
+    frozen = bool(getattr(sys, "frozen", False))
+    if BROWSER_CHANNEL:
+        kwargs["channel"] = BROWSER_CHANNEL
+    elif frozen and not _bundled_chromium_ready():
+        chrome = _system_chrome_path()
+        if chrome:
+            kwargs["executable_path"] = chrome
+        else:
+            kwargs["channel"] = "chrome"
+    return kwargs
+
+
 def _launch(
     tenant_id: int,
     *,
@@ -62,13 +98,11 @@ def _launch(
         args.append("--headless=new")
     else:
         args.append("--start-maximized")
+    launch_kwargs = _a1688_launch_kwargs(headless=headless, args=args)
     pw = sync_playwright().start()
     context = pw.chromium.launch_persistent_context(
         user_data,
-        headless=headless,
-        viewport={"width": 1280, "height": 900},
-        locale="zh-CN",
-        args=args,
+        **launch_kwargs,
     )
     page = context.pages[0] if context.pages else context.new_page()
     if not headless:
@@ -126,33 +160,36 @@ def _extract_shop_identity(page) -> dict[str, Any]:
 
 
 def probe_session(tenant_id: int, store_id: str | None = None) -> dict[str, Any]:
-    pw = context = page = None
-    try:
-        pw, context, page = _launch(
-            tenant_id,
-            headless=crawl_headless_enabled(),
-            goto=HOME_URL,
-            store_id=store_id,
-        )
-        logged_in = _looks_logged_in(page, context)
-        persist_1688_session(tenant_id, page, context, store_id)
-        print(
-            f"[1688Probe] tenant={tenant_id} logged_in={logged_in} url={getattr(page, 'url', '')!r}",
-            flush=True,
-        )
-        payload = _session_payload(
-            tenant_id,
-            logged_in=logged_in,
-            message="1688 已登录" if logged_in else "1688 未登录，请打开登录窗口完成登录",
-        )
-        if logged_in:
-            identity = _extract_shop_identity(page)
-            if identity.get("store_name"):
-                payload["shops"] = [{"store_name": identity["store_name"]}]
-                payload["shop_count"] = 1
-        return payload
-    finally:
-        _close(pw, context)
+    def _run() -> dict[str, Any]:
+        pw = context = page = None
+        try:
+            pw, context, page = _launch(
+                tenant_id,
+                headless=crawl_headless_enabled(),
+                goto=HOME_URL,
+                store_id=store_id,
+            )
+            logged_in = _looks_logged_in(page, context)
+            persist_1688_session(tenant_id, page, context, store_id)
+            print(
+                f"[1688Probe] tenant={tenant_id} logged_in={logged_in} url={getattr(page, 'url', '')!r}",
+                flush=True,
+            )
+            payload = _session_payload(
+                tenant_id,
+                logged_in=logged_in,
+                message="1688 已登录" if logged_in else "1688 未登录，请打开登录窗口完成登录",
+            )
+            if logged_in:
+                identity = _extract_shop_identity(page)
+                if identity.get("store_name"):
+                    payload["shops"] = [{"store_name": identity["store_name"]}]
+                    payload["shop_count"] = 1
+            return payload
+        finally:
+            _close(pw, context)
+
+    return _run_in_clean_thread(_run, timeout=180)
 
 
 def open_login_window(
@@ -160,35 +197,37 @@ def open_login_window(
     timeout_seconds: int = 600,
     store_id: str | None = None,
 ) -> dict[str, Any]:
-    pw = context = page = None
-    try:
-        pw, context, page = _launch(
-            tenant_id,
-            headless=False,
-            goto=LOGIN_URL,
-            store_id=store_id,
-        )
-        print(f"[1688Login] opened login for tenant={tenant_id}", flush=True)
-        deadline = time.monotonic() + max(30, int(timeout_seconds))
-        logged_in = False
-        while time.monotonic() < deadline:
-            if _looks_logged_in(page, context):
-                try:
-                    if is_login_page(page.url or ""):
-                        page.goto(HOME_URL, wait_until="domcontentloaded", timeout=60_000)
-                        page.wait_for_timeout(2000)
-                except Exception:
-                    pass
-                persist_1688_session(tenant_id, page, context, store_id)
-                logged_in = True
-                break
-            page.wait_for_timeout(2000)
-        if not logged_in:
-            persist_1688_session(tenant_id, page, context)
-        return _session_payload(
-            tenant_id,
-            logged_in=logged_in,
-            message="1688 已登录" if logged_in else "登录超时，请重试打开登录窗口",
-        )
-    finally:
-        _close(pw, context)
+    def _run() -> dict[str, Any]:
+        pw = context = page = None
+        try:
+            pw, context, page = _launch(
+                tenant_id,
+                headless=False,
+                goto=LOGIN_URL,
+                store_id=store_id,
+            )
+            deadline = time.monotonic() + max(30, int(timeout_seconds))
+            logged_in = False
+            while time.monotonic() < deadline:
+                if _looks_logged_in(page, context):
+                    try:
+                        if is_login_page(page.url or ""):
+                            page.goto(HOME_URL, wait_until="domcontentloaded", timeout=60_000)
+                            page.wait_for_timeout(2000)
+                    except Exception:
+                        pass
+                    persist_1688_session(tenant_id, page, context, store_id)
+                    logged_in = True
+                    break
+                page.wait_for_timeout(2000)
+            if not logged_in:
+                persist_1688_session(tenant_id, page, context)
+            return _session_payload(
+                tenant_id,
+                logged_in=logged_in,
+                message="1688 已登录" if logged_in else "登录超时，请重试打开登录窗口",
+            )
+        finally:
+            _close(pw, context)
+
+    return _run_in_clean_thread(_run, timeout=float(timeout_seconds) + 90)
