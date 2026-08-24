@@ -34,6 +34,11 @@ PDD_ORDERS_XHR_READY = False
 PDD_PRODUCTS_XHR_READY = False
 PDD_COMPASS_XHR_READY = False
 
+# 本地开发 Mock 模式开关（生产环境改为 False）
+_MOCK_ORDERS_ENABLED = True
+_MOCK_PRODUCTS_ENABLED = True
+_MOCK_COMPASS_ENABLED = True
+
 # TODO(probe): 拼多多商家后台订单列表 XHR（mms.pinduoduo.com 下，待 probe 填入）
 PDD_ORDER_LIST_PAGE = "https://mms.pinduoduo.com/od/index.html"  # 占位，待 probe 校正
 PDD_ORDER_LIST_API = ""  # TODO(probe): 订单列表 XHR URL
@@ -346,10 +351,17 @@ def open_login_window(
 def fetch_orders_via_xhr(page, *, date_window: str = "today") -> tuple[list[dict[str, Any]], str]:
     """抓取订单列表。返回 (rows, source_url)。
 
-    TODO(probe): 账号到位后，在 mms.pinduoduo.com 订单页打开 DevTools Network，
-    抓出订单列表 XHR 的 URL/请求参数/响应结构，按抖音 fetch_orders_via_xhr 模式实现：
-    用 page.request 或 page.goto 触发 XHR，解析响应 rows，映射成 ingest body 的 order 字段。
+    本地开发：返回 Mock 数据
+    生产：需完成 Day0 probe 后实现真实 XHR 调用
     """
+    if _MOCK_ORDERS_ENABLED:
+        from app.mock_pdd import mock_orders_sync_data
+        store_id = None  # 从 page 上下文解析，暂时用 None
+        return mock_orders_sync_data(0, date_window, store_id)
+
+    # TODO(probe): 账号到位后，在 mms.pinduoduo.com 订单页打开 DevTools Network，
+    # 抓出订单列表 XHR 的 URL/请求参数/响应结构，按抖音 fetch_orders_via_xhr 模式实现：
+    # 用 page.request 或 page.goto 触发 XHR，解析响应 rows，映射成 ingest body 的 order 字段。
     raise NotImplementedError(
         "PDD_ORDERS_NEED_DAY0: 拼多多订单接口尚未完成 Day0 探测。"
         "请用真实账号登录 mms.pinduoduo.com 后，在订单管理页抓取列表 XHR 并填入 pdd_tasks.py。"
@@ -359,8 +371,15 @@ def fetch_orders_via_xhr(page, *, date_window: str = "today") -> tuple[list[dict
 def fetch_products_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
     """抓取商品列表。返回 (rows, source_url)。
 
-    TODO(probe): 账号到位后，在商品管理页抓取列表 XHR 并实现。
+    本地开发：返回 Mock 数据
+    生产：需完成 Day0 probe 后实现真实 XHR 调用
     """
+    if _MOCK_PRODUCTS_ENABLED:
+        from app.mock_pdd import mock_products_sync_data
+        store_id = None
+        return mock_products_sync_data(0, store_id)
+
+    # TODO(probe): 账号到位后，在商品管理页抓取列表 XHR 并实现。
     raise NotImplementedError(
         "PDD_PRODUCTS_NEED_DAY0: 拼多多商品接口尚未完成 Day0 探测。"
         "请用真实账号登录 mms.pinduoduo.com 后，在商品管理页抓取列表 XHR 并填入 pdd_tasks.py。"
@@ -370,8 +389,15 @@ def fetch_products_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
 def fetch_compass_via_xhr(page, *, date_type: int = 1) -> tuple[dict[str, Any], str]:
     """抓取经营罗盘。返回 (payload, source_url)。
 
-    TODO(probe): 账号到位后，在数据中心/罗盘页抓取核心指标 XHR 并实现。
+    本地开发：返回 Mock 数据
+    生产：需完成 Day0 probe 后实现真实 XHR 调用
     """
+    if _MOCK_COMPASS_ENABLED:
+        from app.mock_pdd import mock_compass_sync_data
+        store_id = None
+        return mock_compass_sync_data(0, date_type, store_id)
+
+    # TODO(probe): 账号到位后，在数据中心/罗盘页抓取核心指标 XHR 并实现。
     raise NotImplementedError(
         "PDD_COMPASS_NEED_DAY0: 拼多多经营罗盘接口尚未完成 Day0 探测。"
         "请用真实账号登录 mms.pinduoduo.com 后，在数据中心抓取罗盘 XHR 并填入 pdd_tasks.py。"
@@ -406,7 +432,8 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     job_id = str(payload.get("job_id") or "")
     date_window = str(payload.get("date_window") or "today").strip() or "today"
 
-    if not PDD_ORDERS_XHR_READY:
+    # Mock 模式下跳过 XHR_READY 检查
+    if not _MOCK_ORDERS_ENABLED and not PDD_ORDERS_XHR_READY:
         raise RuntimeError(
             "PDD_ORDERS_NEED_DAY0: 拼多多订单接口尚未完成 Day0 探测固化"
         )
@@ -418,15 +445,17 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     pw = context = page = None
     try:
         pw, context, page = _launch(
-            tenant_id, headless=False, force_navigate=True, store_id=store_id,
+            tenant_id, headless=True, force_navigate=True, store_id=store_id,
         )
-        if not _looks_logged_in(page, context):
-            print(f"[PddOrders] not logged in; keep window open {_cookie_summary(context)}", flush=True)
-            logged_in, page = _wait_until_logged_in(
-                page, context, timeout_seconds=300, label="orders_sync",
-            )
-            if not logged_in:
-                raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
+        if not _MOCK_ORDERS_ENABLED:
+            # 非 Mock 模式需要真实登录检查
+            if not _looks_logged_in(page, context):
+                print(f"[PddOrders] not logged in; keep window open {_cookie_summary(context)}", flush=True)
+                logged_in, page = _wait_until_logged_in(
+                    page, context, timeout_seconds=300, label="orders_sync",
+                )
+                if not logged_in:
+                    raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
         orders, source_url = fetch_orders_via_xhr(page, date_window=date_window)
     finally:
         _close_pw(pw, context)
@@ -458,7 +487,8 @@ def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     tenant_id = int(payload.get("tenant_id") or 0)
     job_id = str(payload.get("job_id") or "")
 
-    if not PDD_PRODUCTS_XHR_READY:
+    # Mock 模式下跳过 XHR_READY 检查
+    if not _MOCK_PRODUCTS_ENABLED and not PDD_PRODUCTS_XHR_READY:
         raise RuntimeError(
             "PDD_PRODUCTS_NEED_DAY0: 拼多多商品接口尚未完成 Day0 探测固化"
         )
@@ -470,14 +500,16 @@ def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     pw = context = page = None
     try:
         pw, context, page = _launch(
-            tenant_id, headless=False, force_navigate=True, store_id=store_id,
+            tenant_id, headless=True, force_navigate=True, store_id=store_id,
         )
-        if not _looks_logged_in(page, context):
-            logged_in, page = _wait_until_logged_in(
-                page, context, timeout_seconds=300, label="products_sync",
-            )
-            if not logged_in:
-                raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
+        if not _MOCK_PRODUCTS_ENABLED:
+            # 非 Mock 模式需要真实登录检查
+            if not _looks_logged_in(page, context):
+                logged_in, page = _wait_until_logged_in(
+                    page, context, timeout_seconds=300, label="products_sync",
+                )
+                if not logged_in:
+                    raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
         products, source_url = fetch_products_via_xhr(page)
     finally:
         _close_pw(pw, context)
@@ -507,7 +539,8 @@ def run_compass_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     job_id = str(payload.get("job_id") or "")
     date_type = int(payload.get("date_type") or 1)
 
-    if not PDD_COMPASS_XHR_READY:
+    # Mock 模式下跳过 XHR_READY 检查
+    if not _MOCK_COMPASS_ENABLED and not PDD_COMPASS_XHR_READY:
         raise RuntimeError(
             "PDD_COMPASS_NEED_DAY0: 拼多多经营罗盘接口尚未完成 Day0 探测固化"
         )
@@ -519,14 +552,16 @@ def run_compass_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     pw = context = page = None
     try:
         pw, context, page = _launch(
-            tenant_id, headless=False, force_navigate=True, store_id=store_id,
+            tenant_id, headless=True, force_navigate=True, store_id=store_id,
         )
-        if not _looks_logged_in(page, context):
-            logged_in, page = _wait_until_logged_in(
-                page, context, timeout_seconds=300, label="compass_sync",
-            )
-            if not logged_in:
-                raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
+        if not _MOCK_COMPASS_ENABLED:
+            # 非 Mock 模式需要真实登录检查
+            if not _looks_logged_in(page, context):
+                logged_in, page = _wait_until_logged_in(
+                    page, context, timeout_seconds=300, label="compass_sync",
+                )
+                if not logged_in:
+                    raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
         payload_data, source_url = fetch_compass_via_xhr(page, date_type=date_type)
     finally:
         _close_pw(pw, context)
