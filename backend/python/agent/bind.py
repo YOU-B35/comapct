@@ -246,6 +246,94 @@ def consume_bind_code(
     }
 
 
+def consume_bind_direct(
+    account: str,
+    password: str,
+    *,
+    display_name: str = "",
+    config_path: Path | str | None = None,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    """POST /api/agent/bind-direct with account+password; persist agent_token to config.json.
+
+    桌面端直接绑定流程：跳过一次性绑定码，用网站账密认证后注册 Agent。
+    """
+    cleaned_account = (account or "").strip()
+    cleaned_password = (password or "").strip()
+    if not cleaned_account or not cleaned_password:
+        raise ValueError("请输入账号和密码")
+
+    fingerprint = machine_fingerprint()
+    if not fingerprint:
+        raise ValueError("无法生成机器指纹")
+
+    name = (display_name or "").strip() or DEFAULT_DISPLAY_NAME
+    api = (base_url or os.environ.get("JAVA_API_URL") or DEFAULT_JAVA_API_URL).strip().rstrip("/")
+    if not api:
+        api = DEFAULT_JAVA_API_URL
+
+    body = {
+        "account": cleaned_account,
+        "password": cleaned_password,
+        "machine_fingerprint": fingerprint,
+        "display_name": name,
+    }
+    with httpx.Client(timeout=30.0) as client:
+        resp = client.post(f"{api}/api/agent/bind-direct", json=body)
+        payload = resp.json() if resp.content else {}
+        if resp.status_code >= 400:
+            msg = (
+                (payload.get("msg") if isinstance(payload, dict) else None)
+                or (payload.get("message") if isinstance(payload, dict) else None)
+                or (payload.get("error") if isinstance(payload, dict) else None)
+                or f"HTTP {resp.status_code}"
+            )
+            raise RuntimeError(str(msg))
+        data = payload.get("data") if isinstance(payload, dict) else {}
+        if not isinstance(data, dict):
+            data = {}
+        token = str(data.get("agent_token") or "").strip()
+        if not token:
+            raise RuntimeError("绑定失败：服务端未返回 agent_token")
+
+    path = resolve_config_path(config_path)
+    cfg = _read_config(path)
+    cfg["agent_token"] = token
+    cfg["java_api_url"] = api
+    if data.get("tenant_id") is not None:
+        cfg["tenant_id"] = data.get("tenant_id")
+        cfg["agent_tenant_id"] = data.get("tenant_id")
+    if data.get("user_id") is not None:
+        cfg["user_id"] = data.get("user_id")
+        cfg["bound_user_id"] = data.get("user_id")
+    cfg["machine_fingerprint"] = fingerprint
+    cfg["display_name"] = name
+    cfg["bound_account"] = cleaned_account
+    _write_config(path, cfg)
+    reset_profile_roots()
+    apply_bound_env(cfg)
+    apply_profile_isolation_env()
+
+    try:
+        import agent.config as agent_config
+
+        agent_config.AGENT_TOKEN = token
+        agent_config.JAVA_API_URL = cfg["java_api_url"]
+    except Exception:
+        pass
+
+    return {
+        "agent_token": token,
+        "java_api_url": cfg["java_api_url"],
+        "tenant_id": cfg.get("tenant_id"),
+        "user_id": cfg.get("user_id"),
+        "machine_fingerprint": fingerprint,
+        "display_name": name,
+        "bound_account": cleaned_account,
+        "config_path": str(path),
+    }
+
+
 def clear_binding(config_path: Path | str | None = None) -> dict[str, Any]:
     """Clear enrollment so another CrossHub account can re-bind on the same PC."""
     path = resolve_config_path(config_path)

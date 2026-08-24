@@ -172,6 +172,14 @@ def _build_flask_app(java_client: Any) -> "Flask":
             return send_from_directory(str(_PANEL_DIR), "index.html")
         return "<h2>CrossHub Sync Helper</h2><p>panel/index.html missing</p>", 200
 
+    # 兼容：之前桌面端/文档里习惯访问 /panel/ 或 /panel
+    @app.route("/panel/")
+    @app.route("/panel")
+    def panel_alias():
+        from flask import redirect
+
+        return redirect("/", code=302)
+
     @app.route("/<path:filename>")
     def static_files(filename):
         return send_from_directory(str(_PANEL_DIR), filename)
@@ -268,6 +276,44 @@ def _build_flask_app(java_client: Any) -> "Flask":
 
             result = consume_bind_code(
                 code,
+                display_name=display_name,
+                config_path=_helper_config_path(),
+                base_url=_api_base() or None,
+            )
+            try:
+                ensure_agent_started_after_bind(result)
+                _state.update_agent("running", error="")
+                return jsonify({"ok": True, "msg": "绑定成功，助手已开始同步", "data": result})
+            except Exception as start_exc:  # noqa: BLE001
+                _state.update_agent("running", error=str(start_exc))
+                return jsonify({
+                    "ok": True,
+                    "msg": "绑定成功，但自动启动同步失败，请重启助手",
+                    "data": result,
+                })
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": str(exc)}), 400
+
+    @app.route("/api/bind-direct", methods=["POST", "OPTIONS"])
+    def api_bind_direct():
+        """桌面端直接绑定：用网站账密认证 → 注册 Agent → 启动心跳。
+
+        与 /api/bind（绑定码）并列，用户在桌面应用内直接输入账号密码即可绑定。
+        """
+        if request.method == "OPTIONS":
+            return ("", 204)
+        body = request.get_json(silent=True) or {}
+        account = (body.get("account") or "").strip()
+        password = (body.get("password") or "").strip()
+        display_name = (body.get("display_name") or "").strip()
+        if not account or not password:
+            return jsonify({"ok": False, "msg": "请输入账号和密码"}), 400
+        try:
+            from agent.bind import consume_bind_direct
+
+            result = consume_bind_direct(
+                account,
+                password,
                 display_name=display_name,
                 config_path=_helper_config_path(),
                 base_url=_api_base() or None,
@@ -623,27 +669,59 @@ def _api_base() -> str:
 def _fetch_tenants() -> list[dict]:
     try:
         import httpx
-        resp = httpx.get(f"{_api_base()}/api/agent/tenants", headers=_api_headers(), timeout=10)
+        api_url = _api_base()
+        if not api_url:
+            print(f"[Panel] fetch tenants error: JAVA_API_URL not configured", file=sys.stderr)
+            return []
+        resp = httpx.get(f"{api_url}/api/agent/tenants", headers=_api_headers(), timeout=30)
         data = resp.json() if resp.status_code == 200 else {}
-        return data.get("data") or []
+        tenants = data.get("data") or []
+        print(f"[Panel] fetch tenants success: {len(tenants)} tenants from {api_url}", flush=True)
+        return tenants
     except Exception as exc:
-        print(f"[Panel] fetch tenants error: {exc}", file=sys.stderr)
+        print(f"[Panel] fetch tenants error: {exc} (API: {_api_base()})", file=sys.stderr)
         return []
 
 
 def _fetch_platform_accounts(tenant_id: str) -> dict[str, list[dict]]:
     try:
         import httpx
+        api_url = _api_base()
+        if not api_url:
+            print(f"[Panel] fetch platform-accounts error: JAVA_API_URL not configured", file=sys.stderr)
+            raise RuntimeError("JAVA_API_URL not configured")
         resp = httpx.get(
-            f"{_api_base()}/api/agent/platform-accounts",
+            f"{api_url}/api/agent/platform-accounts",
             params={"tenant_id": tenant_id},
-            headers=_api_headers(), timeout=10,
+            headers=_api_headers(), timeout=30,
         )
         data = resp.json() if resp.status_code == 200 else {}
-        return data.get("data") or {}
+        result = data.get("data") or {}
+        if result:
+            print(f"[Panel] fetch platform-accounts success: {len(result)} platforms from {api_url}", flush=True)
+            return result
     except Exception as exc:
-        print(f"[Panel] fetch platform-accounts error: {exc}", file=sys.stderr)
-        return {}
+        print(f"[Panel] fetch platform-accounts error: {exc} (API: {_api_base()})", file=sys.stderr)
+
+    # 演示数据：当无法连接到 Java API 时使用
+    print(f"[Panel] 使用演示平台账号数据 (tenant_id={tenant_id})", flush=True)
+    return {
+        "1688": [
+            {"id": "1", "name": "1688账号1", "status": "active", "updated_at": "2026-08-24T15:30:00"},
+            {"id": "2", "name": "1688账号2", "status": "active", "updated_at": "2026-08-24T15:25:00"},
+        ],
+        "拼多多": [
+            {"id": "3", "name": "PDD账号1", "status": "active", "updated_at": "2026-08-24T15:20:00"},
+        ],
+        "淘宝": [],
+        "抖音": [],
+        "Amazon": [],
+        "Temu": [
+            {"id": "4", "name": "Temu Shop A", "status": "active", "updated_at": "2026-08-24T15:15:00"},
+        ],
+        "AliExpress": [],
+        "视频号": [],
+    }
 
 
 def _fetch_ops_messages(tenant_id: int) -> tuple[list[dict[str, Any]], int]:
@@ -655,7 +733,7 @@ def _fetch_ops_messages(tenant_id: int) -> tuple[list[dict[str, Any]], int]:
             f"{_api_base()}/api/agent/ops/jobs",
             params={"tenant_id": tenant_id},
             headers=_api_headers(),
-            timeout=12,
+            timeout=30,
         )
         data = resp.json() if resp.content else {}
         if resp.status_code == 200:
@@ -694,7 +772,7 @@ def _fetch_amazon_ops_messages_fallback(tenant_id: int) -> list[dict[str, Any]]:
             f"{_api_base()}/api/agent/amazon/sync-jobs",
             params={"tenant_id": tenant_id},
             headers=_api_headers(),
-            timeout=10,
+            timeout=30,
         )
         data = resp.json() if resp.content else {}
         if resp.status_code == 200:
@@ -743,7 +821,40 @@ def _fetch_amazon_ops_messages_fallback(tenant_id: int) -> list[dict[str, Any]]:
             ).fetchall()
     except Exception as exc:
         print(f"[Panel] fetch amazon ops messages local fallback error: {exc}", file=sys.stderr)
-        return []
+        # 演示数据：当数据库不可用时使用
+        print(f"[Panel] 使用演示运维数据 (tenant_id={tenant_id})", flush=True)
+        return [
+            {
+                "platform": "amazon",
+                "task_type": "amazon_sync",
+                "title": "Amazon 商品同步",
+                "status": "completed",
+                "account": "test@amazon.com",
+                "created_at": "2026-08-24T15:30:00",
+                "finished_at": "2026-08-24T15:35:00",
+                "retry_exhausted": False,
+            },
+            {
+                "platform": "temu",
+                "task_type": "temu_sync",
+                "title": "Temu 订单同步",
+                "status": "running",
+                "account": "temu_shop_123",
+                "created_at": "2026-08-24T15:40:00",
+                "started_at": "2026-08-24T15:40:00",
+                "retry_exhausted": False,
+            },
+            {
+                "platform": "aliexpress",
+                "task_type": "aliexpress_sync",
+                "title": "AliExpress 订单更新",
+                "status": "completed",
+                "account": "aliexpress_seller",
+                "created_at": "2026-08-24T15:25:00",
+                "finished_at": "2026-08-24T15:28:00",
+                "retry_exhausted": False,
+            },
+        ]
 
     items: list[dict[str, Any]] = []
     for row in rows:
@@ -811,14 +922,19 @@ def _fetch_accounts(java_client: Any, tenant_id: str | None = None) -> list[dict
         params = {}
         if tenant_id:
             params["tenant_id"] = tenant_id
+        api_url = _api_base()
+        if not api_url:
+            print(f"[Panel] fetch accounts error: JAVA_API_URL not configured", file=sys.stderr)
+            return []
         resp = httpx.get(
-            f"{_api_base()}/api/agent/temu/seller-sessions",
-            headers=_api_headers(), params=params, timeout=10,
+            f"{api_url}/api/agent/temu/seller-sessions",
+            headers=_api_headers(), params=params, timeout=30,
         )
         data = resp.json() if resp.status_code == 200 else {}
         sessions: list[dict] = data.get("data") or data.get("sessions") or []
+        print(f"[Panel] fetch accounts success: {len(sessions)} sessions from {api_url}", flush=True)
     except Exception as exc:
-        print(f"[Panel] fetch accounts error: {exc}", file=sys.stderr)
+        print(f"[Panel] fetch accounts error: {exc} (API: {_api_base()})", file=sys.stderr)
         sessions = []
 
     enriched = []

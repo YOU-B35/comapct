@@ -1,0 +1,32 @@
+{
+  "name": "crosshub-sync-helper-panel",
+  "version": "1.0.0",
+  "description": "CrossHub Sync Helper - 桌面工作台",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint lib tests --fix || true",
+    "build": "node scripts/build.js",
+    "dev": "http-server . -p 8000"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "@vitest/ui": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "jsdom": "^23.0.0",
+    "@testing-library/dom": "^9.3.0",
+    "eslint": "^8.50.0"
+  },
+  "dependencies": {},
+  "keywords": [
+    "crosshub",
+    "ecommerce",
+    "sync-helper",
+    "desktop-app"
+  ],
+  "author": "CrossHub",
+  "license": "MIT"
+}

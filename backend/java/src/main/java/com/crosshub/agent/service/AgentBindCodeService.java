@@ -98,6 +98,45 @@ public class AgentBindCodeService {
         return new ConsumeResult(token, entry.tenantId(), entry.userId());
     }
 
+    /**
+     * 桌面端直接绑定：跳过一次性绑定码，用账密认证后直接注册 Agent。
+     * 与 {@link #consume} 共用同一套 agent 入库逻辑，仅省去 bind code 校验。
+     */
+    @Transactional
+    public ConsumeResult bindDirect(Long userId, Long tenantId, String machineFingerprint, String displayName) {
+        if (userId == null || tenantId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
+        }
+        String fingerprint = machineFingerprint == null ? "" : machineFingerprint.trim();
+        if (fingerprint.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少 machine_fingerprint");
+        }
+        String name = (displayName == null || displayName.isBlank()) ? DEFAULT_DISPLAY_NAME : displayName.trim();
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String now = LocalDateTime.now(clock).format(TS);
+
+        IntegrationAgent agent = agentRepository
+                .findByTenantIdAndMachineFingerprint(tenantId, fingerprint)
+                .orElseGet(IntegrationAgent::new);
+
+        boolean isNew = agent.getId() == null || agent.getId().isBlank();
+        if (isNew) {
+            agent.setId(UUID.randomUUID().toString());
+            agent.setCreatedAt(now);
+            agent.setLastHeartbeatAt("");
+            agent.setZiniaoOnline(0);
+        }
+        agent.setTenantId(tenantId);
+        agent.setBoundUserId(userId);
+        agent.setMachineFingerprint(fingerprint);
+        agent.setName(name);
+        agent.setAgentToken(token);
+        agent.setStatus("active");
+        agentRepository.save(agent);
+
+        return new ConsumeResult(token, tenantId, userId);
+    }
+
     public Map<String, Object> statusForTenant(Long tenantId) {
         if (tenantId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");

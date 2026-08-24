@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "camoufox-reverse-mcp": {
+      "command": "camoufox-reverse-mcp",
+      "args": [
+        "--headless",
+        "--humanize",
+        "--block-images"
+      ],
+      "description": "Anti-detection browser MCP server for JavaScript reverse engineering",
+      "disabled": false
+    }
+  }
+}

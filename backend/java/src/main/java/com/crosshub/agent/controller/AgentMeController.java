@@ -1,6 +1,8 @@
 package com.crosshub.agent.controller;
 
 import com.crosshub.agent.service.AgentBindCodeService;
+import com.crosshub.auth.entity.AppUser;
+import com.crosshub.auth.repository.AppUserRepository;
 import com.crosshub.security.AuthContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -14,7 +16,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/agent")
@@ -24,15 +28,18 @@ public class AgentMeController {
 
     private final AgentBindCodeService bindCodeService;
     private final AuthContext authContext;
+    private final AppUserRepository userRepository;
     private final String javaApiUrl;
 
     public AgentMeController(
             AgentBindCodeService bindCodeService,
             AuthContext authContext,
+            AppUserRepository userRepository,
             @Value("${crosshub.java-api-url:https://www.yoto.work}") String javaApiUrl
     ) {
         this.bindCodeService = bindCodeService;
         this.authContext = authContext;
+        this.userRepository = userRepository;
         this.javaApiUrl = javaApiUrl;
     }
 
@@ -67,6 +74,59 @@ public class AgentMeController {
         data.put("user_id", result.userId());
         data.put("java_api_url", javaApiUrl);
         return Map.of("success", true, "data", data);
+    }
+
+    /**
+     * 桌面端直接绑定：用网站账号密码认证后注册 Agent，跳过一次性绑定码。
+     * 桌面应用内输入账密 → 调此接口 → 拿到 agent_token → 本地存配置 → 开始心跳。
+     */
+    @PostMapping("/bind-direct")
+    public Map<String, Object> bindDirect(@RequestBody Map<String, Object> body) {
+        String account = asString(body, "account");
+        String password = asString(body, "password");
+        String fingerprint = asString(body, "machine_fingerprint");
+        String displayName = asString(body, "display_name");
+
+        if (account == null || account.isBlank() || password == null || password.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请输入账号和密码");
+        }
+
+        Optional<AppUser> userOpt = resolveLoginUser(account.trim(), password);
+        if (userOpt.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
+        }
+        AppUser user = userOpt.get();
+        if (user.getTenantId() == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "账号未绑定租户");
+        }
+        if (!user.isActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "账号已停用");
+        }
+
+        AgentBindCodeService.ConsumeResult result =
+                bindCodeService.bindDirect(user.getId(), user.getTenantId(), fingerprint, displayName);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("agent_token", result.agentToken());
+        data.put("tenant_id", result.tenantId());
+        data.put("user_id", result.userId());
+        data.put("java_api_url", javaApiUrl);
+        return Map.of("success", true, "data", data);
+    }
+
+    private Optional<AppUser> resolveLoginUser(String account, String password) {
+        List<AppUser> candidates = userRepository.findAllByUsernameIgnoreCase(account).stream()
+                .filter(u -> password.equals(u.getPassword()))
+                .toList();
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+        if (candidates.size() > 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "该账号绑定多个企业，请使用企业专用账号登录"
+            );
+        }
+        return Optional.of(candidates.get(0));
     }
 
     private Long requireUserId() {
