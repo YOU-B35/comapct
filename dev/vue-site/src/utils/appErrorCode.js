@@ -134,6 +134,11 @@ export const APP_ERROR_MESSAGES = {
   A1688_PRODUCTS_NEED_DAY0: '1688 商品接口尚未完成 Day0 探测，暂不可同步',
   A1688_PRODUCTS_SYNC_FAILED: '1688 商品同步失败，请重试',
   A1688_PROFILE_BUSY: '1688 浏览器任务进行中，请稍候',
+
+  PDD_AGENT_OFFLINE: '本机同步助手未在线，请先启动 CrossHub-Sync-Helper',
+  PDD_NOT_LOGGED_IN: '拼多多商家后台未登录，请打开登录窗口完成登录',
+  TAOBAO_AGENT_OFFLINE: '本机同步助手未在线，请先启动 CrossHub-Sync-Helper',
+  TAOBAO_NOT_LOGGED_IN: '淘宝商家后台未登录，请打开登录窗口完成登录',
 }
 
 const CRAWL_ERROR_UI = {
@@ -166,6 +171,42 @@ const CRAWL_ERROR_UI = {
       '联系运维在肉机助手打开 AliExpress 登录并完成登录。',
       '确认运维机 CrossHub-Sync-Helper.exe 常驻在线。',
       '等待每天定时同步完成后刷新本页查看数据。',
+    ],
+  },
+  PDD_AGENT_OFFLINE: {
+    title: '本机同步助手未在线',
+    summary: '未检测到当前企业的 Sync Helper 心跳。登录拼多多与刷新数据都依赖本机助手在线。',
+    steps: [
+      '确认已安装并启动 CrossHub Sync Helper。',
+      '在助手中填入本页生成的绑定码。',
+      '助手显示在线后，再打开拼多多登录并刷新数据。',
+    ],
+  },
+  PDD_NOT_LOGGED_IN: {
+    title: '拼多多商家后台未登录',
+    summary: '本机 Sync Helper 在线，但拼多多商家会话尚未就绪。上方数据可能是历史缓存。',
+    steps: [
+      '确认本机 CrossHub Sync Helper 已运行并绑定当前企业。',
+      '点击「打开登录」，在弹出的浏览器中登录拼多多商家后台并选店。',
+      '回到本页点击「我已完成登录」，状态变为「拼多多已登录」后刷新数据。',
+    ],
+  },
+  TAOBAO_AGENT_OFFLINE: {
+    title: '本机同步助手未在线',
+    summary: '未检测到当前登录的 Sync Helper 心跳。登录淘宝与刷新数据都依赖本机助手在线。',
+    steps: [
+      '确认已安装并启动 CrossHub Sync Helper。',
+      '在助手中填入本页生成的绑定码。',
+      '助手显示在线后，再打开淘宝登录并刷新数据。',
+    ],
+  },
+  TAOBAO_NOT_LOGGED_IN: {
+    title: '淘宝商家后台未登录',
+    summary: '本机 Sync Helper 在线，但淘宝商家会话尚未就绪。',
+    steps: [
+      '确认本机 CrossHub Sync Helper 已运行并绑定当前企业。',
+      '点击「打开登录」，在弹出的浏览器中登录淘宝商家后台。',
+      '回到本页点击「我已完成登录」，状态变为「淘宝已登录」后刷新数据。',
     ],
   },
   CRAWL_NOT_LOGGED_IN: {

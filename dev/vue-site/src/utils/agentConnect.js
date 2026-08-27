@@ -1,4 +1,4 @@
-import { probeLocalAgent, getHelperPanelUrl, alignLocalDevHelperJava } from './agentProbe.js'
+import { probeLocalAgent, alignLocalDevHelperJava } from './agentProbe.js'
 
 export const HELPER_PROTOCOL_START = 'crosshub-sync-helper://start'
 
@@ -35,7 +35,8 @@ export async function connectLocalHelper(options = {}) {
   const pollMs = Number(options.pollMs) > 0 ? Number(options.pollMs) : 1000
   const probe = options.probe || (() => probeLocalAgent())
   const trigger = options.trigger || triggerHelperProtocol
-  const openPanel = options.openPanel || ((url) => window.open(url, '_blank', 'noopener'))
+  // 默认不自动打开面板（避免误弹「桌面工作台」UI）；确需自动打开时传 openPanel。
+  const openPanel = options.openPanel || null
   const sleep = options.sleep || defaultSleep
   const alignLocal = options.alignLocal || (() => alignLocalDevHelperJava())
 
@@ -45,11 +46,7 @@ export async function connectLocalHelper(options = {}) {
     } catch {
       /* ignore */
     }
-    try {
-      openPanel(getHelperPanelUrl())
-    } catch {
-      /* ignore */
-    }
+    if (openPanel) openPanel()
     return { status: 'already_running', message: '本机助手已在运行' }
   }
 
@@ -64,11 +61,7 @@ export async function connectLocalHelper(options = {}) {
       } catch {
         /* ignore */
       }
-      try {
-        openPanel(getHelperPanelUrl())
-      } catch {
-        /* ignore */
-      }
+      if (openPanel) openPanel()
       return { status: 'started', message: '助手已启动' }
     }
   }

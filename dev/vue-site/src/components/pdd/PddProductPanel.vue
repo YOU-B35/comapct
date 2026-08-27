@@ -74,8 +74,7 @@ function displayPrice(row) {
         <template #default="{ row }">{{ displayPrice(row) }}</template>
       </el-table-column>
       <el-table-column prop="stock" label="库存" width="90" align="right" sortable />
-      <el-table-column prop="gmv1d" label="今日销售额" width="120" align="right" sortable />
-      <el-table-column prop="gmv30d" label="30天销售额" width="130" align="right" sortable />
+      <el-table-column prop="sales" label="30天销量" width="100" align="right" sortable />
       <el-table-column prop="syncedAt" label="同步时间" width="160" sortable />
     </el-table>
 

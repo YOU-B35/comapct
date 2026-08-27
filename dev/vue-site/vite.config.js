@@ -46,6 +46,7 @@ export default defineConfig(({ mode }) => {
           '/api/amazon',
           '/api/douyin',
           '/api/1688',
+          '/api/pdd',
           '/api/agent',
           '/api/sau',
           '/api/commander',

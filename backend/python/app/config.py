@@ -112,6 +112,15 @@ def is_headless() -> bool:
     return os.getenv("TEMU_HEADLESS", "0").strip().lower() in ("1", "true", "yes")
 
 
+def sync_headless_enabled() -> bool:
+    """抖音/PDD 等同步任务是否以无头模式启动（登录任务始终有头，便于交互）。
+
+    环境变量 CROSSHUB_HEADLESS=1 开启；无头模式下若检测到未登录会直接报错，
+    不会弹出可交互窗口。
+    """
+    return os.getenv("CROSSHUB_HEADLESS", "0").strip().lower() in ("1", "true", "yes")
+
+
 HEADLESS = is_headless()
 BROWSER_CHANNEL = os.getenv("TEMU_BROWSER_CHANNEL", "").strip() or None
 

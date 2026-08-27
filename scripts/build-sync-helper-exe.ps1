@@ -5,24 +5,36 @@
 #       * 无控制台黑框（--windowed / console=False）
 #       * 带应用图标 CrossHub.ico（16~256 多尺寸，任务栏/桌面/开始菜单都适配）
 #       * 带版本资源（右键 → 属性 → 详细信息 → 文件描述 / 公司 / 版本号）
-#       * 入口 sync_helper_desktop.py：双击 EXE 即开原生桌面窗口（pywebview）
+# 版本策略（用户明确要求）：
+#   * 默认 onedir 模式 = 托盘浏览器版（入口 sync_helper_app.py），日常/生产使用；
+#   * --onefile 模式 = 桌面窗口版（入口 sync_helper_desktop.py，pywebview），
+#     默认禁用（含生产部署），仅当显式加 -AllowDesktop 才允许构建。
 #
 # 用法：
 #   powershell -File scripts\build-sync-helper-exe.ps1
-#   powershell -File scripts\build-sync-helper-exe.ps1 -OneFile          # 单 EXE 模式
 #   powershell -File scripts\build-sync-helper-exe.ps1 -JavaApiUrl "https://www.yoto.work"
+#   powershell -File scripts\build-sync-helper-exe.ps1 -OneFile -AllowDesktop  # 仅用户明确授权时
+
+param(
+    [string]$JavaApiUrl = "",
+    [string]$OutDir = "",
+    [switch]$OneFile = $false,
+    [switch]$AllowDesktop = $false
+)
 
 # Ensure UTF-8 output encoding
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-param(
-    [string]$JavaApiUrl = [System.Environment]::GetEnvironmentVariable("JAVA_API_URL") ? [System.Environment]::GetEnvironmentVariable("JAVA_API_URL") : "https://www.yoto.work",
-    [string]$OutDir = "",
-    [switch]$OneFile = $false
-)
-
 $ErrorActionPreference = "Continue"
 # 致命错误手动 exit；native stderr 不直接当终止错误
+
+# Windows PowerShell 5.1 不支持三元运算符，这里用兼容写法解析默认 API 地址
+if (-not $JavaApiUrl) {
+    $JavaApiUrl = [System.Environment]::GetEnvironmentVariable("JAVA_API_URL")
+    if (-not $JavaApiUrl) {
+        $JavaApiUrl = "https://www.yoto.work"
+    }
+}
 
 # ============================================================
 # 0) 64 位校验 —— 绝不允许 32 位 Python 产出假 x64 EXE
@@ -36,6 +48,14 @@ if ([int]$BitsCheck -ne 64) {
     Write-Host "[FATAL] 当前 Python 是 $BitsCheck 位，打包出来的 EXE 会是 32 位。" -ForegroundColor Red
     Write-Host "        请先安装 64 位 Python 3.10+ x64 后再执行本脚本。" -ForegroundColor Red
     exit 10
+}
+
+# ⚠ 桌面窗口版默认禁用（含生产部署）：--onefile 构建的是桌面版（入口 sync_helper_desktop.py）。
+# 只有用户显式加 -AllowDesktop 才允许构建；日常/生产一律使用 onedir 托盘浏览器版。
+if ($OneFile -and -not $AllowDesktop) {
+    Write-Host "[FATAL] --onefile 构建的是「桌面窗口版」（入口 sync_helper_desktop.py）。" -ForegroundColor Red
+    Write-Host "        按用户要求，桌面版默认禁用（含生产部署）；如确需构建请显式加 -AllowDesktop 参数。" -ForegroundColor Red
+    exit 30
 }
 
 $Root       = Split-Path -Parent $PSScriptRoot
@@ -75,7 +95,7 @@ Remove-Item -Recurse -Force (Join-Path $WorkDir "build") -ErrorAction SilentlyCo
 Remove-Item -Recurse -Force (Join-Path $DistRoot "CrossHub-Sync-Helper") -ErrorAction SilentlyContinue
 
 if ($OneFile) {
-    Write-Host "==> [BUILD] --onefile 模式（单 EXE，部署方便，启动稍慢）" -ForegroundColor Cyan
+    Write-Host "==> [BUILD] --onefile 模式（单 EXE，部署方便，启动稍慢；桌面窗口版，需 -AllowDesktop 显式授权）" -ForegroundColor Cyan
     $ArgList = @(
         "--noconfirm","--clean",
         "--onefile",
@@ -143,6 +163,7 @@ if (-not (Test-Path $cfgLive) -and (Test-Path $example)) {
         if ($obj.PSObject.Properties.Name -contains "temu_profile_root")  { $obj.temu_profile_root  = "%APPDATA%\CrossHubSyncHelper\.temu-browser-profile" }
         if ($obj.PSObject.Properties.Name -contains "ae_profile_root")    { $obj.ae_profile_root    = "%APPDATA%\CrossHubSyncHelper\.aliexpress-browser-profile" }
         if ($obj.PSObject.Properties.Name -contains "a1688_profile_root") { $obj.a1688_profile_root = "%APPDATA%\CrossHubSyncHelper\.1688-browser-profile" }
+        if ($obj.PSObject.Properties.Name -contains "pdd_profile_root")    { $obj.pdd_profile_root    = "%APPDATA%\CrossHubSyncHelper" }
         ($obj | ConvertTo-Json -Depth 5) | Set-Content -Path $cfgLive -Encoding UTF8
     } catch {
         Write-Host " [WARN] 写 config.json 失败，已保留 config.example.json 供手动复制" -ForegroundColor Yellow

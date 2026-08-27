@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-import threading
 import time
 import sys
 from typing import Any
 
+from agent.browser_lock_pool import BROWSER_LOCK_POOL, task_browser_keys
 from agent.java_client import AgentApiClient
 from agent.temu_tasks import (
     crawl_and_ingest,
@@ -22,8 +22,6 @@ from app.ziniao.client import ZiniaoClient, ZiniaoConfig
 CRAWL_TIMEOUT_SECONDS = 2400
 CRAWL_TIMEOUT_MINUTES = CRAWL_TIMEOUT_SECONDS // 60
 
-# One Temu Chrome profile at a time on this machine (login/crawl/probe fight SingletonLock).
-_TEMU_BROWSER_LOCK = threading.Lock()
 _TEMU_BROWSER_TASK_TYPES = frozenset(
     {
         "temu_crawl",
@@ -34,8 +32,6 @@ _TEMU_BROWSER_TASK_TYPES = frozenset(
     }
 )
 
-# One Douyin Chrome profile at a time (login/probe/sync fight the same tenant user-data-dir).
-_DOUYIN_BROWSER_LOCK = threading.Lock()
 _DOUYIN_BROWSER_TASK_TYPES = frozenset(
     {
         "douyin_session_probe",
@@ -45,8 +41,6 @@ _DOUYIN_BROWSER_TASK_TYPES = frozenset(
     }
 )
 
-# 1688 只有一个浏览器 profile，所有 1688 浏览器任务进程内串行，避免并发抢占同一登录态
-_1688_BROWSER_LOCK = threading.Lock()
 _1688_BROWSER_TASK_TYPES = frozenset(
     {
         "1688_session_probe",
@@ -58,19 +52,16 @@ _1688_BROWSER_TASK_TYPES = frozenset(
     }
 )
 
-# 拼多多只有一个浏览器 profile（按 tenant 隔离 user-data-dir），进程内串行避免并发抢占同一登录态
-_PDD_BROWSER_LOCK = threading.Lock()
 _PDD_BROWSER_TASK_TYPES = frozenset(
     {
         "pdd_session_probe",
         "pdd_login_open",
         "pdd_sync",
         "pdd_products_sync",
+        "pdd_issues_sync",
     }
 )
 
-# 淘宝只有一个浏览器 profile（按 tenant 隔离 user-data-dir），进程内串行避免并发抢占同一登录态
-_TAOBAO_BROWSER_LOCK = threading.Lock()
 _TAOBAO_BROWSER_TASK_TYPES = frozenset(
     {
         "taobao_session_probe",
@@ -715,24 +706,9 @@ def handle_douyin_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
 
             result = run_issues_sync(client, task)
         elif scope == "all":
-            from agent.douyin_tasks import run_issues_sync, run_orders_sync
+            from agent.douyin_tasks import run_all_sync
 
-            result = run_orders_sync(client, task)
-            try:
-                issues_result = run_issues_sync(client, task)
-                result["issues_count"] = issues_result.get("issues_count", 0)
-                result["partial"] = bool(result.get("partial")) or bool(issues_result.get("partial"))
-                result["message"] = (
-                    f"{result.get('message') or ''}；{issues_result.get('message') or ''}"
-                ).strip("；")
-                result["scope"] = "all"
-            except Exception as issues_exc:  # noqa: BLE001
-                result["partial"] = True
-                result["issues_count"] = 0
-                result["message"] = (
-                    f"{result.get('message') or ''}；内容预警失败: {issues_exc}"
-                ).strip("；")
-                result["scope"] = "all"
+            result = run_all_sync(client, task)
         else:
             from agent.douyin_tasks import run_orders_sync
 
@@ -782,6 +758,7 @@ def _pdd_error_code(message: str, default: str = "PDD_SYNC_FAILED") -> str:
         "PDD_ORDERS_SOURCE_UNAVAILABLE",
         "PDD_PRODUCTS_NEED_DAY0",
         "PDD_PRODUCTS_SOURCE_UNAVAILABLE",
+        "PDD_ISSUES_SOURCE_UNAVAILABLE",
         "PDD_COMPASS_SOURCE_UNAVAILABLE",
     ):
         if text.startswith(code) or code in text:
@@ -794,6 +771,8 @@ def _pdd_error_code(message: str, default: str = "PDD_SYNC_FAILED") -> str:
         return "PDD_ORDERS_SOURCE_UNAVAILABLE"
     if "商品" in text:
         return "PDD_PRODUCTS_SOURCE_UNAVAILABLE"
+    if "问题" in text or "售后" in text:
+        return "PDD_ISSUES_SOURCE_UNAVAILABLE"
     if "timeout" in text.lower() or "超时" in text:
         return "PDD_SYNC_TIMEOUT"
     return default
@@ -805,10 +784,16 @@ def handle_pdd_session_probe(client: AgentApiClient, task: dict[str, Any]) -> No
         return
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
-    store_id = str(payload.get("store_id") or "").strip() or None
     try:
-        from agent.pdd_tasks import probe_session as pdd_probe_session
+        from agent.pdd_tasks import (
+            _resolve_profile_store_id,
+            _resolve_store_id,
+            probe_session as pdd_probe_session,
+        )
 
+        resolved = _resolve_store_id(client, tenant_id, str(payload.get("store_id") or ""))
+        profile_store = _resolve_profile_store_id(client, tenant_id, resolved)
+        store_id = profile_store or None
         session = pdd_probe_session(tenant_id, store_id)
         client.complete_task_with_retry(task_id, status="success", result={"session": session})
     except Exception as exc:
@@ -827,10 +812,16 @@ def handle_pdd_login_open(client: AgentApiClient, task: dict[str, Any]) -> None:
         return
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
-    store_id = str(payload.get("store_id") or "").strip() or None
     try:
-        from agent.pdd_tasks import open_login_window as pdd_open_login_window
+        from agent.pdd_tasks import (
+            _resolve_profile_store_id,
+            _resolve_store_id,
+            open_login_window as pdd_open_login_window,
+        )
 
+        resolved = _resolve_store_id(client, tenant_id, str(payload.get("store_id") or ""))
+        profile_store = _resolve_profile_store_id(client, tenant_id, resolved)
+        store_id = profile_store or None
         session = pdd_open_login_window(tenant_id, timeout_seconds=600, store_id=store_id)
         client.complete_task_with_retry(task_id, status="success", result={"session": session})
     except Exception as exc:
@@ -844,7 +835,7 @@ def handle_pdd_login_open(client: AgentApiClient, task: dict[str, Any]) -> None:
 
 
 def handle_pdd_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
-    """拼多多订单/罗盘同步。scope: orders | compass | all（默认 orders）"""
+    """拼多多同步。scope: orders | products | compass | issues | all（默认 orders）"""
     task_id = str(task.get("task_id") or task.get("id") or "")
     if not task_id:
         return
@@ -855,29 +846,65 @@ def handle_pdd_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
             from agent.pdd_tasks import run_compass_sync
 
             result = run_compass_sync(client, task)
+        elif scope == "products":
+            from agent.pdd_tasks import run_products_sync
+
+            result = run_products_sync(client, task)
+        elif scope == "issues":
+            from agent.pdd_tasks import run_issues_sync
+
+            result = run_issues_sync(client, task)
         elif scope == "all":
-            from agent.pdd_tasks import run_compass_sync, run_orders_sync
+            from agent.pdd_tasks import (
+                run_compass_sync,
+                run_issues_sync,
+                run_orders_sync,
+                run_products_sync,
+            )
 
             result = run_orders_sync(client, task)
-            try:
-                compass_result = run_compass_sync(client, task)
-                result["compass"] = compass_result
-                result["partial"] = bool(result.get("partial")) or bool(compass_result.get("partial"))
-                result["message"] = (
-                    f"{result.get('message') or ''}；{compass_result.get('message') or ''}"
-                ).strip("；")
-                result["scope"] = "all"
-            except Exception as compass_exc:  # noqa: BLE001
-                result["partial"] = True
-                result["compass"] = None
-                result["message"] = (
-                    f"{result.get('message') or ''}；罗盘同步失败: {compass_exc}"
-                ).strip("；")
+            for scope_name, scope_fn in (
+                ("products", run_products_sync),
+                ("compass", run_compass_sync),
+                ("issues", run_issues_sync),
+            ):
+                try:
+                    scope_result = scope_fn(client, task)
+                    result[scope_name] = scope_result
+                    result["partial"] = bool(result.get("partial")) or bool(scope_result.get("partial"))
+                    result["message"] = (
+                        f"{result.get('message') or ''}；{scope_result.get('message') or ''}"
+                    ).strip("；")
+                except Exception as scope_exc:  # noqa: BLE001
+                    result["partial"] = True
+                    result[scope_name] = None
+                    result["message"] = (
+                        f"{result.get('message') or ''}；{scope_name} 同步失败: {scope_exc}"
+                    ).strip("；")
                 result["scope"] = "all"
         else:
             from agent.pdd_tasks import run_orders_sync
 
             result = run_orders_sync(client, task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_pdd_error_code(message, "PDD_SYNC_FAILED"),
+            error_message=message,
+        )
+
+
+def handle_pdd_issues_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        from agent.pdd_tasks import run_issues_sync
+
+        result = run_issues_sync(client, task)
         client.complete_task_with_retry(task_id, status="success", result=result)
     except Exception as exc:
         message = str(exc)
@@ -1080,7 +1107,7 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
                     return
                 # Give login thread a moment to finish context.close / cookie flush.
                 time.sleep(2.0)
-        with _TEMU_BROWSER_LOCK:
+        with BROWSER_LOCK_POOL.guard("temu", *task_browser_keys("temu", task)):
             if task_type == "temu_crawl":
                 handle_temu_crawl(client, task)
             elif task_type == "temu_login_open":
@@ -1093,7 +1120,7 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
                 handle_temu_competitor_discover(client, task)
         return
     if task_type in _DOUYIN_BROWSER_TASK_TYPES:
-        with _DOUYIN_BROWSER_LOCK:
+        with BROWSER_LOCK_POOL.guard("douyin", *task_browser_keys("douyin", task)):
             if task_type == "douyin_session_probe":
                 handle_douyin_session_probe(client, task)
             elif task_type == "douyin_login_open":
@@ -1104,7 +1131,7 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
                 handle_douyin_products_sync(client, task)
         return
     if task_type in _1688_BROWSER_TASK_TYPES:
-        with _1688_BROWSER_LOCK:
+        with BROWSER_LOCK_POOL.guard("1688", *task_browser_keys("1688", task)):
             if task_type == "1688_session_probe":
                 handle_1688_session_probe(client, task)
             elif task_type == "1688_login_open":
@@ -1119,18 +1146,20 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
                 handle_1688_peer_bestsellers_sync(client, task)
         return
     if task_type in _PDD_BROWSER_TASK_TYPES:
-        with _PDD_BROWSER_LOCK:
+        with BROWSER_LOCK_POOL.guard("pdd", *task_browser_keys("pdd", task)):
             if task_type == "pdd_session_probe":
                 handle_pdd_session_probe(client, task)
             elif task_type == "pdd_login_open":
                 handle_pdd_login_open(client, task)
             elif task_type == "pdd_sync":
                 handle_pdd_sync(client, task)
+            elif task_type == "pdd_issues_sync":
+                handle_pdd_issues_sync(client, task)
             elif task_type == "pdd_products_sync":
                 handle_pdd_products_sync(client, task)
         return
     if task_type in _TAOBAO_BROWSER_TASK_TYPES:
-        with _TAOBAO_BROWSER_LOCK:
+        with BROWSER_LOCK_POOL.guard("taobao", *task_browser_keys("taobao", task)):
             if task_type == "taobao_session_probe":
                 handle_taobao_session_probe(client, task)
             elif task_type == "taobao_login_open":

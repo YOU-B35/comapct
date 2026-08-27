@@ -37,7 +37,7 @@ class AliExpressApiClient:
         if self._scm_token:
             return
         self.page.goto(AE_JIT_ORDER_PAGE, wait_until="domcontentloaded", timeout=120_000)
-        self.page.wait_for_timeout(8_000)
+        self.page.wait_for_timeout(5_000)
         token = self._extract_token_from_page()
         if token:
             self._scm_token = token
@@ -79,7 +79,7 @@ class AliExpressApiClient:
         self.page.on("request", on_request)
         try:
             self.page.reload(wait_until="domcontentloaded", timeout=90_000)
-            self.page.wait_for_timeout(8_000)
+            self.page.wait_for_timeout(6_000)
         finally:
             self.page.remove_listener("request", on_request)
         return token_holder.get("token")
@@ -138,7 +138,7 @@ class AliExpressApiClient:
     def fetch_warehouse_purchase_orders(self, report_day: str, *, page_size: int = 50) -> list[dict[str, Any]]:
         self.ensure_session()
         self.page.goto(AE_WAREHOUSE_ORDER_PAGE, wait_until="domcontentloaded", timeout=120_000)
-        self.page.wait_for_timeout(6_000)
+        self.page.wait_for_timeout(4_000)
         start, end = self._fetch_range(report_day, lookback_days=30)
         rows: list[dict[str, Any]] = []
         page_index = 1
@@ -210,7 +210,7 @@ class AliExpressApiClient:
         self.page.on("response", on_response)
         try:
             self.page.goto(AE_VIOLATION_PAGE, wait_until="domcontentloaded", timeout=120_000)
-            self.page.wait_for_timeout(12_000)
+            self.page.wait_for_timeout(8_000)
             total = 0
             for item in rows:
                 total = max(total, int(item.get("totalCount") or 0))

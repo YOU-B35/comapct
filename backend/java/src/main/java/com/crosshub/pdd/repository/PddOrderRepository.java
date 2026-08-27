@@ -37,4 +37,7 @@ public interface PddOrderRepository extends JpaRepository<PddOrder, String> {
 
     void deleteByTenantIdAndStoreIdAndReportDayAndDateWindow(
             Long tenantId, String storeId, String reportDay, String dateWindow);
+
+    /** 按自然日整体替换（不区分 date_window，避免历史窗口标签残留导致重复）。 */
+    void deleteByTenantIdAndStoreIdAndReportDay(Long tenantId, String storeId, String reportDay);
 }

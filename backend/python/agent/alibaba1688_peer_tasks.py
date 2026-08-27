@@ -210,7 +210,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
         )
         if not _looks_logged_in(page, context):
             raise RuntimeError("A1688_NOT_LOGGED_IN: 1688 未登录或登录已失效，请重新打开登录窗口")
-        page.wait_for_timeout(5000)
+        page.wait_for_timeout(2000)
         for offer_id in seeds:
             calls = (
                 (
@@ -233,7 +233,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
                             _merge(merged, item, enrich_only=True)
                 except Exception as exc:
                     print(f"[1688Peer] seed {offer_id} {label} EXC {str(exc)[:140]}", flush=True)
-                time.sleep(0.5)
+                time.sleep(0.2)
 
         own_ids = _own_offer_ids(store_id)
         items = [v for v in merged.values() if v["offer_id"] not in own_ids and v["sales"] > 0]
@@ -254,7 +254,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
                     item["title"] = str(cur["title"])
             except Exception as exc:
                 print(f"[1688Peer] title enrich {item['offer_id']} EXC {str(exc)[:120]}", flush=True)
-            time.sleep(0.5)
+            time.sleep(0.2)
         # 详情富化：打开商品详情页，捕获店铺名与质量分（页面自动带上下文调用）
         to_enrich = [it for it in top if not it.get("shop_name") or not it.get("quality_score")]
         for item in to_enrich:
@@ -273,7 +273,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             page.on("response", on_response)
             try:
                 page.goto(f"https://detail.1688.com/offer/{item['offer_id']}.html", wait_until="domcontentloaded", timeout=60_000)
-                page.wait_for_timeout(6000)
+                page.wait_for_timeout(3000)
             except Exception as exc:
                 print(f"[1688Peer] detail {item['offer_id']} EXC {str(exc)[:120]}", flush=True)
             try:
@@ -285,7 +285,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
                 item["shop_name"] = enriched["shop_name"]
             if enriched["quality_score"]:
                 item["quality_score"] = enriched["quality_score"]
-            time.sleep(0.5)
+            time.sleep(0.2)
     finally:
         _close(pw, context)
 

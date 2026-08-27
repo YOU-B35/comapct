@@ -214,3 +214,48 @@ def mock_compass_sync_data(
     """Mock data for compass sync."""
     compass = generate_mock_compass(tenant_id, date_type, store_id)
     return compass, "https://mms.pinduoduo.com/data/index.html"
+
+
+def generate_mock_issues(
+    tenant_id: int,
+    store_id: str | None = None,
+    count: int = 8
+) -> list[dict[str, Any]]:
+    """Generate mock PDD content issues for testing."""
+    issues = []
+    types = [
+        ("violation", "违规"),
+        ("product", "商品问题"),
+        ("live", "直播异常"),
+        ("short_video", "短视频带货"),
+    ]
+    priorities = ["high", "medium", "low"]
+
+    for i in range(count):
+        issue_type, type_label = types[i % len(types)]
+        now = datetime.now(SHANGHAI)
+        issue = {
+            "store_id": store_id or f"store-{tenant_id}-1",
+            "external_id": f"PDD-ISSUE-{now.strftime('%Y%m%d')}-{i + 1:04d}",
+            "type": issue_type,
+            "type_label": type_label,
+            "sku": f"SKU-ISSUE-{i + 1:05d}",
+            "product_name": f"测试商品_{issue_type}_{i + 1}",
+            "product_image": "https://mock.example.com/issue.jpg",
+            "detail": f"模拟{type_label}预警：请核对商品状态和处理时效。",
+            "priority": priorities[i % len(priorities)],
+            "reported_at": now.isoformat(),
+            "source": "pdd",
+        }
+        issues.append(issue)
+
+    return issues
+
+
+def mock_issues_sync_data(
+    tenant_id: int,
+    store_id: str | None = None
+) -> tuple[list[dict[str, Any]], str]:
+    """Mock data for issues sync."""
+    issues = generate_mock_issues(tenant_id, store_id, count=8)
+    return issues, "https://mms.pinduoduo.com/order/after-sale.html"

@@ -6,6 +6,10 @@ dist/
 dist-ssr/
 dev/vue-site/public/downloads/
 
+# PyInstaller build artifacts (large binaries, never commit)
+build/
+_scratch/
+
 # Logs
 logs/
 *.log
@@ -50,6 +54,8 @@ coverage/
 __screenshots__/
 *.local
 .eslintcache
+backend/python/.douyin-compass-rank-cache.json
+backend/python/.pdd-xhr-cache.json
 
 # Local git worktrees
 .worktrees/

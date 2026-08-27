@@ -1,0 +1,305 @@
+"""PDD direct-API pagination: replay page params instead of clicking next-page UI."""
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from agent import pdd_tasks as mod
+
+
+def _order_row(sn: str) -> dict:
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    ts = int(
+        datetime(now.year, now.month, now.day, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp()
+    ) + 3600
+    return {
+        "order_sn": sn,
+        "goods_list": [{"goods_name": f"商品{sn}", "goods_num": 1, "goods_amount": 100}],
+        "pay_amount": 100,
+        "create_time": ts,
+    }
+
+
+def _product_row(gid: str) -> dict:
+    return {
+        "goods_id": gid,
+        "goods_name": f"商品{gid}",
+        "sku_price": 9900,
+        "quantity": 10,
+    }
+
+
+def _page_payload(kind: str, rows: list[dict], total: int | None = None) -> dict:
+    key = "orderList" if kind == "orders" else "goodsList"
+    return {"data": {key: rows}, "total": total if total is not None else len(rows)}
+
+
+class _Resp:
+    def __init__(self, status: int, payload: dict | None = None):
+        self.status = status
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class _FakePage:
+    def __init__(self, direct_payload: dict | None = None, replay_payloads: list[dict] | None = None):
+        self.direct_payload = direct_payload
+        self.replay_payloads = replay_payloads or []
+        self.post_calls: list[str] = []
+        self.request = self
+
+    def post(self, url, *, headers=None, data=None, timeout=None):
+        self.post_calls.append(url)
+        if self.direct_payload is None:
+            return _Resp(404)
+        return _Resp(200, self.direct_payload)
+
+
+def _captured_orders() -> dict:
+    payload = _page_payload("orders", [_order_row("O1"), _order_row("O2")], total=5)
+    return {
+        "method": "POST",
+        "url": "https://mms.pinduoduo.com/mangkhut/mms/order/queryOrderList",
+        "headers": {"content-type": "application/json;charset=UTF-8"},
+        "post_data": json.dumps({"pageNum": 1, "pageSize": 100}),
+        "payload": payload,
+        "rows": [_order_row("O1"), _order_row("O2")],
+    }
+
+
+def test_fetch_paged_rows_orders_replays_pages_without_ui_click(monkeypatch, tmp_path):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    page = _FakePage(
+        direct_payload=_page_payload("orders", [_order_row("O1"), _order_row("O2")], total=5),
+        replay_payloads=[_page_payload("orders", [_order_row("O3"), _order_row("O4")], total=5)],
+    )
+    capture_calls = {"n": 0}
+    monkeypatch.setattr(
+        mod,
+        "_capture_xhr",
+        lambda *a, **k: capture_calls.__setitem__("n", capture_calls["n"] + 1) or None,
+    )
+    monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
+    replay_calls: list[tuple[int, int]] = []
+
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size):
+        replay_calls.append((page_no, page_size))
+        idx = page_no - 2
+        if idx < len(page.replay_payloads):
+            return page.replay_payloads[idx]
+        return _page_payload("orders", [], total=0)
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+
+    rows, source = mod._fetch_paged_rows(
+        page,
+        kind="orders",
+        page_urls=(mod.PDD_ORDER_LIST_PAGE,),
+        api_candidates=mod.PDD_ORDER_LIST_API_CANDIDATES,
+    )
+
+    assert capture_calls["n"] == 0
+    # 订单列表统一按 50 条/页重放（减少请求次数，规避平台频控）。
+    assert replay_calls == [(2, 50)]
+    assert {r["order_no"] for r in rows} == {"O1", "O2", "O3", "O4"}
+    assert "queryOrderList" in source
+    assert page.post_calls
+    assert (tmp_path / "pdd-cache.json").exists()
+
+
+def test_fetch_paged_rows_products_replays_and_dedupes(monkeypatch, tmp_path):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    page = _FakePage(
+        direct_payload=_page_payload("products", [_product_row("G1"), _product_row("G2")], total=3),
+        replay_payloads=[_page_payload("products", [_product_row("G1"), _product_row("G3")], total=3)],
+    )
+    capture_calls = {"n": 0}
+    monkeypatch.setattr(
+        mod,
+        "_capture_xhr",
+        lambda *a, **k: capture_calls.__setitem__("n", capture_calls["n"] + 1) or None,
+    )
+    monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
+    replay_calls: list[tuple[int, int]] = []
+
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size):
+        replay_calls.append((page_no, page_size))
+        idx = page_no - 2
+        if idx < len(page.replay_payloads):
+            return page.replay_payloads[idx]
+        return _page_payload("products", [], total=0)
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+
+    rows, _source = mod._fetch_paged_rows(
+        page,
+        kind="products",
+        page_urls=(mod.PDD_PRODUCT_LIST_PAGE,),
+        api_candidates=mod.PDD_PRODUCT_LIST_API_CANDIDATES,
+    )
+
+    assert capture_calls["n"] == 0
+    assert {r["product_id"] for r in rows} == {"G1", "G2", "G3"}
+    assert len(rows) == 3
+
+
+def test_fetch_paged_rows_skips_capture_when_frozen_cache_works(monkeypatch, tmp_path):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    cached_url = "https://mms.pinduoduo.com/mangkhut/mms/order/queryOrderList"
+    mod._save_pdd_xhr_cache("orders", {"method": "POST", "url": cached_url})
+    page = _FakePage(
+        direct_payload=_page_payload("orders", [_order_row("O1")], total=2),
+        replay_payloads=[_page_payload("orders", [_order_row("O2")], total=2)],
+    )
+    capture_calls = {"n": 0}
+    monkeypatch.setattr(
+        mod,
+        "_capture_xhr",
+        lambda *a, **k: capture_calls.__setitem__("n", capture_calls["n"] + 1) or None,
+    )
+    replay_calls: list[int] = []
+
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size):
+        replay_calls.append(page_no)
+        idx = page_no - 2
+        if idx < len(page.replay_payloads):
+            return page.replay_payloads[idx]
+        return _page_payload("orders", [], total=0)
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+
+    rows, _source = mod._fetch_paged_rows(
+        page,
+        kind="orders",
+        page_urls=(mod.PDD_ORDER_LIST_PAGE,),
+        api_candidates=mod.PDD_ORDER_LIST_API_CANDIDATES,
+    )
+
+    assert capture_calls["n"] == 0
+    assert page.post_calls[0] == cached_url
+    assert replay_calls == [2]
+    assert {r["order_no"] for r in rows} == {"O1", "O2"}
+
+
+def test_pdd_xhr_cache_save_load_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+
+    mod._save_pdd_xhr_cache(
+        "orders",
+        {"method": "POST", "url": "https://mms.pinduoduo.com/mangkhut/mms/order/queryOrderList"},
+    )
+    mod._save_pdd_xhr_cache(
+        "products",
+        {"method": "GET", "url": "https://mms.pinduoduo.com/goods/goodsList"},
+    )
+
+    assert mod._load_pdd_xhr_cache("orders")["url"].endswith("queryOrderList")
+    assert mod._load_pdd_xhr_cache("products")["method"] == "GET"
+    assert mod._load_pdd_xhr_cache("issues") == {}
+
+
+def test_fetch_paged_rows_page2_replay_failure_raises_for_orders(monkeypatch, tmp_path):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    page = _FakePage(
+        direct_payload=_page_payload("orders", [_order_row("O1"), _order_row("O2")], total=5),
+    )
+    monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
+
+    def fake_replay(*args, **kwargs):
+        raise RuntimeError("signature mismatch")
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+
+    try:
+        mod._fetch_paged_rows(
+            page,
+            kind="orders",
+            page_urls=(mod.PDD_ORDER_LIST_PAGE,),
+            api_candidates=mod.PDD_ORDER_LIST_API_CANDIDATES,
+        )
+    except RuntimeError as exc:
+        assert "PDD_ORDERS_SOURCE_UNAVAILABLE" in str(exc)
+        assert "页码" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError when the API rejects modified page params")
+
+
+def _today_order_row(sn: str, offset_hours: int = 10) -> dict:
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    ts = int(
+        datetime(now.year, now.month, now.day, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp()
+    ) + offset_hours * 3600
+    return {**_order_row(sn), "create_time": ts}
+
+
+def test_fetch_paged_rows_orders_normalizes_recent_order_list_to_all(monkeypatch, tmp_path):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    captured = {
+        "method": "POST",
+        "url": "https://mms.pinduoduo.com/mangkhut/mms/recentOrderList",
+        "headers": {"content-type": "application/json;charset=UTF-8"},
+        "post_data": json.dumps(
+            {
+                "orderType": 1,
+                "afterSaleType": 1,
+                "remarkStatus": -1,
+                "urgeShippingStatus": -1,
+                "groupStartTime": 1780033080,
+                "groupEndTime": 1787809080,
+                "pageNumber": 1,
+                "pageSize": 20,
+                "sortType": 10,
+                "consolidateTypeList": [1],
+                "mobile": "",
+            }
+        ),
+        "payload": {
+            "result": {
+                "totalItemNum": 8237,
+                "pageItems": [_today_order_row("O0")],
+            }
+        },
+        "rows": [_today_order_row("O0")],
+    }
+    monkeypatch.setattr(mod, "_capture_xhr", lambda *a, **k: captured)
+    monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
+    replayed_posts: list[dict] = []
+
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size):
+        body = json.loads(post_data)
+        body = mod._set_page_in_payload(body, page_no, page_size)
+        replayed_posts.append(body)
+        assert page_size == 50
+        assert body["orderType"] == 0
+        assert body["afterSaleType"] == 0
+        assert body["sortType"] == 1
+        assert "consolidateTypeList" not in body
+        assert body["groupStartTime"] == 1780033080
+        assert body["groupEndTime"] == 1787809080
+        assert body["pageNumber"] == page_no
+        if page_no == 1:
+            rows = [_today_order_row("O1"), _today_order_row("O2"), _today_order_row("O3")]
+        else:
+            # 第二页跨越今天边界，触发窗口起点早停。
+            rows = [_today_order_row("O4"), _today_order_row("O5", offset_hours=-25)]
+        return {"result": {"totalItemNum": 8237, "pageItems": rows}}
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+
+    rows, source = mod._fetch_paged_rows(
+        object(),
+        kind="orders",
+        page_urls=(mod.PDD_ORDER_LIST_PAGE,),
+        api_candidates=(),
+        date_window="today",
+        skip_direct=True,
+    )
+
+    assert source == captured["url"]
+    assert {r["order_no"] for r in rows} == {"O1", "O2", "O3", "O4", "O5"}
+    assert replayed_posts[0]["pageNumber"] == 1
+    assert replayed_posts[0]["pageSize"] == 50
+    assert replayed_posts[1]["pageNumber"] == 2

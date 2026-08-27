@@ -6,8 +6,10 @@ export function canUsePddBackend(auth) {
   return hasBackendSession(auth)
 }
 
-export async function fetchPddSession() {
-  const res = await service.get('/api/pdd/session', { skipGlobalErrorToast: true })
+export async function fetchPddSession({ storeId } = {}) {
+  const params = {}
+  if (storeId && storeId !== 'all') params.store_id = storeId
+  const res = await service.get('/api/pdd/session', { params, skipGlobalErrorToast: true })
   return res?.data ?? res ?? {}
 }
 
@@ -47,14 +49,14 @@ export async function pollPddSessionUntilReady({
     if (signal?.aborted) {
       throw new DOMException('Aborted', 'AbortError')
     }
-    const session = await fetchPddSession()
+    const session = await fetchPddSession({ storeId })
     if (session?.ready || session?.logged_in) {
       return session
     }
     await new Promise((r) => setTimeout(r, delay))
     delay = Math.min(maxIntervalMs, Math.floor(delay * 1.25))
   }
-  return fetchPddSession()
+  return fetchPddSession({ storeId })
 }
 
 async function enqueuePddSync({
@@ -117,11 +119,46 @@ export async function pollPddSyncJob(jobId, { timeoutMs = 900000, intervalMs = 2
   throw new AppApiError('拼多多同步超时，请重试', 'PDD_SYNC_TIMEOUT')
 }
 
+function normalizePddOrderRow(row = {}) {
+  if (!row || typeof row !== 'object') return row
+  return {
+    ...row,
+    orderNo: row.orderNo ?? row.order_no ?? '',
+    productName: row.productName ?? row.product_name ?? '',
+    skuText: row.skuText ?? row.sku_text ?? '',
+    unitPrice: row.unitPrice ?? row.unit_price ?? '',
+    itemAmount: row.itemAmount ?? row.item_amount ?? '',
+    paidAmount: row.paidAmount ?? row.paid_amount ?? '',
+    refundedAmount: row.refundedAmount ?? row.refunded_amount ?? '',
+    paidAt: row.paidAt ?? row.paid_at ?? '',
+    refundedAt: row.refundedAt ?? row.refunded_at ?? '',
+    buyerMasked: row.buyerMasked ?? row.buyer_masked ?? '',
+    imageUrl: row.imageUrl ?? row.image_url ?? '',
+    status: row.status ?? row.order_status ?? '',
+  }
+}
+
+function normalizePddProductRow(row = {}) {
+  if (!row || typeof row !== 'object') return row
+  return {
+    ...row,
+    productId: row.productId ?? row.product_id ?? '',
+    productName: row.productName ?? row.product_name ?? '',
+    goodsId: row.goodsId ?? row.product_id ?? row.productId ?? '',
+    imageUrl: row.imageUrl ?? row.main_image ?? row.image_url ?? '',
+    syncedAt: row.syncedAt ?? row.synced_at ?? '',
+    sales: row.sales ?? row.sold_quantity ?? 0,
+    stock: row.stock ?? row.quantity ?? 0,
+  }
+}
+
 export async function fetchPddOrdersToday({ storeId } = {}) {
   const params = {}
   if (storeId && storeId !== 'all') params.store_id = storeId
   const res = await service.get('/api/pdd/orders/today', { params, skipGlobalErrorToast: true })
-  return res?.data ?? res ?? { items: [], synced_at: '', report_day: '' }
+  const data = res?.data ?? res ?? { items: [], synced_at: '', report_day: '' }
+  const items = Array.isArray(data.items) ? data.items.map(normalizePddOrderRow) : []
+  return { ...data, items }
 }
 
 /**
@@ -152,7 +189,9 @@ export async function fetchPddOrders({
   }
   if (storeId && storeId !== 'all') params.store_id = storeId
   const res = await service.get('/api/pdd/orders', { params, skipGlobalErrorToast: true })
-  return res?.data ?? res ?? { items: [], synced_at: '', report_day: '' }
+  const data = res?.data ?? res ?? { items: [], synced_at: '', report_day: '' }
+  const items = Array.isArray(data.items) ? data.items.map(normalizePddOrderRow) : []
+  return { ...data, items }
 }
 
 /** 店铺经营总览（对齐 fetchAlibaba1688OrderOverview）：仅 selectedStoreId === 'all' 时调用。 */
@@ -211,7 +250,9 @@ export async function fetchPddProducts({ storeId } = {}) {
   const params = {}
   if (storeId && storeId !== 'all') params.store_id = storeId
   const res = await service.get('/api/pdd/products', { params, skipGlobalErrorToast: true })
-  return res?.data ?? res ?? { items: [], synced_at: '', count: 0 }
+  const data = res?.data ?? res ?? { items: [], synced_at: '', count: 0 }
+  const items = Array.isArray(data.items) ? data.items.map(normalizePddProductRow) : []
+  return { ...data, items }
 }
 
 export async function syncPddProducts(options = {}) {

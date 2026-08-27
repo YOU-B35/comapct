@@ -469,11 +469,14 @@ def _build_flask_app(java_client: Any) -> "Flask":
         def _do_login():
             try:
                 if platform in ("temu", ""):
-                    from agent.handlers import _TEMU_BROWSER_LOCK
+                    from agent.browser_lock_pool import BROWSER_LOCK_POOL, browser_lock_key
                     from agent.temu_tasks import open_login_window, wait_login_session_ready
 
                     # Hold browser lock only while launching; release during manual login.
-                    with _TEMU_BROWSER_LOCK:
+                    with BROWSER_LOCK_POOL.guard(
+                        "temu",
+                        browser_lock_key("temu", tenant_id, session_key or "default"),
+                    ):
                         open_login_window(tenant_id, session_key=session_key)
                     try:
                         # Must pass java_client — otherwise website never receives session-ready.

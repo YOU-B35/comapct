@@ -1,6 +1,6 @@
 <script setup>
 import { formatUtc8 } from '@/utils/time'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import {
   CircleCheck,
   CircleClose,
@@ -27,6 +27,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const logsEl = ref(null)
+const nowTick = ref(Date.now())
 
 const open = computed({
   get: () => props.modelValue,
@@ -90,6 +91,27 @@ watch(
     if (el) el.scrollTop = el.scrollHeight
   },
 )
+
+let tickTimer = null
+watch(open, (v) => {
+  if (tickTimer) window.clearInterval(tickTimer)
+  tickTimer = v ? window.setInterval(() => { nowTick.value = Date.now() }, 1000) : null
+})
+onBeforeUnmount(() => {
+  if (tickTimer) window.clearInterval(tickTimer)
+})
+
+const elapsedText = computed(() => {
+  if (!props.run.startedAt) return '—'
+  const start = new Date(String(props.run.startedAt).replace(' ', 'T')).getTime()
+  const end = props.run.finishedAt
+    ? new Date(String(props.run.finishedAt).replace(' ', 'T')).getTime()
+    : nowTick.value
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return '—'
+  const sec = Math.max(0, Math.round((end - start) / 1000))
+  if (sec < 60) return `${sec} 秒`
+  return `${Math.floor(sec / 60)} 分 ${sec % 60} 秒`
+})
 
 function stepIcon(status) {
   if (status === 'success') return CircleCheck
@@ -158,6 +180,9 @@ function logLevelLabel(level) {
           </el-text>
           <el-text v-if="run.finishedAt" size="small" type="info">
             结束 {{ formatUtc8(run.finishedAt) }}
+          </el-text>
+          <el-text v-if="run.startedAt" size="small" type="info">
+            耗时 {{ elapsedText }}
           </el-text>
         </div>
       </div>

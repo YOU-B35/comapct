@@ -35,6 +35,8 @@ import PlatformShipPushDialog from '@/components/domestic/PlatformShipPushDialog
 import HelperStatusBar from '@/components/helper/HelperStatusBar.vue'
 import TableQueryBar from '@/components/common/TableQueryBar.vue'
 import DouyinSyncLogDrawer from '@/components/douyin/DouyinSyncLogDrawer.vue'
+import SyncHistoryDrawer from '@/components/common/SyncHistoryDrawer.vue'
+import { fetchPlatformSyncLogs } from '@/api/syncLogApi'
 import BaseChart from '@/components/charts/BaseChart.vue'
 import { FULL_SYNC_STEP_IDS, FULL_SYNC_STEP_LABELS } from '@/api/douyinFullSync'
 import { canUsePlatformUserHelper } from '@/utils/opsSyncPolicy'
@@ -948,6 +950,7 @@ const fullSyncing = ref(false)
 const fullSyncProgress = ref(null) // { index, total, label, status }
 const advancedSyncOpen = ref([])
 const syncLogOpen = ref(false)
+const syncHistoryOpen = ref(false)
 const syncRun = ref({
   title: '',
   status: 'idle',
@@ -1264,6 +1267,7 @@ onMounted(() => {
               {{ syncRunDoneCount }}/{{ syncRunTotalCount || '完成' }}
             </el-tag>
           </el-button>
+          <el-button size="small" @click="syncHistoryOpen = true">历史记录</el-button>
         </div>
         <el-collapse v-model="advancedSyncOpen" class="advanced-sync">
           <el-collapse-item title="高级同步" name="1">
@@ -2209,6 +2213,11 @@ onMounted(() => {
       />
 
       <DouyinSyncLogDrawer v-model="syncLogOpen" :run="syncRun" />
+      <SyncHistoryDrawer
+        v-model="syncHistoryOpen"
+        platform="douyin"
+        :fetcher="() => fetchPlatformSyncLogs({ platform: 'douyin' })"
+      />
     </template>
   </PageScroll>
 </template>

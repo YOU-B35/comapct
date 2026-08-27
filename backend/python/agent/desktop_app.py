@@ -33,7 +33,18 @@ def run_desktop_mode(cfg: dict[str, Any]) -> int:
 
     与 sync_helper_app._try_start_tray_mode 平行，但用 pywebview 替代浏览器。
     cfg 由 sync_helper_app.load_config() 返回。
+
+    ⚠ 默认禁用（含生产部署）：桌面窗口版仅在用户明确设置环境变量
+    CROSSHUB_ALLOW_DESKTOP=1 时才允许启动；日常请使用托盘浏览器版
+    scripts/sync_helper_app.py（EXE 默认入口即该版本）。
     """
+    if (os.environ.get("CROSSHUB_ALLOW_DESKTOP") or "").strip() not in {"1", "true", "True"}:
+        print(
+            "桌面窗口版默认禁用：设置环境变量 CROSSHUB_ALLOW_DESKTOP=1 后才可启动。"
+            "日常请使用托盘浏览器版（scripts/sync_helper_app.py）。",
+            file=sys.stderr,
+        )
+        return 2
     try:
         import pystray  # noqa: F401
         import flask  # noqa: F401

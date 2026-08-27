@@ -171,7 +171,7 @@ def fetch_violation_tickets(page, *, page_size: int = 50, max_pages: int = 5) ->
 
     try:
         page.goto(VIOLATION_PAGE, wait_until="domcontentloaded", timeout=90_000)
-        time.sleep(2.0)
+        time.sleep(1.0)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"ISSUES_PARTIAL: 无法打开处罚中心: {exc}") from exc
 
@@ -207,7 +207,7 @@ def fetch_product_diagnose(page, *, page_size: int = 50, max_pages: int = 10) ->
 
     try:
         page.goto(PRODUCT_DIAG_PAGE, wait_until="domcontentloaded", timeout=90_000)
-        time.sleep(2.0)
+        time.sleep(1.0)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"ISSUES_PARTIAL: 无法打开商品诊断: {exc}") from exc
 

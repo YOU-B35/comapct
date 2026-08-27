@@ -27,6 +27,10 @@ import Alibaba1688OrderDetailsPanel from '@/components/alibaba1688/Alibaba1688Or
 import Alibaba1688ProductAnalyticsPanel from '@/components/alibaba1688/Alibaba1688ProductAnalyticsPanel.vue'
 import Alibaba1688PeerBestsellersPanel from '@/components/alibaba1688/Alibaba1688PeerBestsellersPanel.vue'
 import Alibaba1688MonitorPanel from '@/components/alibaba1688/Alibaba1688MonitorPanel.vue'
+import SyncHistoryDrawer from '@/components/common/SyncHistoryDrawer.vue'
+import { fetchPlatformSyncLogs } from '@/api/syncLogApi'
+
+const syncHistoryOpen = ref(false)
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -282,6 +286,7 @@ onActivated(() => {
           </el-radio-button>
         </el-radio-group>
         <el-button type="primary" :loading="ordersSyncing" @click="syncOrders">同步订单数据</el-button>
+        <el-button size="small" @click="syncHistoryOpen = true">同步日志</el-button>
       </div>
     </PageSection>
 
@@ -383,6 +388,12 @@ onActivated(() => {
         </el-tab-pane>
       </el-tabs>
     </PageSection>
+
+    <SyncHistoryDrawer
+      v-model="syncHistoryOpen"
+      platform="1688"
+      :fetcher="() => fetchPlatformSyncLogs({ platform: '1688' })"
+    />
   </PageScroll>
 </template>
 

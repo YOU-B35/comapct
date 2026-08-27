@@ -287,9 +287,12 @@ def wait_login_session_ready(
 
     # Close under the same browser lock as crawl so refresh cannot kill Chrome mid-flush.
     try:
-        from agent.handlers import _TEMU_BROWSER_LOCK
+        from agent.browser_lock_pool import BROWSER_LOCK_POOL, browser_lock_key
 
-        browser_lock = _TEMU_BROWSER_LOCK
+        browser_lock = BROWSER_LOCK_POOL.guard(
+            "temu",
+            browser_lock_key("temu", tenant_id, key),
+        )
     except Exception:
         browser_lock = None
 

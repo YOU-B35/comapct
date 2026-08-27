@@ -90,9 +90,20 @@ def _bundled_chromium_ready() -> bool:
     try:
         import playwright
 
-        package_dir = Path(playwright.__file__).resolve().parent / "driver" / "package"
-        manifest = package_dir / "browsers.json"
-        if not manifest.is_file():
+        candidates = [
+            Path(playwright.__file__).resolve().parent / "driver" / "package",
+        ]
+        # 冻结（PyInstaller onedir）时 playwright.__file__ 指向 PYZ 归档内路径，
+        # browsers.json 实际解压在 _internal/playwright/driver/package 下。
+        if getattr(sys, "frozen", False):
+            meipass = getattr(sys, "_MEIPASS", None)
+            if meipass:
+                candidates.append(Path(meipass) / "playwright" / "driver" / "package")
+        manifest = next(
+            (c / "browsers.json" for c in candidates if (c / "browsers.json").is_file()),
+            None,
+        )
+        if manifest is None or not manifest.is_file():
             return False
         data = json.loads(manifest.read_text(encoding="utf-8"))
         chromium = next(

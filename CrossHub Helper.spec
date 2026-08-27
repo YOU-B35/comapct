@@ -1,27 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all
-
-datas = [('backend/python', 'backend/python'), ('backend/python/agent/panel', 'backend/python/agent/panel'), ('scripts', 'scripts')]
-binaries = []
-hiddenimports = ['flask', 'webview', 'pystray', 'PIL.PngImagePlugin', 'PIL.JpegImagePlugin', 'httpx', 'cryptography', 'win32', 'win32com', 'pywebview.api']
-tmp_ret = collect_all('webview')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('flask')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('PIL')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('pystray')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('httpx')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['run_app.py'],
     pathex=[],
-    binaries=binaries,
-    datas=datas,
-    hiddenimports=hiddenimports,
+    binaries=[],
+    datas=[],
+    hiddenimports=['flask', 'webview', 'pystray', 'PIL', 'httpx'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

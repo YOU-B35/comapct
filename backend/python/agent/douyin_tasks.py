@@ -18,6 +18,7 @@ from app.browser.douyin_context import (
     launch_douyin_persistent_context,
     sanitize_profile_startup_for_douyin,
 )
+from app.config import sync_headless_enabled
 from app.session_scope import normalize_session_key, resolve_platform_profile_dir
 
 # Frozen from Day0 probe (2026-08-13).
@@ -321,6 +322,24 @@ def _close_pw(pw, context) -> None:
         pass
 
 
+def _call_with_retry(fn, *, retries: int = 1, delay: float = 1.5, label: str = "") -> Any:
+    """Run ``fn``, retrying transient failures (e.g. session not warm yet)."""
+    last_error: BaseException | None = None
+    for attempt in range(max(1, int(retries) + 1)):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            if attempt < int(retries):
+                print(
+                    f"[Douyin] {label} attempt {attempt + 1} failed, retry in {delay}s: {exc}",
+                    flush=True,
+                )
+                time.sleep(max(0.0, float(delay)))
+    assert last_error is not None
+    raise last_error
+
+
 def probe_session(tenant_id: int, store_id: str | None = None) -> dict[str, Any]:
     def _run() -> dict[str, Any]:
         pw = context = page = None
@@ -474,10 +493,6 @@ def _row_looks_like_product(raw: dict[str, Any]) -> bool:
             "shop_id",
         )
     )
-
-
-def _looks_product_list_payload(data: Any) -> list[dict[str, Any]] | None:
-    return _extract_list_rows(data)
 
 
 def _extract_total_count(data: Any, page_rows: int) -> int:
@@ -643,84 +658,6 @@ def _map_product_row(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _url_looks_product_api(url: str) -> bool:
-    u = (url or "").lower()
-    if "jinritemai.com" not in u:
-        return False
-    if any(
-        x in u
-        for x in (
-            "upload",
-            "log",
-            "metrics",
-            "telemetry",
-            "collect",
-            "freight",
-            "template",
-            "group",
-            "category",
-            "shopuser",
-            "permission",
-        )
-    ):
-        return False
-    return bool(
-        re.search(r"product|tproduct|goods|commodity|spu", u)
-        and re.search(r"list|search|query|page", u)
-    )
-
-
-def _set_page_in_payload(payload: Any, page_no: int, page_size: int | None = None) -> Any:
-    if isinstance(payload, dict):
-        out = dict(payload)
-        page_keys = ("page", "page_num", "pageNo", "page_no", "current", "current_page", "pageIndex", "page_index")
-        size_keys = ("pageSize", "page_size", "size", "limit", "pageNum", "count")
-        touched = False
-        for key in page_keys:
-            if key in out:
-                out[key] = page_no
-                touched = True
-        if page_size is not None:
-            for key in size_keys:
-                if key in out:
-                    out[key] = page_size
-                    touched = True
-        if not touched:
-            out["page"] = page_no
-            if page_size is not None:
-                out["pageSize"] = page_size
-        # Nested common envelopes
-        for nest_key in ("param", "params", "query", "request", "data"):
-            if isinstance(out.get(nest_key), dict):
-                out[nest_key] = _set_page_in_payload(out[nest_key], page_no, page_size)
-        return out
-    return payload
-
-
-def _set_page_in_url(url: str, page_no: int, page_size: int | None = None) -> str:
-    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-
-    parts = urlsplit(url)
-    query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    page_keys = ("page", "page_num", "pageNo", "page_no", "current", "current_page", "pageIndex")
-    size_keys = ("pageSize", "page_size", "size", "limit")
-    touched = False
-    for key in page_keys:
-        if key in query:
-            query[key] = str(page_no)
-            touched = True
-    if page_size is not None:
-        for key in size_keys:
-            if key in query:
-                query[key] = str(page_size)
-                touched = True
-    if not touched:
-        query["page"] = str(page_no)
-        if page_size is not None:
-            query.setdefault("pageSize", str(page_size))
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
-
-
 def _dedupe_products(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[str] = set()
     unique: list[dict[str, Any]] = []
@@ -731,66 +668,6 @@ def _dedupe_products(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen.add(key)
         unique.append(row)
     return unique
-
-
-def _replay_product_page(
-    page,
-    *,
-    method: str,
-    url: str,
-    headers: dict[str, str],
-    post_data: str | None,
-    page_no: int,
-    page_size: int | None,
-) -> tuple[list[dict[str, Any]], int, str]:
-    """Replay list API for one page using the same browser cookie jar."""
-    method_u = (method or "GET").upper()
-    req_headers = {
-        k: v
-        for k, v in (headers or {}).items()
-        if k.lower() not in {"content-length", "host", "connection"}
-    }
-    body = post_data
-    target_url = url
-    if method_u == "GET":
-        target_url = _set_page_in_url(url, page_no, page_size)
-        body = None
-    else:
-        payload: Any = None
-        if post_data:
-            try:
-                payload = json.loads(post_data)
-            except Exception:
-                payload = None
-        if isinstance(payload, (dict, list)):
-            payload = _set_page_in_payload(payload, page_no, page_size)
-            body = json.dumps(payload, ensure_ascii=False)
-            req_headers.setdefault("content-type", "application/json;charset=UTF-8")
-        else:
-            target_url = _set_page_in_url(url, page_no, page_size)
-
-    print(f"[DouyinProducts] fetch page={page_no} {method_u} {target_url}", flush=True)
-    response = page.request.fetch(
-        target_url,
-        method=method_u,
-        headers=req_headers,
-        data=body,
-        timeout=60_000,
-    )
-    if response.status >= 400:
-        raise RuntimeError(f"product list page {page_no} HTTP {response.status}")
-    try:
-        data = response.json()
-    except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(f"product list page {page_no} invalid json: {exc}") from exc
-    rows = _extract_list_rows(data) or []
-    mapped = []
-    for row in rows:
-        item = _map_product_row(row)
-        if item.get("product_id"):
-            mapped.append(item)
-    total = _extract_total_count(data, len(mapped))
-    return mapped, total, target_url
 
 
 def _build_product_list_url(page_no: int, page_size: int, *, tab: str = "onSale") -> str:
@@ -853,7 +730,7 @@ def fetch_products_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
         try:
             print(f"[DouyinProducts] goto {list_url}", flush=True)
             page.goto(list_url, wait_until="domcontentloaded", timeout=90_000)
-            time.sleep(2.5)
+            time.sleep(1.0)
             warmed = True
             break
         except Exception as exc:  # noqa: BLE001
@@ -865,7 +742,7 @@ def fetch_products_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
             + (f" last_error={last_error}" if last_error else "")
         )
 
-    page_size = 50
+    page_size = 100
     all_rows: list[dict[str, Any]] = []
     source_url = DOUYIN_PRODUCT_LIST_API
     seen_tabs_total = 0
@@ -873,8 +750,11 @@ def fetch_products_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
     for tab in DOUYIN_PRODUCT_LIST_TABS:
         tab_rows: list[dict[str, Any]] = []
         try:
-            first, total_hint, source_url = _fetch_product_list_page(
-                page, page_no=0, page_size=page_size, tab=tab
+            first, total_hint, source_url = _call_with_retry(
+                lambda tab=tab: _fetch_product_list_page(
+                    page, page_no=0, page_size=page_size, tab=tab
+                ),
+                label=f"products page0 tab={tab}",
             )
         except Exception as exc:  # noqa: BLE001
             print(f"[DouyinProducts] tab={tab} page0 failed: {exc}", flush=True)
@@ -965,11 +845,15 @@ def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     try:
         pw, context, page = _launch(
             tenant_id,
-            headless=False,
+            headless=sync_headless_enabled(),
             force_navigate=True,
             store_id=store_id,
         )
         if not _looks_logged_in(page, context):
+            if sync_headless_enabled():
+                raise RuntimeError(
+                    "DY_NOT_LOGGED_IN: 抖音未登录（无头模式不弹窗）。请先点「打开登录」完成登录后再同步"
+                )
             print(
                 f"[DouyinProducts] not logged in yet; keep window open for login "
                 f"{_cookie_summary(context)}",
@@ -1205,15 +1089,18 @@ def fetch_orders_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
     )
     try:
         page.goto(DOUYIN_ORDER_LIST_PAGE, wait_until="domcontentloaded", timeout=90_000)
-        time.sleep(2.5)
+        time.sleep(1.0)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"DY_ORDERS_SOURCE_UNAVAILABLE: 无法打开订单管理页: {exc}") from exc
 
-    page_size = 50
+    page_size = 100
     all_raw: list[dict[str, Any]] = []
     try:
-        first, total_hint = _fetch_order_list_page(
-            page, page_no=0, page_size=page_size, start_ts=start_ts, end_ts=end_ts
+        first, total_hint = _call_with_retry(
+            lambda: _fetch_order_list_page(
+                page, page_no=0, page_size=page_size, start_ts=start_ts, end_ts=end_ts
+            ),
+            label="orders page0",
         )
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"DY_ORDERS_SOURCE_UNAVAILABLE: 订单列表接口失败: {exc}") from exc
@@ -1281,11 +1168,15 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     try:
         pw, context, page = _launch(
             tenant_id,
-            headless=False,
+            headless=sync_headless_enabled(),
             force_navigate=True,
             store_id=store_id,
         )
         if not _looks_logged_in(page, context):
+            if sync_headless_enabled():
+                raise RuntimeError(
+                    "DY_NOT_LOGGED_IN: 抖音未登录（无头模式不弹窗）。请先点「打开登录」完成登录后再同步"
+                )
             print(
                 f"[DouyinOrders] not logged in yet; keep window open for login "
                 f"{_cookie_summary(context)}",
@@ -1354,11 +1245,15 @@ def run_issues_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     try:
         pw, context, page = _launch(
             tenant_id,
-            headless=False,
+            headless=sync_headless_enabled(),
             force_navigate=True,
             store_id=store_id,
         )
         if not _looks_logged_in(page, context):
+            if sync_headless_enabled():
+                raise RuntimeError(
+                    "DY_NOT_LOGGED_IN: 抖音未登录（无头模式不弹窗）。请先点「打开登录」完成登录后再同步"
+                )
             print(
                 f"[DouyinIssues] not logged in yet; keep window open for login "
                 f"{_cookie_summary(context)}",
@@ -1408,6 +1303,115 @@ def run_issues_sync(client, task: dict[str, Any]) -> dict[str, Any]:
         "message": message,
         "synced_at": datetime.now(SHANGHAI).isoformat(),
         "sources_ok": sources_ok,
+    }
+
+
+def run_all_sync(client, task: dict[str, Any]) -> dict[str, Any]:
+    """一次浏览器会话内同步 商品 + 订单 + 内容预警（避免每个 scope 重复启动浏览器）。"""
+    from agent.douyin_issues import collect_issues
+
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    job_id = str(payload.get("job_id") or "")
+    store_id = _resolve_store_id(client, tenant_id, str(payload.get("store_id") or ""))
+    if not store_id:
+        store_id = "default"
+
+    headless = sync_headless_enabled()
+    pw = context = page = None
+    try:
+        pw, context, page = _launch(
+            tenant_id,
+            headless=headless,
+            force_navigate=True,
+            store_id=store_id,
+        )
+        if not _looks_logged_in(page, context):
+            if headless:
+                raise RuntimeError(
+                    "DY_NOT_LOGGED_IN: 抖音未登录（无头模式不弹窗）。请先点「打开登录」完成登录后再同步"
+                )
+            logged_in, page = _wait_until_logged_in(
+                page,
+                context,
+                timeout_seconds=300,
+                label="all_sync",
+            )
+            if not logged_in:
+                raise RuntimeError("DY_NOT_LOGGED_IN: 抖音商家后台未登录，请打开登录窗口完成登录")
+
+        products, product_source = fetch_products_via_xhr(page)
+        orders, order_source = fetch_orders_via_xhr(page)
+
+        issues: list[dict[str, Any]] = []
+        partial = False
+        partial_reason = ""
+        try:
+            issues, meta = collect_issues(page, context)
+            partial = bool(meta.get("partial"))
+            partial_reason = ",".join(str(r) for r in (meta.get("partial_reasons") or [])[:6])
+        except Exception as exc:  # noqa: BLE001
+            partial = True
+            partial_reason = str(exc)[:180]
+            print(f"[DouyinAll] issues failed: {exc}", flush=True)
+    finally:
+        _close_pw(pw, context)
+
+    client.ingest_douyin_products(
+        {
+            "job_id": job_id,
+            "store_id": store_id,
+            "source_url": product_source,
+            "products": products,
+        }
+    )
+
+    _start, _end, day_list = _orders_window_24h()
+    by_day: dict[str, list[dict[str, Any]]] = {d: [] for d in day_list}
+    for row in orders:
+        day = str(row.get("report_day") or "").strip()
+        if day in by_day:
+            by_day[day].append(row)
+    days_payload = [
+        {"replace_day": day, "orders": by_day.get(day, [])}
+        for day in day_list
+    ]
+    client.ingest_douyin_orders(
+        {
+            "job_id": job_id,
+            "store_id": store_id,
+            "source_url": order_source,
+            "days": days_payload,
+            "window_start": _start.strftime("%Y-%m-%d %H:%M:%S"),
+            "window_end": _end.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    )
+
+    client.ingest_douyin_issues(
+        {
+            "job_id": job_id,
+            "store_id": store_id,
+            "issues": issues,
+            "partial": partial,
+            "partial_reason": partial_reason,
+            "message": f"已同步内容预警 {len(issues)} 条",
+        }
+    )
+
+    total_orders = sum(len(d["orders"]) for d in days_payload)
+    return {
+        "tenant_id": tenant_id,
+        "job_id": job_id,
+        "scope": "all",
+        "orders_count": total_orders,
+        "products_count": len(products),
+        "issues_count": len(issues),
+        "partial": partial,
+        "message": (
+            f"已同步商品 {len(products)} 条、订单 {total_orders} 条、内容预警 {len(issues)} 条"
+        ),
+        "synced_at": datetime.now(SHANGHAI).isoformat(),
+        "source_url": product_source,
     }
 
 
@@ -1592,6 +1596,61 @@ def _page_fetch_json(page, path: str, params: dict[str, str]) -> dict[str, Any]:
     return body
 
 
+def _page_fetch_json_batch(
+    page,
+    path: str,
+    params_list: list[dict[str, str]],
+) -> list[tuple[dict[str, Any] | None, str]]:
+    """Fetch the same API path with several param sets in one in-page round trip.
+
+    Returns ``(body, error)`` pairs in input order. Requests run in parallel
+    inside the page, so the number of Playwright round trips stays constant
+    regardless of how many date windows are requested.
+    """
+    result = page.evaluate(
+        """async ({ path, paramsList }) => {
+          const out = await Promise.all((paramsList || []).map(async (params) => {
+            const q = new URLSearchParams();
+            Object.entries(params || {}).forEach(([k, v]) => {
+              if (v === undefined || v === null) return;
+              q.set(k, String(v));
+            });
+            try {
+              const r = await fetch(path + '?' + q.toString(), { credentials: 'include' });
+              let body = null;
+              try { body = await r.json(); } catch (e) { body = { parse_error: String(e) }; }
+              return { status: r.status, body };
+            } catch (e) {
+              return { status: 0, body: { fetch_error: String(e) } };
+            }
+          }));
+          return out;
+        }""",
+        {"path": path, "paramsList": params_list},
+    )
+    if not isinstance(result, list):
+        raise RuntimeError("罗盘接口批量返回异常")
+    pairs: list[tuple[dict[str, Any] | None, str]] = []
+    for item in result:
+        if not isinstance(item, dict):
+            pairs.append((None, "返回项异常"))
+            continue
+        status = int(item.get("status") or 0)
+        body = item.get("body")
+        if status >= 400:
+            pairs.append((None, f"罗盘接口 HTTP {status}"))
+            continue
+        if not isinstance(body, dict):
+            pairs.append((None, "罗盘接口非 JSON 对象"))
+            continue
+        st = body.get("st", body.get("code"))
+        if st not in (0, "0", None, ""):
+            pairs.append((None, f"罗盘接口 st={st} msg={body.get('msg') or body.get('message')}"))
+            continue
+        pairs.append((body, ""))
+    return pairs
+
+
 def _compass_date_window(date_type: int) -> tuple[str, str, str]:
     """Return (begin_date, end_date, report_day) for compass date_type."""
     today = datetime.now(SHANGHAI).date()
@@ -1695,7 +1754,7 @@ def fetch_compass_snapshots(page) -> list[tuple[dict[str, Any], dict[str, Any]]]
         page.goto(DOUYIN_COMPASS_PAGE, wait_until="domcontentloaded", timeout=90_000)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"DY_COMPASS_SOURCE_UNAVAILABLE: 无法打开罗盘首页: {exc}") from exc
-    time.sleep(4.0)
+    time.sleep(2.0)
 
     exp_body: dict[str, Any] = {}
     try:
@@ -1715,44 +1774,60 @@ def fetch_compass_snapshots(page) -> list[tuple[dict[str, Any], dict[str, Any]]]
         page_text = ""
     carriers = _parse_carriers_from_text(page_text)
 
-    out: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    core_params_list: list[dict[str, str]] = []
+    summary_params_list: list[dict[str, str]] = []
     for cfg in DOUYIN_COMPASS_DATE_TYPES:
         dt = int(cfg["date_type"])
-        label = str(cfg["label"])
         begin_date, end_date, report_day = _compass_date_window(dt)
-        core_params = {
+        core_params_list.append({
             "begin_date": begin_date,
             "end_date": end_date,
             "date_type": str(dt),
             "activity_id": "",
             "index_selected": _COMPASS_INDEX_SELECTED,
-        }
-        try:
-            core_body = _page_fetch_json(page, DOUYIN_COMPASS_CORE_API, core_params)
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError(
-                f"DY_COMPASS_SOURCE_UNAVAILABLE: 核心指标失败 date_type={dt}: {exc}"
-            ) from exc
+        })
+        summary_params_list.append({
+            "begin_date": begin_date,
+            "end_date": end_date,
+            "date_type": str(dt),
+            "activity_id": "",
+            "select_ad_expense_ratio": "ad_costed",
+        })
 
-        summary_body: dict[str, Any] = {}
-        try:
-            summary_body = _page_fetch_json(
-                page,
-                DOUYIN_COMPASS_SUMMARY_API,
-                {
-                    "begin_date": begin_date,
-                    "end_date": end_date,
-                    "date_type": str(dt),
-                    "activity_id": "",
-                    "select_ad_expense_ratio": "ad_costed",
-                },
+    # One round trip per endpoint instead of one per date window.
+    core_pairs = _call_with_retry(
+        lambda: _page_fetch_json_batch(page, DOUYIN_COMPASS_CORE_API, core_params_list),
+        label="compass core batch",
+    )
+    summary_pairs = _call_with_retry(
+        lambda: _page_fetch_json_batch(page, DOUYIN_COMPASS_SUMMARY_API, summary_params_list),
+        retries=0,
+        label="compass summary batch",
+    )
+
+    out: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for idx, cfg in enumerate(DOUYIN_COMPASS_DATE_TYPES):
+        dt = int(cfg["date_type"])
+        label = str(cfg["label"])
+        begin_date, end_date, report_day = _compass_date_window(dt)
+        core_body, core_err = core_pairs[idx] if idx < len(core_pairs) else (None, "批量结果缺失")
+        if core_body is None:
+            raise RuntimeError(
+                f"DY_COMPASS_SOURCE_UNAVAILABLE: 核心指标失败 date_type={dt}: {core_err}"
             )
-        except Exception as exc:  # noqa: BLE001
-            print(f"[DouyinCompass] summary optional failed date_type={dt}: {exc}", flush=True)
+
+        summary_body, summary_err = (
+            summary_pairs[idx] if idx < len(summary_pairs) else (None, "批量结果缺失")
+        )
+        if summary_body is None:
+            print(
+                f"[DouyinCompass] summary optional failed date_type={dt}: {summary_err}",
+                flush=True,
+            )
 
         snapshot, raw = _build_compass_snapshot_from_core(
             core_body=core_body,
-            summary_body=summary_body,
+            summary_body=summary_body or {},
             exp_map=exp_map,
             carriers=carriers,
             date_type=dt,
@@ -1802,11 +1877,15 @@ def run_compass_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     try:
         pw, context, page = _launch(
             tenant_id,
-            headless=False,
+            headless=sync_headless_enabled(),
             force_navigate=True,
             store_id=store_id,
         )
         if not _looks_logged_in(page, context):
+            if sync_headless_enabled():
+                raise RuntimeError(
+                    "DY_NOT_LOGGED_IN: 抖音未登录（无头模式不弹窗）。请先点「打开登录」完成登录后再同步"
+                )
             logged_in, page = _wait_until_logged_in(
                 page,
                 context,
@@ -2094,7 +2173,7 @@ def fetch_opportunity_top100(
         page.goto(DOUYIN_OPPORTUNITY_PAGE, wait_until="domcontentloaded", timeout=90_000)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"DY_OPPORTUNITY_SOURCE_UNAVAILABLE: 无法打开商机中心: {exc}") from exc
-    time.sleep(5.0)
+    time.sleep(2.0)
 
     condition: dict[str, Any] = {
         "hit_clue_label_ext": True,
@@ -2152,7 +2231,7 @@ def fetch_opportunity_top100(
                 f"DY_OPPORTUNITY_SOURCE_UNAVAILABLE: 未找到类目「{meta['category_query']}」"
             )
 
-    page_size = 50
+    page_size = 100
     need = max(1, min(100, int(limit or 100)))
     collected: list[dict[str, Any]] = []
     total = None
@@ -2168,7 +2247,13 @@ def fetch_opportunity_top100(
             "source": "business_center",
         }
         try:
-            resp = _page_post_json(page, DOUYIN_OPPORTUNITY_LIST_API, body)
+            if current == 1:
+                resp = _call_with_retry(
+                    lambda body=body: _page_post_json(page, DOUYIN_OPPORTUNITY_LIST_API, body),
+                    label="opportunity list page1",
+                )
+            else:
+                resp = _page_post_json(page, DOUYIN_OPPORTUNITY_LIST_API, body)
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(f"DY_OPPORTUNITY_SOURCE_UNAVAILABLE: 列表失败: {exc}") from exc
         code = resp.get("code", (resp.get("base_resp") or {}).get("status_code"))
@@ -2263,11 +2348,15 @@ def run_opportunity_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     try:
         pw, context, page = _launch(
             tenant_id,
-            headless=False,
+            headless=sync_headless_enabled(),
             force_navigate=True,
             store_id=store_id,
         )
         if not _looks_logged_in(page, context):
+            if sync_headless_enabled():
+                raise RuntimeError(
+                    "DY_NOT_LOGGED_IN: 抖音未登录（无头模式不弹窗）。请先点「打开登录」完成登录后再同步"
+                )
             logged_in, page = _wait_until_logged_in(
                 page,
                 context,

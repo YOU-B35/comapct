@@ -67,7 +67,7 @@ def crawl_inventory_for_asins(
 
     try:
         page.goto(INVENTORY_URLS[0], wait_until="domcontentloaded")
-        page.wait_for_timeout(6000)
+        page.wait_for_timeout(4000)
     except Exception:
         return []
 
@@ -111,7 +111,7 @@ def crawl_inventory_for_asins(
                     """,
                     asin,
                 )
-            page.wait_for_timeout(3500)
+            page.wait_for_timeout(2500)
             found = evaluate_js(page, EXTRACT_MYINVENTORY_GRID_JS)
             if not found:
                 found = parse_inventory_cards_from_text(page.inner_text("body"))
@@ -132,11 +132,11 @@ def crawl_inventory_products(
     fast: bool = False,
 ) -> list[dict[str, Any]]:
     inventory_urls = INVENTORY_URLS[:1] if fast else INVENTORY_URLS
-    initial_wait = 7000 if fast else 14000
-    follow_wait = 6000 if fast else 12000
-    network_idle_timeout = 8000 if fast else 12000
-    scroll_wait = 1000 if fast else 1500
-    page_wait = 2000 if fast else 3000
+    initial_wait = 5000 if fast else 10000
+    follow_wait = 4000 if fast else 8000
+    network_idle_timeout = 6000 if fast else 8000
+    scroll_wait = 800 if fast else 1000
+    page_wait = 1500 if fast else 2000
     for url_index, url in enumerate(inventory_urls):
         try:
             page.goto(url, wait_until="domcontentloaded")
@@ -224,9 +224,9 @@ def crawl_catalog_products(page, *, store_name: str = "") -> list[dict[str, Any]
                 pass
             if url in REPORT_URLS:
                 _click_report_apply(page)
-            page.wait_for_timeout(8000)
+            page.wait_for_timeout(5000)
             page.evaluate("() => { window.scrollTo(0, document.body.scrollHeight); }")
-            page.wait_for_timeout(2500)
+            page.wait_for_timeout(1500)
             body = page.inner_text("body")
             if looks_login_page(body, page.url):
                 continue

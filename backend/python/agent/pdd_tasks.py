@@ -1,18 +1,20 @@
 """Pinduoduo (拼多多) Agent tasks: login / probe / orders / products / compass sync.
 
 复刻 ``douyin_tasks`` 接入模式：Playwright 持久化 Profile + 卖家后台 XHR。
-数据 scope：订单（按 date_window 时间段分）/ 商品 / 经营罗盘。
+数据 scope：订单（按 date_window 时间段分）/ 商品 / 经营罗盘 / 售后问题。
 
-<b>当前为 probe-就绪骨架</b>：登录/会话探测/浏览器生命周期已可用，
-但 ``PDD_ORDERS_XHR_READY`` / ``PDD_PRODUCTS_XHR_READY`` / ``PDD_COMPASS_XHR_READY``
-默认 ``False``——需用真实账号在 mms.pinduoduo.com 完成 Day0 probe，
-抓出订单/商品/罗盘三类 XHR 的 URL/参数/响应结构，固化到下面对应常量与
-``fetch_*_via_xhr`` 实现后，三端数据流即可跑通。
+<b>数据直连模式</b>：登录/会话探测/浏览器生命周期可用，
+``fetch_*_via_xhr`` 打开对应后台页面后运行时自动发现列表 XHR
+（无需手工 Day0 probe），按页重放拉取全量数据并映射为 ingest 字段。
 """
 from __future__ import annotations
 
+import json
+import os
+import re
+import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -26,36 +28,67 @@ from app.browser.pdd_context import (
     sanitize_profile_startup_for_pdd,
 )
 from app.session_scope import normalize_session_key, resolve_platform_profile_dir
-
 # ============================================================================
-# Day0 probe 冻结标记（账号到位 probe 后改 True 并填下方 XHR 常量）
+# PDD 数据源：真实接口直连（运行时自动发现 mms.pinduoduo.com 列表 XHR 并分页拉全量）
 # ============================================================================
-PDD_ORDERS_XHR_READY = False
-PDD_PRODUCTS_XHR_READY = False
-PDD_COMPASS_XHR_READY = False
+# 已启用真实 XHR 抓取：不再使用本地 Mock 数据，所有同步数据均从拼多多商家后台接口获取。
+PDD_ORDERS_XHR_READY = True
+PDD_PRODUCTS_XHR_READY = True
+PDD_COMPASS_XHR_READY = True
+PDD_ISSUES_XHR_READY = True
 
-# 本地开发 Mock 模式开关（生产环境改为 False）
-_MOCK_ORDERS_ENABLED = True
-_MOCK_PRODUCTS_ENABLED = True
-_MOCK_COMPASS_ENABLED = True
+_MOCK_ORDERS_ENABLED = False
+_MOCK_PRODUCTS_ENABLED = False
+_MOCK_COMPASS_ENABLED = False
+_MOCK_ISSUES_ENABLED = False
 
-# TODO(probe): 拼多多商家后台订单列表 XHR（mms.pinduoduo.com 下，待 probe 填入）
-PDD_ORDER_LIST_PAGE = "https://mms.pinduoduo.com/od/index.html"  # 占位，待 probe 校正
-PDD_ORDER_LIST_API = ""  # TODO(probe): 订单列表 XHR URL
+# 页面候选（多个地址兼容后台改版；抓取时逐个尝试）
+PDD_ORDER_LIST_PAGE = "https://mms.pinduoduo.com/orders/list"
+PDD_ORDER_LIST_PAGE_CANDIDATES = (
+    "https://mms.pinduoduo.com/orders/list",
+    "https://mms.pinduoduo.com/od/index.html",
+    "https://mms.pinduoduo.com/order/index.html",
+)
+PDD_ORDER_LIST_API = ""  # Day0 冻结后可填；为空时走运行时发现
+PDD_ORDER_LIST_API_CANDIDATES = (
+    "https://mms.pinduoduo.com/mangkhut/mms/order/queryOrderList",
+)
 
-# TODO(probe): 商品列表 XHR
-PDD_PRODUCT_LIST_PAGE = "https://mms.pinduoduo.com/goods/goods_list.html"  # 占位
-PDD_PRODUCT_LIST_API = ""  # TODO(probe)
+PDD_PRODUCT_LIST_PAGE = "https://mms.pinduoduo.com/goods/goods_list"
+PDD_PRODUCT_LIST_PAGE_CANDIDATES = (
+    "https://mms.pinduoduo.com/goods/goods_list",
+    "https://mms.pinduoduo.com/goods/goodsList",
+    "https://mms.pinduoduo.com/goods/goods_list.html",
+)
+PDD_PRODUCT_LIST_API = ""
+PDD_PRODUCT_LIST_API_CANDIDATES = (
+    "https://mms.pinduoduo.com/mangkhut/mms/goods/goodsList",
+    "https://mms.pinduoduo.com/goods/goodsList",
+)
 
-# TODO(probe): 经营罗盘 XHR（拼多多数据中心）
-PDD_COMPASS_PAGE = "https://mms.pinduoduo.com/data/index.html"  # 占位
-PDD_COMPASS_CORE_API = ""  # TODO(probe)
+PDD_COMPASS_PAGE = "https://mms.pinduoduo.com/sycm/stores_data"
+PDD_COMPASS_PAGE_CANDIDATES = (
+    "https://mms.pinduoduo.com/sycm/stores_data",
+    "https://mms.pinduoduo.com/sycm/data/overview",
+)
+PDD_COMPASS_CORE_API = ""
+PDD_ISSUE_LIST_PAGE = "https://mms.pinduoduo.com/aftersales/aftersale_list"
+PDD_ISSUE_LIST_PAGE_CANDIDATES = (
+    "https://mms.pinduoduo.com/aftersales/aftersale_list",
+    "https://mms.pinduoduo.com/aftersales/work_order/list",
+    "https://mms.pinduoduo.com/aftersale/index.html",
+)
+PDD_ISSUE_LIST_API = ""
 PDD_COMPASS_DATE_TYPES: list[dict[str, Any]] = [
     {"date_type": 1, "label": "实时", "window": "realtime"},
     {"date_type": 20, "label": "近1天", "window": "d1"},
     {"date_type": 21, "label": "近7天", "window": "d7"},
     {"date_type": 23, "label": "近30天", "window": "d30"},
 ]
+
+# 冻结接口缓存：首次发现列表 XHR 后写盘，后续同步直接按缓存 URL 发请求，
+# 不再每次打开页面监听网络（接口拿到一次后固化复用）。
+_PDD_XHR_CACHE_NAME = ".pdd-xhr-cache.json"
 
 # 拼多多登录态 cookie 标记（probe 后可补充；先用 PASS_ID/ruipk 等常见）
 _AUTH_COOKIE_MARKERS = (
@@ -83,18 +116,59 @@ ROOT = Path(__file__).resolve().parents[1]
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
+def _pdd_config_paths() -> list[Path]:
+    paths: list[Path] = []
+    if getattr(sys, "frozen", False):
+        paths.append(Path(sys.executable).resolve().parent / "config.json")
+    local = os.environ.get("LOCALAPPDATA", "")
+    if local:
+        paths.append(Path(local) / "CrossHub" / "SyncHelper" / "config.json")
+    return paths
+
+
+def _pdd_profile_root() -> Path:
+    """解析拼多多浏览器 profile 根目录。
+
+    优先顺序：PDD_PROFILE_ROOT 环境变量 -> 助手 config.json 的 pdd_profile_root
+    -> 冻结版按 <项目根>/backend/python 定位（保持与开发模式一致，避免每次
+    重新打包都把已登录的 profile 丢进 _internal）-> 代码目录（开发模式）。
+    """
+    env = (os.environ.get("PDD_PROFILE_ROOT") or "").strip()
+    if env:
+        return Path(env)
+    for cfg_path in _pdd_config_paths():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        value = (cfg.get("pdd_profile_root") or "").strip()
+        if value:
+            return Path(value)
+    if getattr(sys, "frozen", False):
+        # EXE 位于 <项目>/dist/CrossHub-Sync-Helper/CrossHub-Sync-Helper/ 下
+        candidate = Path(sys.executable).resolve().parents[3] / "backend" / "python"
+        if candidate.exists():
+            return candidate
+    return ROOT
+
+
 def profile_dir(tenant_id: int, store_id: str | None = None) -> Path:
+    """按店铺隔离持久化浏览器 profile（对齐 1688 多账号设计）。
+
+    未指定店铺（default/全部）沿用 ``tenant-{id}`` 平铺目录（默认账号）；
+    指定店铺使用 ``tenant-{id}/account-{store_id}``，各店登录态独立。
+    """
     key = normalize_session_key(store_id)
+    root = _pdd_profile_root()
     if key == "default":
-        legacy = ROOT / ".pdd-browser-profile" / f"tenant-{int(tenant_id)}"
-        legacy.mkdir(parents=True, exist_ok=True)
-        return legacy
-    path = resolve_platform_profile_dir(
-        "pdd",
-        tenant_id,
-        key,
-        root=ROOT / ".pdd-browser-profile",
-    )
+        path = root / ".pdd-browser-profile" / f"tenant-{int(tenant_id)}"
+    else:
+        path = resolve_platform_profile_dir(
+            "pdd",
+            tenant_id,
+            key,
+            root=root / ".pdd-browser-profile",
+        )
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -109,9 +183,7 @@ def _run_in_clean_thread(fn, *, timeout: float | None = None):
 
 
 def _pdd_launch_kwargs(*, headless: bool) -> dict[str, Any]:
-    import sys
-
-    from app.browser.context import _bundled_chromium_ready, _system_chrome_path
+    from app.browser.context import _bundled_chromium_ready
     from app.config import BROWSER_CHANNEL
 
     kwargs: dict[str, Any] = {
@@ -128,15 +200,14 @@ def _pdd_launch_kwargs(*, headless: bool) -> dict[str, Any]:
             f"--homepage={PDD_SELLER_HOME}",
         ],
     }
-    frozen = bool(getattr(sys, "frozen", False))
     if BROWSER_CHANNEL:
         kwargs["channel"] = BROWSER_CHANNEL
-    elif frozen and not _bundled_chromium_ready():
-        chrome = _system_chrome_path()
-        if chrome:
-            kwargs["executable_path"] = chrome
-        else:
-            kwargs["channel"] = "chrome"
+    elif not _bundled_chromium_ready():
+        raise RuntimeError(
+            "PDD_BROWSER_UNAVAILABLE: 未检测到 Playwright 内置 Chromium。"
+            "拼多多登录/同步默认使用内置浏览器（不打开系统 Chrome/Edge），"
+            "请先执行 python -m playwright install chromium 后重试"
+        )
     return kwargs
 
 
@@ -264,6 +335,14 @@ def _wait_until_logged_in(page, context, *, timeout_seconds: int, label: str):
             close_foreign_pdd_pages(context)
         except Exception:
             pass
+        try:
+            current_url = (current.url or "").lower()
+            if "pinduoduo.com" not in current_url:
+                # 已登录的会话访问首页会自动跳到商家后台；仅当停在空白/外部页时才回首页，
+                # 避免把正在手动填写的登录表单强制跳走。
+                current = ensure_pdd_home_page(context, force_navigate=True)
+        except Exception:
+            pass
         logged_in = _looks_logged_in(current, context)
         now_ts = time.time()
         if logged_in:
@@ -345,62 +424,1306 @@ def open_login_window(
 
 
 # ============================================================================
-# XHR 抓取（TODO: Day0 probe 后实现）
+# XHR 抓取：真实接口直连（运行时自动发现 + 分页拉全量）
 # ============================================================================
 
-def fetch_orders_via_xhr(page, *, date_window: str = "today") -> tuple[list[dict[str, Any]], str]:
-    """抓取订单列表。返回 (rows, source_url)。
+_XHR_IGNORE_TOKENS = (
+    ".js",
+    ".css",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    "font",
+    "image",
+    "logo",
+    "icon",
+    "track",
+    "logger",
+    "metrics",
+    "monitor",
+    "collect",
+    "upload",
+    "sentry",
+    "beacon",
+    "recommend",
+    "polyfill",
+    "chunk",
+    "vendor",
+)
 
-    本地开发：返回 Mock 数据
-    生产：需完成 Day0 probe 后实现真实 XHR 调用
-    """
-    if _MOCK_ORDERS_ENABLED:
-        from app.mock_pdd import mock_orders_sync_data
-        store_id = None  # 从 page 上下文解析，暂时用 None
-        return mock_orders_sync_data(0, date_window, store_id)
+_ORDER_API_MARKERS = ("order", "/od/", "orderlist", "queryorder", "searchorder")
+_ORDER_LIST_KEYWORDS = ("list", "query", "search", "page", "get")
+_PRODUCT_API_MARKERS = ("goods", "product", "/gd/")
+_PRODUCT_LIST_KEYWORDS = ("list", "query", "search", "page", "get", "manage")
+_ISSUE_API_MARKERS = (
+    "aftersale",
+    "after-sale",
+    "after_sale",
+    "refund",
+    "violation",
+    "issue",
+    "warning",
+    "risk",
+)
+_ISSUE_LIST_KEYWORDS = ("list", "query", "search", "page", "get", "order")
+_COMPASS_API_MARKERS = ("sydney", "malltrade", "mallcore", "mallscore", "mallinfo")
+_COMPASS_LIST_KEYWORDS = ("trade", "info", "list", "config", "query", "get", "overview")
 
-    # TODO(probe): 账号到位后，在 mms.pinduoduo.com 订单页打开 DevTools Network，
-    # 抓出订单列表 XHR 的 URL/请求参数/响应结构，按抖音 fetch_orders_via_xhr 模式实现：
-    # 用 page.request 或 page.goto 触发 XHR，解析响应 rows，映射成 ingest body 的 order 字段。
-    raise NotImplementedError(
-        "PDD_ORDERS_NEED_DAY0: 拼多多订单接口尚未完成 Day0 探测。"
-        "请用真实账号登录 mms.pinduoduo.com 后，在订单管理页抓取列表 XHR 并填入 pdd_tasks.py。"
+# PDD 商家后台金额单位是“分”，转成“元”展示（与抖音抓取口径一致）
+_PDD_AMOUNT_IN_FEN = True
+
+
+def _is_ignored_xhr_url(url: str) -> bool:
+    u = (url or "").lower()
+    return any(token in u for token in _XHR_IGNORE_TOKENS)
+
+
+def _looks_kind_api_url(url: str, kind: str) -> bool:
+    u = (url or "").lower()
+    if "pinduoduo.com" not in u and "yangkeduo" not in u:
+        return False
+    if _is_ignored_xhr_url(u):
+        return False
+    if kind == "orders":
+        # 合并发货列表（newOrderList）只含少量“待合并发货”单，不是完整订单列表，必须排除；
+        # recentOrderList 才是订单页真正的列表接口（result.pageItems / totalItemNum）。
+        if "mergeshipping" in u or "merge_shipping" in u:
+            return False
+        if "neworderlist" in u:
+            return False
+        if "recentorderlist" in u:
+            return True
+        markers, keywords = _ORDER_API_MARKERS, _ORDER_LIST_KEYWORDS
+    elif kind == "products":
+        markers, keywords = _PRODUCT_API_MARKERS, _PRODUCT_LIST_KEYWORDS
+    elif kind == "issues":
+        markers, keywords = _ISSUE_API_MARKERS, _ISSUE_LIST_KEYWORDS
+    elif kind == "compass":
+        markers, keywords = _COMPASS_API_MARKERS, _COMPASS_LIST_KEYWORDS
+    else:
+        return False
+    return any(m in u for m in markers) and any(k in u for k in keywords)
+
+
+def _json_get(data: Any, *path: str) -> Any:
+    node = data
+    for key in path:
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+    return node
+
+
+def _row_looks_like_order(row: dict[str, Any]) -> bool:
+    order_id = (
+        row.get("order_sn")
+        or row.get("orderSn")
+        or row.get("order_no")
+        or row.get("orderNo")
+        or row.get("order_id")
+        or row.get("orderId")
+    )
+    if order_id in (None, ""):
+        return False
+    blob = json.dumps(row, ensure_ascii=False).lower()
+    return any(
+        token in blob
+        for token in (
+            "goods_list",
+            "goodslist",
+            "goods",
+            "pay_amount",
+            "payamount",
+            "order_amount",
+            "orderamount",
+            "create_time",
+            "createtime",
+            "status",
+            "sku",
+            "mall",
+            "receiver",
+        )
     )
 
 
-def fetch_products_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
-    """抓取商品列表。返回 (rows, source_url)。
+def _row_looks_like_product(row: dict[str, Any]) -> bool:
+    product_id = (
+        row.get("goods_id")
+        or row.get("goodsId")
+        or row.get("product_id")
+        or row.get("productId")
+        or row.get("goods_sn")
+        or row.get("goodsSn")
+        or row.get("id")
+    )
+    if product_id in (None, ""):
+        return False
+    blob = json.dumps(row, ensure_ascii=False).lower()
+    has_name = any(
+        token in blob
+        for token in (
+            "goods_name",
+            "goodsname",
+            "product_name",
+            "productname",
+            '"name"',
+            "title",
+            "goods_desc",
+            "share_desc",
+        )
+    )
+    has_money = any(token in blob for token in ("price", "amount", "market_price"))
+    has_stock = any(
+        token in blob
+        for token in ("quantity", "stock", "sold_quantity", "sku_count", "reserve_quantity")
+    )
+    return has_name and (has_money or has_stock)
 
-    本地开发：返回 Mock 数据
-    生产：需完成 Day0 probe 后实现真实 XHR 调用
-    """
-    if _MOCK_PRODUCTS_ENABLED:
-        from app.mock_pdd import mock_products_sync_data
-        store_id = None
-        return mock_products_sync_data(0, store_id)
 
-    # TODO(probe): 账号到位后，在商品管理页抓取列表 XHR 并实现。
-    raise NotImplementedError(
-        "PDD_PRODUCTS_NEED_DAY0: 拼多多商品接口尚未完成 Day0 探测。"
-        "请用真实账号登录 mms.pinduoduo.com 后，在商品管理页抓取列表 XHR 并填入 pdd_tasks.py。"
+def _row_looks_like_issue(row: dict[str, Any]) -> bool:
+    issue_id = (
+        row.get("aftersale_id")
+        or row.get("afterSaleId")
+        or row.get("order_sn")
+        or row.get("orderSn")
+        or row.get("violation_id")
+        or row.get("id")
+    )
+    if issue_id in (None, ""):
+        return False
+    blob = json.dumps(row, ensure_ascii=False).lower()
+    return any(
+        token in blob
+        for token in (
+            "after_sale",
+            "aftersale",
+            "refund",
+            "violation",
+            "warning",
+            "risk",
+            "type",
+            "status",
+            "reason",
+        )
     )
 
 
-def fetch_compass_via_xhr(page, *, date_type: int = 1) -> tuple[dict[str, Any], str]:
-    """抓取经营罗盘。返回 (payload, source_url)。
+def _find_list_rows(data: Any, kind: str) -> list[dict[str, Any]] | None:
+    """Find the first plausible list of rows in a nested JSON response."""
+    if not isinstance(data, dict):
+        return None
+    candidates: list[Any] = []
 
-    本地开发：返回 Mock 数据
-    生产：需完成 Day0 probe 后实现真实 XHR 调用
+    def collect(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        for key, value in node.items():
+            if isinstance(value, list) and value and isinstance(value[0], dict):
+                candidates.append(value)
+            elif isinstance(value, dict):
+                collect(value)
+
+    collect(data)
+    for rows in candidates:
+        rows = [r for r in rows if isinstance(r, dict)]
+        if not rows:
+            continue
+        if kind == "orders" and _row_looks_like_order(rows[0]):
+            return [r for r in rows if _row_looks_like_order(r)]
+        if kind == "products" and _row_looks_like_product(rows[0]):
+            return [r for r in rows if _row_looks_like_product(r)]
+        if kind == "issues" and _row_looks_like_issue(rows[0]):
+            return [r for r in rows if _row_looks_like_issue(r)]
+    return None
+
+
+def _extract_total_count(data: Any, page_rows: int) -> int:
+    if not isinstance(data, dict):
+        return page_rows
+    # 先看顶层，再看常见包装节点（result / data）里的 total / totalItemNum。
+    nodes: list[dict[str, Any]] = [data]
+    for wrapper in ("result", "data"):
+        wrapped = data.get(wrapper)
+        if isinstance(wrapped, dict):
+            nodes.append(wrapped)
+    for node in nodes:
+        for key in (
+            "total",
+            "total_count",
+            "totalCount",
+            "total_num",
+            "totalNum",
+            "total_item_num",
+            "totalItemNum",
+            "count",
+        ):
+            raw = node.get(key)
+            if raw in (None, ""):
+                continue
+            try:
+                value = int(raw)
+            except Exception:
+                continue
+            if value >= page_rows:
+                return value
+    return page_rows
+
+
+def _normalize_orders_post_data(post_data: str | None) -> str | None:
+    """Force the recentOrderList payload to the '全部订单' query.
+
+    The orders/list page first fires a small widget call (pageSize=1 +
+    consolidateTypeList) and its main list defaults to the 待发货 tab
+    (orderType=1/afterSaleType=1).  For full-store order sync we need the
+    unfiltered list, so reset to orderType=0/afterSaleType=0 and drop the
+    consolidateTypeList member, while keeping the captured group window and
+    sort/mobile params.
     """
-    if _MOCK_COMPASS_ENABLED:
-        from app.mock_pdd import mock_compass_sync_data
-        store_id = None
-        return mock_compass_sync_data(0, date_type, store_id)
+    if not post_data:
+        return None
+    try:
+        payload = json.loads(post_data)
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(payload, dict):
+        return None
+    out = dict(payload)
+    out["orderType"] = 0
+    out["afterSaleType"] = 0
+    # 全部订单模式下 sortType=10 返回时间升序（最早 90 天前），
+    # 改为 1 让服务端按时间倒序返回，第一页即最新订单。
+    out["sortType"] = 1
+    out.pop("consolidateTypeList", None)
+    return json.dumps(out, ensure_ascii=False)
 
-    # TODO(probe): 账号到位后，在数据中心/罗盘页抓取核心指标 XHR 并实现。
-    raise NotImplementedError(
-        "PDD_COMPASS_NEED_DAY0: 拼多多经营罗盘接口尚未完成 Day0 探测。"
-        "请用真实账号登录 mms.pinduoduo.com 后，在数据中心抓取罗盘 XHR 并填入 pdd_tasks.py。"
+def _set_page_in_payload(payload: Any, page_no: int, page_size: int | None = None) -> Any:
+    if isinstance(payload, dict):
+        out = dict(payload)
+        page_keys = (
+            "page",
+            "page_num",
+            "pageNum",
+            "pageNumber",
+            "page_number",
+            "page_no",
+            "pageNo",
+            "current",
+            "current_page",
+            "currentPage",
+        )
+        size_keys = ("pageSize", "page_size", "size", "limit", "count")
+        touched = False
+        for key in page_keys:
+            if key in out:
+                out[key] = page_no
+                touched = True
+        if page_size is not None:
+            for key in size_keys:
+                if key in out:
+                    out[key] = page_size
+                    touched = True
+        if not touched:
+            out["pageNum"] = page_no
+            if page_size is not None:
+                out["pageSize"] = page_size
+        for nest_key in ("param", "params", "query", "request", "data"):
+            if isinstance(out.get(nest_key), dict):
+                out[nest_key] = _set_page_in_payload(out[nest_key], page_no, page_size)
+        return out
+    return payload
+
+
+def _set_page_in_url(url: str, page_no: int, page_size: int | None = None) -> str:
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    page_keys = ("page", "page_num", "pageNum", "page_no", "pageNo", "current", "current_page", "currentPage")
+    size_keys = ("pageSize", "page_size", "size", "limit")
+    touched = False
+    for key in page_keys:
+        if key in query:
+            query[key] = str(page_no)
+            touched = True
+    if page_size is not None:
+        for key in size_keys:
+            if key in query:
+                query[key] = str(page_size)
+                touched = True
+    if not touched:
+        query["pageNum"] = str(page_no)
+        if page_size is not None:
+            query.setdefault("pageSize", str(page_size))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _format_pdd_time(raw: Any) -> str:
+    if raw in (None, ""):
+        return ""
+    if isinstance(raw, (int, float)) and raw > 10_000_000:
+        seconds = raw
+        if seconds >= 100_000_000_000:
+            seconds = seconds / 1000.0
+        try:
+            return datetime.fromtimestamp(int(seconds), tz=SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return str(raw)
+    text = str(raw).strip()
+    if re.fullmatch(r"\d{10,13}", text):
+        try:
+            ts = int(text)
+            if ts >= 100_000_000_000:
+                ts = ts // 1000
+            return datetime.fromtimestamp(ts, tz=SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return text
+    return text
+
+
+def _normalize_pdd_amount(raw: Any) -> str:
+    """PDD 商家后台金额为分；统一转为元字符串（保留两位小数）。"""
+    if raw in (None, ""):
+        return ""
+    try:
+        value = float(raw)
+    except Exception:
+        return str(raw).strip()
+    if _PDD_AMOUNT_IN_FEN and abs(value - round(value)) < 1e-9:
+        value = value / 100.0
+    return f"{value:.2f}"
+
+
+def _pick(row: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in row and row[key] not in (None, ""):
+            return row[key]
+    return ""
+
+
+def _map_order_row(raw: dict[str, Any]) -> dict[str, Any]:
+    """Map a raw PDD order-list row to the Java ingest order contract."""
+    order_no = str(_pick(raw, "order_sn", "orderSn", "order_no", "orderNo", "order_id", "orderId") or "").strip()
+    goods_list = raw.get("goods_list") if isinstance(raw.get("goods_list"), list) else []
+    if not goods_list:
+        goods_list = raw.get("goodsList") if isinstance(raw.get("goodsList"), list) else []
+    if not goods_list and raw.get("goods_name") not in (None, ""):
+        # recentOrderList 返回扁平商品字段（无 goods_list 嵌套）
+        goods_list = [
+            {
+                "goods_name": raw.get("goods_name"),
+                "spec": raw.get("spec"),
+                "goods_num": raw.get("goods_number"),
+                "goods_amount": raw.get("goods_amount"),
+                "goods_price": raw.get("goods_price"),
+                "thumb_url": raw.get("thumb_url"),
+            }
+        ]
+
+    product_names: list[str] = []
+    sku_texts: list[str] = []
+    quantities = 0
+    item_amounts: list[float] = []
+    unit_prices: list[float] = []
+    image_url = ""
+    for goods in goods_list:
+        if not isinstance(goods, dict):
+            continue
+        name = str(_pick(goods, "goods_name", "goodsName", "product_name", "productName", "name") or "").strip()
+        spec = str(_pick(goods, "spec", "sku_spec", "goods_spec", "sku_text", "skuText") or "").strip()
+        if name:
+            product_names.append(name)
+        if spec:
+            sku_texts.append(spec)
+        try:
+            quantities += int(_pick(goods, "goods_num", "goodsNum", "quantity", "num") or 1)
+        except Exception:
+            quantities += 1
+        amount_raw = _pick(goods, "goods_amount", "goodsAmount", "pay_amount", "item_amount", "amount")
+        if amount_raw not in (None, ""):
+            try:
+                item_amounts.append(float(_normalize_pdd_amount(amount_raw)))
+            except Exception:
+                pass
+        price_raw = _pick(goods, "goods_price", "goodsPrice", "price", "unit_price", "unitPrice")
+        if price_raw not in (None, ""):
+            try:
+                unit_prices.append(float(_normalize_pdd_amount(price_raw)))
+            except Exception:
+                pass
+        if not image_url:
+            image_url = str(_pick(goods, "goods_img", "goodsImg", "image", "img", "thumb_url", "thumbUrl") or "")
+
+    pay_time_raw = _pick(raw, "pay_time", "payTime", "paid_at", "paidAt", "confirm_time", "confirmTime")
+    pay_status_raw = _pick(raw, "pay_status", "payStatus")
+    is_unpaid = pay_status_raw in (0, "0", False, "false") or pay_time_raw in (0, "0")
+    pay_amount_raw = _pick(
+        raw,
+        "pay_amount",
+        "payAmount",
+        "order_amount",
+        "orderAmount",
+        "real_pay_amount",
+        "actual_pay_amount",
+    )
+    pay_amount = (
+        _normalize_pdd_amount(pay_amount_raw)
+        if pay_amount_raw not in (None, "")
+        else ""
+    )
+    if is_unpaid:
+        pay_amount = "0"
+    refund_amount = _normalize_pdd_amount(
+        _pick(raw, "refund_amount", "refundAmount", "after_sale_amount", "refunded_amount", "refundedAmount")
+    )
+    status_raw = _pick(
+        raw,
+        "order_status_text",
+        "orderStatusText",
+        "order_status_str",
+        "status_text",
+        "statusText",
+        "order_status_desc",
+        "status_desc",
+        "statusDesc",
+        "status",
+    )
+    status = str(status_raw or "").strip()
+    if not status:
+        status = str(_pick(raw, "order_status", "orderStatus") or "").strip()
+    ordered_at = _format_pdd_time(
+        _pick(
+            raw,
+            "create_time",
+            "createTime",
+            "order_create_time",
+            "orderCreateTime",
+            "order_time",
+            "orderTime",
+            "pay_time",
+            "payTime",
+        )
+    )
+    paid_at = _format_pdd_time(pay_time_raw) if not is_unpaid else ""
+    refunded_at = _format_pdd_time(_pick(raw, "refund_time", "refundTime", "refunded_at", "refundedAt"))
+    buyer_masked = str(
+        _pick(
+            raw,
+            "receive_name",
+            "receiver_name",
+            "receiverName",
+            "buyer_masked",
+            "buyerMasked",
+            "buyer_name",
+        )
+        or ""
+    )
+    ship_deadline = _format_pdd_time(
+        _pick(
+            raw,
+            "promise_shipping_time",
+            "shipping_time",
+            "ship_time",
+            "shipTime",
+            "ship_deadline",
+            "deliver_deadline",
+        )
+    )
+    channel = str(_pick(raw, "channel", "order_from", "orderFrom") or "拼多多").strip()
+    report_day = str(_pick(raw, "report_day", "reportDay") or "")
+    if not report_day and ordered_at:
+        report_day = ordered_at[:10]
+
+    item_amount_total = f"{sum(item_amounts):.2f}" if item_amounts else "0"
+    amount_value = (
+        item_amount_total
+        if is_unpaid
+        else (pay_amount or item_amount_total)
+    )
+    return {
+        "order_no": order_no,
+        "order_key": str(_pick(raw, "order_key", "orderKey") or f"pdd:{order_no}"),
+        "external_shop_id": str(_pick(raw, "mall_id", "mallId", "external_shop_id") or ""),
+        "product_name": " / ".join(dict.fromkeys(product_names)) if product_names else "",
+        "channel": channel,
+        "sku": " / ".join(dict.fromkeys(sku_texts)) if sku_texts else "",
+        "sku_text": " / ".join(dict.fromkeys(sku_texts)) if sku_texts else "",
+        "quantity": quantities,
+        "amount": amount_value,
+        "paid_amount": pay_amount,
+        "refunded_amount": refund_amount,
+        "unit_price": f"{sum(unit_prices) / max(1, len(unit_prices)):.2f}" if unit_prices else "",
+        "item_amount": f"{sum(item_amounts):.2f}" if item_amounts else "",
+        "currency": "CNY",
+        "status": status,
+        "ship_deadline": ship_deadline,
+        "ordered_at": ordered_at,
+        "paid_at": paid_at or ("" if is_unpaid else ordered_at),
+        "refunded_at": refunded_at,
+        "buyer_masked": buyer_masked,
+        "image_url": image_url,
+        "report_day": report_day,
+        "raw_json": json.dumps(raw, ensure_ascii=False),
+    }
+
+
+def _map_product_row(raw: dict[str, Any]) -> dict[str, Any]:
+    """Map a raw PDD goods-list row to the Java product ingest contract."""
+    product_id = str(
+        _pick(raw, "goods_id", "goodsId", "product_id", "productId", "goods_sn", "goodsSn", "id") or ""
+    ).strip()
+    name = str(
+        _pick(
+            raw,
+            "goods_name",
+            "goodsName",
+            "product_name",
+            "productName",
+            "name",
+            "title",
+            "goods_desc",
+            "share_desc",
+        )
+        or ""
+    ).strip()
+    status_raw = _pick(
+        raw,
+        "is_onsale",
+        "ware_status",
+        "goods_status_text",
+        "status_text",
+        "statusText",
+        "goods_status",
+        "status",
+    )
+    if status_raw is True or str(status_raw or "").strip().lower() in ("1", "true", "on"):
+        status = "在售"
+    else:
+        status = str(status_raw or "").strip()
+
+    def first_money(*keys: str) -> Any:
+        for key in keys:
+            value = raw.get(key)
+            if isinstance(value, list) and value:
+                try:
+                    return min(float(v) for v in value if v not in (None, ""))
+                except Exception:
+                    continue
+            if value not in (None, ""):
+                return value
+        return ""
+
+    price_raw = first_money("sku_group_price", "sku_price", "market_price", "suggest_price", "goods_price")
+    image = _pick(raw, "thumb_url", "hd_thumb_url", "image_url", "hd_url", "goodsImage", "image", "img")
+    skus = _pick(raw, "sku_list", "skus", "specs")
+    cats = [str(raw.get(f"cat_name_{i}") or "").strip() for i in range(1, 5)]
+    category = " / ".join(c for c in cats if c) or str(_pick(raw, "cat_name", "category") or "")
+    return {
+        "product_id": product_id,
+        "product_key": str(_pick(raw, "goods_sn", "goodsSn", "product_key") or f"pdd:{product_id}"),
+        "product_name": name,
+        "status": status,
+        "status_label": status,
+        "price": _normalize_pdd_amount(price_raw) if price_raw not in (None, "") else None,
+        "stock": _pick(raw, "quantity", "reserve_quantity", "stock_num", "stockNum", "stock"),
+        "sales": _pick(
+            raw,
+            "sold_quantity_for_thirty_days",
+            "sold_quantity",
+            "soldQuantity",
+            "sales",
+            "sold_num",
+            "soldNum",
+        ),
+        "main_image": str(image or ""),
+        "category": category,
+        "article_no": str(
+            _pick(raw, "out_goods_sn", "goods_sn", "goodsSn", "article_no", "articleNo", "outer_goods_id") or ""
+        ),
+        "sku_count": len(skus) if isinstance(skus, list) else 0,
+        "skus_json": json.dumps(skus, ensure_ascii=False) if isinstance(skus, (list, dict)) else "",
+        "raw_json": json.dumps(raw, ensure_ascii=False),
+    }
+
+
+def _map_issue_row(raw: dict[str, Any]) -> dict[str, Any]:
+    """Map a raw PDD after-sale/violation row to the Java issues ingest contract."""
+    issue_type = str(_pick(raw, "after_sale_type", "afterSaleType", "type") or "after_sale").strip()
+    type_label = str(
+        _pick(raw, "after_sale_type_text", "afterSaleTypeText", "type_text", "typeText") or ""
+    ).strip()
+    priority = str(_pick(raw, "priority", "level", "risk_level") or "medium").strip()
+    reported_at = _format_pdd_time(
+        _pick(raw, "create_time", "createTime", "after_sale_create_time", "reported_at", "apply_time", "applyTime")
+    )
+    product_name = str(
+        _pick(raw, "goods_name", "goodsName", "product_name", "productName", "name") or ""
+    ).strip()
+    image = _pick(raw, "goods_img", "goodsImg", "image", "img", "thumb_url", "thumbUrl")
+    detail = str(
+        _pick(
+            raw,
+            "reason",
+            "after_sale_reason",
+            "afterSaleReason",
+            "violation_reason",
+            "detail",
+            "message",
+        )
+        or ""
+    ).strip()
+    external_id = str(
+        _pick(raw, "after_sale_id", "afterSaleId", "violation_id", "order_sn", "orderSn", "id") or ""
+    ).strip()
+    return {
+        "external_id": external_id,
+        "type": issue_type,
+        "type_label": type_label,
+        "sku": str(_pick(raw, "sku", "spec", "goods_spec") or ""),
+        "product_name": product_name,
+        "product_image": str(image or ""),
+        "detail": detail,
+        "priority": priority if priority.lower() in {"high", "medium", "low"} else "medium",
+        "reported_at": reported_at,
+        "source": "pdd",
+        "raw_json": json.dumps(raw, ensure_ascii=False),
+    }
+
+
+def _extract_captured_rows(payload: Any, kind: str) -> list[dict[str, Any]]:
+    rows = _find_list_rows(payload, kind) or []
+    if kind == "orders":
+        return [_map_order_row(r) for r in rows]
+    if kind == "products":
+        return [_map_product_row(r) for r in rows]
+    if kind == "issues":
+        return [_map_issue_row(r) for r in rows]
+    return rows
+
+
+def _sanitize_utf8(value: Any) -> Any:
+    """递归清理孤立代理字符（emoji 拆包等），避免 httpx 序列化时 UnicodeEncodeError。"""
+    if isinstance(value, dict):
+        return {k: _sanitize_utf8(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_utf8(v) for v in value]
+    if isinstance(value, str):
+        try:
+            return value.encode("utf-8", errors="replace").decode("utf-8")
+        except Exception:
+            return value
+    return value
+
+
+def _capture_xhr(page, page_urls: tuple[str, ...], kind: str, *, timeout: float = 45.0) -> dict[str, Any] | None:
+    """Open the list page and capture the first matching JSON list XHR (runtime Day0)."""
+    captured: dict[str, Any] = {}
+
+    def on_response(response) -> None:
+        if captured:
+            return
+        try:
+            request = response.request
+            url = request.url or ""
+            if not _looks_kind_api_url(url, kind):
+                return
+            if response.status >= 400:
+                return
+            if kind == "orders" and "recentorderlist" in (url or "").lower():
+                # 跳过首屏“最近一笔”小组件调用（pageSize=1 + consolidateTypeList），
+                # 等待订单列表主请求（pageSize>=20，无 consolidateTypeList）。
+                post = request.post_data or ""
+                try:
+                    body = json.loads(post) if post else {}
+                except Exception:  # noqa: BLE001
+                    body = {}
+                if isinstance(body, dict):
+                    if body.get("consolidateTypeList"):
+                        return
+                    try:
+                        page_size = int(body.get("pageSize") or 0)
+                    except Exception:  # noqa: BLE001
+                        page_size = 0
+                    if page_size <= 1:
+                        return
+            payload = response.json()
+        except Exception:
+            return
+        rows = _find_list_rows(payload, kind)
+        if not rows:
+            return
+        captured["method"] = request.method
+        captured["url"] = url
+        captured["headers"] = dict(request.headers)
+        captured["post_data"] = request.post_data
+        captured["payload"] = payload
+        captured["rows"] = rows
+
+    page.on("response", on_response)
+    try:
+        last_error: Exception | None = None
+        for page_url in page_urls:
+            try:
+                page.goto(page_url, wait_until="domcontentloaded", timeout=90_000)
+                if "/other/404" in (page.url or ""):
+                    continue
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                continue
+        else:
+            raise RuntimeError(f"无法打开 {page_urls[0]}: {last_error}")
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            page.wait_for_timeout(500)
+            if captured:
+                return captured
+    finally:
+        try:
+            page.remove_listener("response", on_response)
+        except Exception:
+            pass
+    return None
+
+
+def _replay_page(
+    page,
+    *,
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    post_data: str | None,
+    page_no: int,
+    page_size: int,
+) -> dict[str, Any]:
+    """Replay one page of a captured XHR with the same browser cookie jar."""
+    method_u = (method or "GET").upper()
+    req_headers = {
+        k: v
+        for k, v in (headers or {}).items()
+        if k.lower() not in {"content-length", "host", "connection", "cookie"}
+    }
+    body = post_data
+    target_url = url
+    if method_u == "GET":
+        target_url = _set_page_in_url(url, page_no, page_size)
+        body = None
+    else:
+        payload: Any = None
+        if post_data:
+            try:
+                payload = json.loads(post_data)
+            except Exception:
+                payload = None
+        if isinstance(payload, (dict, list)):
+            payload = _set_page_in_payload(payload, page_no, page_size)
+            body = json.dumps(payload, ensure_ascii=False)
+            req_headers.setdefault("content-type", "application/json;charset=UTF-8")
+        else:
+            target_url = _set_page_in_url(url, page_no, page_size)
+    print(f"[PddXhr] fetch page={page_no} {method_u} {target_url}", flush=True)
+    response = page.request.fetch(
+        target_url,
+        method=method_u,
+        headers=req_headers,
+        data=body,
+        timeout=60_000,
+    )
+    if response.status >= 400:
+        raise RuntimeError(f"page {page_no} HTTP {response.status}")
+    try:
+        payload = response.json()
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"page {page_no} invalid json: {exc}") from exc
+    if isinstance(payload, dict):
+        error_code = payload.get("error_code") or payload.get("errorCode")
+        error_msg = str(payload.get("error_msg") or payload.get("errorMsg") or "")
+        if error_code in (40002, 4000106) or "频繁" in error_msg or "稍后再试" in error_msg:
+            raise RuntimeError(
+                f"page {page_no} 触发平台频控: {error_msg or error_code}"
+            )
+    return payload
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    text = str(exc)
+    return "频控" in text or "频繁" in text or "稍后再试" in text
+
+
+def _replay_with_retry(
+    page,
+    *,
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    post_data: str | None,
+    page_no: int,
+    page_size: int,
+    retries: int = 3,
+    base_delay: float = 5.0,
+) -> dict[str, Any]:
+    """Replay one page, backing off when the platform rate-limits the account."""
+    last_exc: Exception | None = None
+    for attempt in range(max(1, retries)):
+        try:
+            return _replay_page(
+                page,
+                method=method,
+                url=url,
+                headers=headers,
+                post_data=post_data,
+                page_no=page_no,
+                page_size=page_size,
+            )
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if attempt + 1 < retries and _is_rate_limit_error(exc):
+                delay = base_delay * (attempt + 1)
+                print(
+                    f"[PddXhr] page={page_no} 频控，{int(delay)}s 后重试",
+                    flush=True,
+                )
+                time.sleep(delay)
+                continue
+            raise
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"page {page_no} replay failed")
+
+
+def _pdd_xhr_cache_path() -> Path:
+    return ROOT / _PDD_XHR_CACHE_NAME
+
+
+def _load_pdd_xhr_cache(kind: str) -> dict[str, Any]:
+    try:
+        data = json.loads(_pdd_xhr_cache_path().read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+    entry = data.get(kind) if isinstance(data, dict) else None
+    if not isinstance(entry, dict):
+        return {}
+    return {
+        "method": str(entry.get("method") or "POST"),
+        "url": str(entry.get("url") or "").strip(),
+    }
+
+
+def _save_pdd_xhr_cache(kind: str, captured: dict[str, Any]) -> None:
+    url = str(captured.get("url") or "").strip()
+    if not url:
+        return
+    path = _pdd_xhr_cache_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:  # noqa: BLE001
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data[kind] = {
+        "method": str(captured.get("method") or "POST"),
+        "url": url,
+        "updated_at": datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    try:
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as exc:  # noqa: BLE001
+        print(f"[PddXhr] cache write failed: {exc}", flush=True)
+
+
+def _try_direct_first_page(
+    page,
+    kind: str,
+    api_candidates: tuple[str, ...],
+    cached: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Try a plain POST {pageNum:1,pageSize:100} against known/frozen endpoints.
+
+    不打开列表页、不点击任何 UI；成功后直接进入按页码重放的分页循环。
+    """
+    urls: list[str] = []
+    cached_url = str(cached.get("url") or "").strip()
+    if cached_url:
+        urls.append(cached_url)
+    urls.extend(str(u) for u in api_candidates)
+    for api in urls:
+        try:
+            resp = page.request.post(
+                api,
+                headers={"content-type": "application/json;charset=UTF-8"},
+                data=json.dumps({"pageNum": 1, "pageSize": 100}),
+                timeout=60_000,
+            )
+            if resp.status >= 400:
+                continue
+            payload = resp.json()
+            rows = _find_list_rows(payload, kind)
+            if not rows:
+                continue
+            return {
+                "method": "POST",
+                "url": api,
+                "headers": {"content-type": "application/json;charset=UTF-8"},
+                "post_data": json.dumps({"pageNum": 1, "pageSize": 100}),
+                "payload": payload,
+                "rows": rows,
+            }
+        except Exception:  # noqa: BLE001
+            continue
+    return None
+
+
+def _fetch_paged_rows(
+    page,
+    *,
+    kind: str,
+    page_urls: tuple[str, ...],
+    api_candidates: tuple[str, ...],
+    date_window: str = "today",
+    store_id: str | None = None,
+    skip_direct: bool = False,
+) -> tuple[list[dict[str, Any]], str]:
+    if page is None:
+        raise RuntimeError(
+            f"PDD_{kind.upper()}_SOURCE_UNAVAILABLE: 需要已登录的拼多多商家后台浏览器会话"
+        )
+
+    # 优先用冻结/候选接口直接拉第一页（不开页面、不点击）；失败再运行时发现。
+    cached = {} if skip_direct else _load_pdd_xhr_cache(kind)
+    captured = None if skip_direct else _try_direct_first_page(page, kind, api_candidates, cached)
+    if captured is None:
+        captured = _capture_xhr(page, page_urls, kind, timeout=45.0)
+        if captured:
+            _save_pdd_xhr_cache(kind, captured)
+    elif not cached.get("url"):
+        # 第一次通过候选接口直连成功：冻结该接口，后续同步直接复用。
+        _save_pdd_xhr_cache(kind, captured)
+    if captured is None:
+        raise RuntimeError(
+            f"PDD_{kind.upper()}_SOURCE_UNAVAILABLE: 未能在拼多多商家后台发现 {kind} 列表接口，"
+            "请确认已登录且页面已打开"
+        )
+
+    source_url = str(captured.get("url") or page_urls[0])
+    method = str(captured.get("method") or "POST")
+    url = str(captured.get("url") or "")
+    headers = captured.get("headers") or {}
+    post_data = captured.get("post_data")
+    first_payload = captured.get("payload") or {}
+
+    # 订单列表：把捕获到的 recentOrderList 强制改成“全部订单”查询（orderType=0），
+    # 并重放第一页作为基准（页面默认是“待发货”Tab，orderType=1）。
+    target_page_size = 50 if kind == "orders" else None
+    if kind == "orders" and "recentorderlist" in url.lower():
+        normalized = _normalize_orders_post_data(post_data)
+        if normalized:
+            post_data = normalized
+            # 页面自身的两次列表调用之后紧接重放容易触发频控，先冷却一下。
+            time.sleep(2.5)
+            try:
+                first_payload = _replay_with_retry(
+                    page,
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    post_data=post_data,
+                    page_no=1,
+                    page_size=target_page_size,
+                )
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(
+                    "PDD_ORDERS_SOURCE_UNAVAILABLE: 订单列表接口重放失败"
+                    f"（可能触发平台频控），请稍后再试：{exc}。"
+                ) from exc
+
+    first_rows = _extract_captured_rows(first_payload, kind)
+    all_rows: list[dict[str, Any]] = list(first_rows)
+    total_hint = _extract_total_count(first_payload, len(first_rows))
+
+    # 以第一页实际返回行数作为分页步长，避免接口忽略 pageSize 时提前退出
+    page_size = max(1, len(first_rows))
+    if target_page_size:
+        page_size = max(page_size, target_page_size)
+    page_no = 2
+    max_pages = max(
+        1,
+        min(
+            60 if kind == "orders" else 200,
+            (max(total_hint, 1) + page_size - 1) // page_size + 2,
+        ),
+    )
+    window_start = ""
+    if kind == "orders":
+        window = str(date_window or "today").strip().lower()
+        if window in ("today", "d1", "d7", "d30"):
+            window_start = _window_day_list(window)[0]
+    while page_no < max_pages and len(all_rows) < max(total_hint, 1):
+        if kind == "orders" and window_start and any(
+            str(r.get("report_day") or "")[:10] < window_start
+            for r in all_rows
+        ):
+            # 已越过窗口起点（列表按下单时间倒序），无需继续翻页。
+            break
+        try:
+            payload = _replay_with_retry(
+                page,
+                method=method,
+                url=url,
+                headers=headers,
+                post_data=post_data,
+                page_no=page_no,
+                page_size=page_size,
+            )
+        except Exception as exc:  # noqa: BLE001
+            if kind in ("orders", "products") and page_no == 2:
+                raise RuntimeError(
+                    f"PDD_{kind.upper()}_SOURCE_UNAVAILABLE: 接口拒绝修改页码参数"
+                    f"（可能受 anti-content 签名限制）：{exc}。"
+                    "请确认列表接口的页码字段（pageNum/pageNo/page）后再试"
+                ) from exc
+            print(f"[PddXhr] {kind} page={page_no} failed: {exc}", flush=True)
+            break
+        batch = _extract_captured_rows(payload, kind)
+        if not batch:
+            break
+        all_rows.extend(batch)
+        if kind == "orders" and window_start:
+            # 列表按下单时间倒序；一旦越过窗口起点即可停止，避免把 90 天全量拉完。
+            batch_days = [str(r.get("report_day") or "")[:10] for r in batch]
+            if any(d and d < window_start for d in batch_days):
+                break
+        if len(batch) < page_size:
+            break
+        page_no += 1
+        time.sleep(1.2 if kind == "orders" else 0.3)
+
+    if kind in ("orders", "products"):
+        seen: set[str] = set()
+        unique: list[dict[str, Any]] = []
+        for row in all_rows:
+            if kind == "orders":
+                key = str(row.get("order_key") or "") or str(row.get("order_no") or "")
+            else:
+                key = str(row.get("product_key") or "") or str(row.get("product_id") or "")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            unique.append(row)
+        all_rows = unique
+    print(f"[PddXhr] {kind} rows={len(all_rows)} total_hint={total_hint} source={url}", flush=True)
+    return all_rows, source_url
+
+
+def fetch_orders_via_xhr(
+    page,
+    *,
+    date_window: str = "today",
+    store_id: str | None = None,
+) -> tuple[list[dict[str, Any]], str]:
+    """打开订单列表页捕获真实列表 XHR，并按 date_window 过滤到对应日期。"""
+    rows, source_url = _fetch_paged_rows(
+        page,
+        kind="orders",
+        page_urls=PDD_ORDER_LIST_PAGE_CANDIDATES,
+        api_candidates=PDD_ORDER_LIST_API_CANDIDATES,
+        date_window=date_window,
+        store_id=store_id,
+        # 订单列表必须以页面真实 XHR（recentOrderList）为基准：页面自带的请求头
+        # 携带平台签名，直接伪造最小 body 会被频控拒绝。
+        skip_direct=True,
+    )
+    window = str(date_window or "today").strip().lower()
+    if window == "today":
+        today = _today_str()
+        rows = [r for r in rows if str(r.get("report_day") or "")[:10] == today]
+    elif window in ("d1", "d7", "d30"):
+        start = _window_day_list(window)[0]
+        rows = [r for r in rows if str(r.get("report_day") or "") >= start]
+    return rows, source_url
+
+
+def fetch_products_via_xhr(
+    page,
+    *,
+    store_id: str | None = None,
+) -> tuple[list[dict[str, Any]], str]:
+    """直接从 mms.pinduoduo.com 商品列表接口抓取全部商品。返回 (rows, source_url)。"""
+    return _fetch_paged_rows(
+        page,
+        kind="products",
+        page_urls=PDD_PRODUCT_LIST_PAGE_CANDIDATES,
+        api_candidates=PDD_PRODUCT_LIST_API_CANDIDATES,
+        store_id=store_id,
+    )
+
+
+_PDD_COMPASS_TRADE_KEYS = ("payOrdrAmt", "payOrdrCnt", "payOrdrUsrCnt")
+
+
+def _normalize_pdd_compass_payload(
+    captured: dict[str, Any],
+    *,
+    date_type: int,
+    store_id: str | None,
+) -> dict[str, Any]:
+    """把数据中心 sydney/api 报文整理成罗盘快照。
+
+    getMallTradeInfo 的金额/单数字段使用自定义字体混淆（私有区字符），
+    无法可靠还原成数字，因此原样保留；同时把能拿到的实数字段
+    （未支付订单、地理分布确认订单合计）一并写入，供展示与核对。
+    """
+    payload = captured.get("payload") or {}
+    result = payload.get("result") if isinstance(payload, dict) else {}
+    if not isinstance(result, dict):
+        result = {}
+    extras = captured.get("extra") or []
+    not_pay: dict[str, Any] = {}
+    geo_rows: list[dict[str, Any]] = []
+    for extra in extras:
+        extra_payload = extra.get("payload") or {}
+        extra_result = extra_payload.get("result") if isinstance(extra_payload, dict) else {}
+        if not isinstance(extra_result, dict):
+            continue
+        if "notPayOrderCnt" in extra_result:
+            not_pay = extra_result
+        rows = extra_result.get("geographyDistributionVOList")
+        if isinstance(rows, list):
+            geo_rows = [r for r in rows if isinstance(r, dict)]
+
+    now = datetime.now(SHANGHAI)
+    today = now.strftime("%Y-%m-%d")
+    label = {1: "实时", 20: "近1天", 21: "近7天", 23: "近30天"}.get(date_type, "实时")
+    out: dict[str, Any] = {
+        "date_type": date_type,
+        "date_label": label,
+        "store_id": store_id or "",
+        "report_day": today,
+        "source_url": str(captured.get("url") or PDD_COMPASS_PAGE),
+        "synced_at": now.isoformat(),
+        "raw_trade": result,
+    }
+    for key in (
+        "payOrdrAmt",
+        "payOrdrCnt",
+        "payOrdrUsrCnt",
+        "payOrdrAup",
+        "payUvRto",
+        "rpayUsrRtoDth",
+        "sucRfOrdrAmt1d",
+        "sucRfOrdrCnt1d",
+        "mallFavCnt",
+        "uvCfmVal",
+    ):
+        if key in result:
+            out[key] = result[key]
+    if not_pay:
+        out["not_pay_order_count"] = not_pay.get("notPayOrderCnt")
+        out["not_pay_order_amount"] = not_pay.get("notPayOrderAmountCnt")
+        out["settlement_shipping_amount"] = not_pay.get("settlementShippingAmount")
+    if geo_rows:
+        out["confirmed_pay_amount"] = round(
+            sum(float(r.get("cfmOrdrAmt") or 0) for r in geo_rows), 2
+        )
+        out["confirmed_pay_count"] = sum(int(r.get("cfmOrdrCnt") or 0) for r in geo_rows)
+        out["confirmed_pay_user_count"] = sum(
+            int(r.get("cfmOrdrUsrCnt") or 0) for r in geo_rows
+        )
+        out["confirmed_stat_date"] = str(geo_rows[0].get("statDate") or "")
+    return out
+
+
+def fetch_compass_via_xhr(
+    page,
+    *,
+    date_type: int = 1,
+    store_id: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    """从拼多多数据中心（/sycm/stores_data）抓取经营罗盘核心指标。
+
+    返回 (normalized_payload, source_url)。真实接口为 mms.pinduoduo.com/sydney/api/*，
+    例如 getMallTradeInfo（核心指标，字体混淆）、getMallNotPayOrderInfoV2（实数字段）、
+    queryMallGeographyDistributionList（按省份确认订单，实数字段）。
+    """
+    if page is None:
+        raise RuntimeError("PDD_COMPASS_SOURCE_UNAVAILABLE: 需要已登录的拼多多商家后台浏览器会话")
+    captured: dict[str, Any] = {}
+
+    def on_response(response) -> None:
+        if captured.get("payload"):
+            return
+        try:
+            url = response.request.url or ""
+            if not _looks_kind_api_url(url, "compass"):
+                return
+            if response.status >= 400:
+                return
+            payload = response.json()
+        except Exception:  # noqa: BLE001
+            return
+        if not isinstance(payload, dict):
+            return
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            return
+        if any(k in result for k in _PDD_COMPASS_TRADE_KEYS):
+            captured["payload"] = payload
+            captured["url"] = url
+            captured["method"] = response.request.method
+            captured["headers"] = dict(response.request.headers)
+            captured["post_data"] = response.request.post_data
+        elif "geographyDistributionVOList" in result or "notPayOrderCnt" in result:
+            captured.setdefault("extra", []).append({"url": url, "payload": payload})
+
+    page.on("response", on_response)
+    try:
+        last_error: Exception | None = None
+        for page_url in PDD_COMPASS_PAGE_CANDIDATES:
+            try:
+                page.goto(page_url, wait_until="domcontentloaded", timeout=90_000)
+                if "/other/404" in (page.url or ""):
+                    continue
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                continue
+        else:
+            raise RuntimeError(f"无法打开 {PDD_COMPASS_PAGE_CANDIDATES[0]}: {last_error}")
+        deadline = time.time() + 30.0
+        while time.time() < deadline and not captured.get("payload"):
+            page.wait_for_timeout(500)
+    finally:
+        try:
+            page.remove_listener("response", on_response)
+        except Exception:  # noqa: BLE001
+            pass
+    if not captured.get("payload"):
+        raise RuntimeError(
+            "PDD_COMPASS_SOURCE_UNAVAILABLE: 未能在数据中心捕获 sydney/api 罗盘接口，请确认已登录"
+        )
+    source_url = str(captured.get("url") or PDD_COMPASS_PAGE)
+    payload = _normalize_pdd_compass_payload(
+        captured, date_type=date_type, store_id=store_id
+    )
+    return payload, source_url
+def fetch_issues_via_xhr(
+    page,
+    *,
+    store_id: str | None = None,
+) -> tuple[list[dict[str, Any]], str]:
+    """从 mms.pinduoduo.com 售后/违规页抓取问题预警列表。返回 (rows, source_url)。"""
+    return _fetch_paged_rows(
+        page,
+        kind="issues",
+        page_urls=PDD_ISSUE_LIST_PAGE_CANDIDATES,
+        api_candidates=(),
+        store_id=store_id,
     )
 
 
@@ -412,18 +1735,132 @@ def _resolve_store_id(client, tenant_id: int, store_id: str) -> str:
     store_id = (store_id or "").strip()
     if store_id:
         return store_id
+    return _default_pdd_store_id(client, tenant_id) or "default"
+
+
+def _list_pdd_store_ids(client, tenant_id: int) -> list[str]:
+    """Return bound PDD store ids (bound_at desc order)."""
+    try:
+        accounts = client.list_platform_accounts(tenant_id) or {}
+    except Exception:
+        accounts = {}
+    pdd = accounts.get("pdd") or accounts.get("items") or []
+    if not isinstance(pdd, list):
+        return []
+    ids: list[str] = []
+    for account in pdd:
+        if not isinstance(account, dict):
+            continue
+        store_id = str(account.get("id") or "").strip()
+        if store_id:
+            ids.append(store_id)
+    return ids
+
+
+def _resolve_sync_store_ids(client, tenant_id: int, store_id: str) -> list[str]:
+    """Single store id when requested; otherwise every bound PDD store."""
+    store_id = (store_id or "").strip()
+    if store_id and store_id.lower() != "all":
+        return [store_id]
+    ids = _list_pdd_store_ids(client, tenant_id)
+    return ids if ids else ["default"]
+
+
+def _default_pdd_store_id(client, tenant_id: int) -> str:
+    """默认店铺 = 最早绑定的拼多多店铺（列表按绑定时间倒序，取最后一项）。"""
     try:
         accounts = client.list_platform_accounts(tenant_id) or {}
     except Exception:
         accounts = {}
     pdd = accounts.get("pdd") or accounts.get("items") or []
     if isinstance(pdd, list) and pdd:
-        return str(pdd[0].get("id") or "").strip()
+        return str(pdd[-1].get("id") or "").strip()
     return ""
+
+
+def _resolve_profile_store_id(client, tenant_id: int, store_id: str) -> str:
+    """浏览器 profile 使用的店铺 key（对齐 1688）：默认/第一个店铺沿用平铺 profile，
+    从第二个店铺起才使用独立 ``account-{store_id}`` profile。"""
+    store_id = (store_id or "").strip()
+    if not store_id:
+        return "default"
+    default_id = _default_pdd_store_id(client, tenant_id)
+    if default_id and store_id == default_id:
+        return "default"
+    return store_id
 
 
 def _today_str() -> str:
     return datetime.now(SHANGHAI).strftime("%Y-%m-%d")
+
+
+def _window_day_list(date_window: str) -> list[str]:
+    """按 date_window 生成需要覆盖的日期列表（含今天）。"""
+    today = datetime.now(SHANGHAI).date()
+    window = str(date_window or "today").strip().lower()
+    if window == "d1":
+        offset = 1
+    elif window == "d7":
+        offset = 6
+    elif window == "d30":
+        offset = 29
+    else:
+        offset = 0
+    return [(today - timedelta(days=offset - i)).isoformat() for i in range(offset + 1)]
+
+
+def _build_days_payload(orders: list[dict[str, Any]], date_window: str) -> list[dict[str, Any]]:
+    """按订单实际日期（report_day）分组，覆盖抓取到的全部日期，供 Java ingest 按天替换。"""
+    by_day: dict[str, list[dict[str, Any]]] = {}
+    for row in orders:
+        day = str(row.get("report_day") or "").strip() or _today_str()
+        by_day.setdefault(day, []).append(row)
+    return [{"replace_day": day, "orders": by_day[day]} for day in sorted(by_day)]
+
+
+def _open_pdd_session(
+    client,
+    tenant_id: int,
+    store_id: str,
+    *,
+    wait_login: bool,
+    label: str,
+):
+    """Open the store profile and return (pw, context, page), or None when skipping."""
+    profile_store = _resolve_profile_store_id(client, tenant_id, store_id)
+    # 拼多多同步统一无头：登录/会话探测仍走有头窗口，同步不弹浏览器。
+    headless = True
+    pw = context = page = None
+    try:
+        pw, context, page = _launch(
+            tenant_id,
+            headless=headless,
+            force_navigate=True,
+            store_id=profile_store,
+        )
+        if not _looks_logged_in(page, context):
+            if not wait_login:
+                print(
+                    f"[Pdd{label}] store={store_id} not logged in; skipping for all-store sync",
+                    flush=True,
+                )
+                _close_pw(pw, context)
+                return None
+            if headless:
+                raise RuntimeError(
+                    "PDD_NOT_LOGGED_IN: 拼多多未登录（无头模式不弹窗）。"
+                    "请先点「打开登录」完成登录后再同步"
+                )
+            print(f"[Pdd{label}] not logged in; keep window open {_cookie_summary(context)}", flush=True)
+            logged_in, page = _wait_until_logged_in(
+                page, context, timeout_seconds=300, label=label,
+            )
+            if not logged_in:
+                raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
+        return pw, context, page
+    except Exception:
+        _close_pw(pw, context)
+        raise
 
 
 def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
@@ -432,160 +1869,256 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     job_id = str(payload.get("job_id") or "")
     date_window = str(payload.get("date_window") or "today").strip() or "today"
 
-    # Mock 模式下跳过 XHR_READY 检查
-    if not _MOCK_ORDERS_ENABLED and not PDD_ORDERS_XHR_READY:
-        raise RuntimeError(
-            "PDD_ORDERS_NEED_DAY0: 拼多多订单接口尚未完成 Day0 探测固化"
+    if not PDD_ORDERS_XHR_READY:
+        raise RuntimeError("PDD_ORDERS_NEED_DAY0: 拼多多订单接口尚未完成 Day0 探测固化")
+
+    requested = str(payload.get("store_id") or "").strip()
+    all_mode = not requested
+    store_ids = _resolve_sync_store_ids(client, tenant_id, requested)
+
+    total = 0
+    synced = 0
+    skipped = 0
+    source_url = ""
+    for store_id in store_ids:
+        opened = _open_pdd_session(
+            client,
+            tenant_id,
+            store_id,
+            wait_login=not all_mode,
+            label="orders_sync",
         )
+        if opened is None:
+            skipped += 1
+            continue
+        pw, context, page = opened
+        try:
+            orders, source_url = fetch_orders_via_xhr(
+                page,
+                date_window=date_window,
+                store_id=store_id,
+            )
+        finally:
+            _close_pw(pw, context)
 
-    store_id = _resolve_store_id(client, tenant_id, str(payload.get("store_id") or ""))
-    if not store_id:
-        store_id = "default"
+        days = _sanitize_utf8(_build_days_payload(orders, date_window))
+        stored_count = sum(len(d["orders"]) for d in days)
+        total += stored_count
+        synced += 1
+        ingest_body = {
+            "job_id": job_id,
+            "store_id": store_id,
+            # 统一按近30天窗口标记存储，历史日期同样入库；「今日订单」接口按 report_day 查询
+            "date_window": "d30",
+            "source_url": source_url,
+            "days": days,
+        }
+        client.ingest_pdd_orders(ingest_body)
 
-    pw = context = page = None
-    try:
-        pw, context, page = _launch(
-            tenant_id, headless=True, force_navigate=True, store_id=store_id,
-        )
-        if not _MOCK_ORDERS_ENABLED:
-            # 非 Mock 模式需要真实登录检查
-            if not _looks_logged_in(page, context):
-                print(f"[PddOrders] not logged in; keep window open {_cookie_summary(context)}", flush=True)
-                logged_in, page = _wait_until_logged_in(
-                    page, context, timeout_seconds=300, label="orders_sync",
-                )
-                if not logged_in:
-                    raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
-        orders, source_url = fetch_orders_via_xhr(page, date_window=date_window)
-    finally:
-        _close_pw(pw, context)
+    if all_mode and synced == 0:
+        raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
 
-    replace_day = _today_str()
-    ingest_body = {
-        "job_id": job_id,
-        "store_id": store_id,
-        "date_window": date_window,
-        "source_url": source_url,
-        "replace_day": replace_day,
-        "orders": orders,
-    }
-    client.ingest_pdd_orders(ingest_body)
+    message = f"已同步订单 {total} 条（覆盖 {synced} 个店铺）"
+    if skipped:
+        message += f"，跳过未登录店铺 {skipped} 个"
     return {
         "tenant_id": tenant_id,
         "job_id": job_id,
         "scope": "orders",
-        "orders_count": len(orders),
-        "partial": False,
-        "message": f"已同步订单（{date_window}）{len(orders)} 条",
+        "orders_count": total,
+        "partial": skipped > 0,
+        "message": message,
         "synced_at": datetime.now(SHANGHAI).isoformat(),
         "source_url": source_url,
     }
-
-
 def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
     job_id = str(payload.get("job_id") or "")
 
-    # Mock 模式下跳过 XHR_READY 检查
-    if not _MOCK_PRODUCTS_ENABLED and not PDD_PRODUCTS_XHR_READY:
-        raise RuntimeError(
-            "PDD_PRODUCTS_NEED_DAY0: 拼多多商品接口尚未完成 Day0 探测固化"
+    if not PDD_PRODUCTS_XHR_READY:
+        raise RuntimeError("PDD_PRODUCTS_NEED_DAY0: 拼多多商品接口尚未完成 Day0 探测固化")
+
+    requested = str(payload.get("store_id") or "").strip()
+    all_mode = not requested
+    store_ids = _resolve_sync_store_ids(client, tenant_id, requested)
+
+    total = 0
+    synced = 0
+    skipped = 0
+    source_url = ""
+    for store_id in store_ids:
+        opened = _open_pdd_session(
+            client,
+            tenant_id,
+            store_id,
+            wait_login=not all_mode,
+            label="products_sync",
         )
+        if opened is None:
+            skipped += 1
+            continue
+        pw, context, page = opened
+        try:
+            products, source_url = fetch_products_via_xhr(page, store_id=store_id)
+        finally:
+            _close_pw(pw, context)
 
-    store_id = _resolve_store_id(client, tenant_id, str(payload.get("store_id") or ""))
-    if not store_id:
-        store_id = "default"
+        products = _sanitize_utf8(products)
+        total += len(products)
+        synced += 1
+        ingest_body = {
+            "job_id": job_id,
+            "store_id": store_id,
+            "source_url": source_url,
+            "products": products,
+        }
+        client.ingest_pdd_products(ingest_body)
 
-    pw = context = page = None
-    try:
-        pw, context, page = _launch(
-            tenant_id, headless=True, force_navigate=True, store_id=store_id,
-        )
-        if not _MOCK_PRODUCTS_ENABLED:
-            # 非 Mock 模式需要真实登录检查
-            if not _looks_logged_in(page, context):
-                logged_in, page = _wait_until_logged_in(
-                    page, context, timeout_seconds=300, label="products_sync",
-                )
-                if not logged_in:
-                    raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
-        products, source_url = fetch_products_via_xhr(page)
-    finally:
-        _close_pw(pw, context)
+    if all_mode and synced == 0:
+        raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
 
-    ingest_body = {
-        "job_id": job_id,
-        "store_id": store_id,
-        "source_url": source_url,
-        "products": products,
-    }
-    client.ingest_pdd_products(ingest_body)
+    message = f"已同步商品 {total} 条（覆盖 {synced} 个店铺）"
+    if skipped:
+        message += f"，跳过未登录店铺 {skipped} 个"
     return {
         "tenant_id": tenant_id,
         "job_id": job_id,
         "scope": "products",
-        "products_count": len(products),
-        "partial": False,
-        "message": f"已同步商品 {len(products)} 条",
+        "products_count": total,
+        "partial": skipped > 0,
+        "message": message,
         "synced_at": datetime.now(SHANGHAI).isoformat(),
         "source_url": source_url,
     }
-
-
 def run_compass_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
     job_id = str(payload.get("job_id") or "")
     date_type = int(payload.get("date_type") or 1)
 
-    # Mock 模式下跳过 XHR_READY 检查
-    if not _MOCK_COMPASS_ENABLED and not PDD_COMPASS_XHR_READY:
-        raise RuntimeError(
-            "PDD_COMPASS_NEED_DAY0: 拼多多经营罗盘接口尚未完成 Day0 探测固化"
+    if not PDD_COMPASS_XHR_READY:
+        raise RuntimeError("PDD_COMPASS_NEED_DAY0: 拼多多经营罗盘接口尚未完成 Day0 探测固化")
+
+    requested = str(payload.get("store_id") or "").strip()
+    all_mode = not requested
+    store_ids = _resolve_sync_store_ids(client, tenant_id, requested)
+
+    synced = 0
+    skipped = 0
+    source_url = ""
+    window = "realtime"
+    for store_id in store_ids:
+        opened = _open_pdd_session(
+            client,
+            tenant_id,
+            store_id,
+            wait_login=not all_mode,
+            label="compass_sync",
         )
+        if opened is None:
+            skipped += 1
+            continue
+        pw, context, page = opened
+        try:
+            payload_data, source_url = fetch_compass_via_xhr(
+                page,
+                date_type=date_type,
+                store_id=store_id,
+            )
+        finally:
+            _close_pw(pw, context)
 
-    store_id = _resolve_store_id(client, tenant_id, str(payload.get("store_id") or ""))
-    if not store_id:
-        store_id = "default"
-
-    pw = context = page = None
-    try:
-        pw, context, page = _launch(
-            tenant_id, headless=True, force_navigate=True, store_id=store_id,
+        payload_data = _sanitize_utf8(payload_data)
+        window = next(
+            (w["window"] for w in PDD_COMPASS_DATE_TYPES if w["date_type"] == date_type),
+            "realtime",
         )
-        if not _MOCK_COMPASS_ENABLED:
-            # 非 Mock 模式需要真实登录检查
-            if not _looks_logged_in(page, context):
-                logged_in, page = _wait_until_logged_in(
-                    page, context, timeout_seconds=300, label="compass_sync",
-                )
-                if not logged_in:
-                    raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
-        payload_data, source_url = fetch_compass_via_xhr(page, date_type=date_type)
-    finally:
-        _close_pw(pw, context)
+        ingest_body = {
+            "job_id": job_id,
+            "store_id": store_id,
+            "date_type": date_type,
+            "date_window": window,
+            "payload": payload_data,
+            "raw_json": "",
+        }
+        client.ingest_pdd_compass(ingest_body)
+        synced += 1
 
-    window = next(
-        (w["window"] for w in PDD_COMPASS_DATE_TYPES if w["date_type"] == date_type),
-        "realtime",
-    )
-    ingest_body = {
-        "job_id": job_id,
-        "store_id": store_id,
-        "date_type": date_type,
-        "date_window": window,
-        "payload": payload_data,
-        "raw_json": "",
-    }
-    client.ingest_pdd_compass(ingest_body)
+    if all_mode and synced == 0:
+        raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
+
+    message = f"已同步罗盘（{window}）覆盖 {synced} 个店铺"
+    if skipped:
+        message += f"，跳过未登录店铺 {skipped} 个"
     return {
         "tenant_id": tenant_id,
         "job_id": job_id,
         "scope": "compass",
-        "compass_count": 1,
-        "partial": False,
-        "message": f"已同步罗盘（{window}）",
+        "compass_count": synced,
+        "partial": skipped > 0,
+        "message": message,
         "synced_at": datetime.now(SHANGHAI).isoformat(),
         "source_url": source_url,
     }
+def run_issues_sync(client, task: dict[str, Any]) -> dict[str, Any]:
+    payload = task.get("payload") or {}
+    tenant_id = int(payload.get("tenant_id") or 0)
+    job_id = str(payload.get("job_id") or "")
+
+    if not PDD_ISSUES_XHR_READY:
+        raise RuntimeError("PDD_ISSUES_NEED_DAY_0: 拼多多问题/售后接口尚未完成 Day0 探测固化")
+
+    requested = str(payload.get("store_id") or "").strip()
+    all_mode = not requested
+    store_ids = _resolve_sync_store_ids(client, tenant_id, requested)
+
+    total = 0
+    synced = 0
+    skipped = 0
+    source_url = ""
+    for store_id in store_ids:
+        opened = _open_pdd_session(
+            client,
+            tenant_id,
+            store_id,
+            wait_login=not all_mode,
+            label="issues_sync",
+        )
+        if opened is None:
+            skipped += 1
+            continue
+        pw, context, page = opened
+        try:
+            issues, source_url = fetch_issues_via_xhr(page, store_id=store_id)
+        finally:
+            _close_pw(pw, context)
+
+        issues = _sanitize_utf8(issues)
+        total += len(issues)
+        synced += 1
+        ingest_body = {
+            "job_id": job_id,
+            "store_id": store_id,
+            "source_url": source_url,
+            "issues": issues,
+        }
+        client.ingest_pdd_issues(ingest_body)
+
+    if all_mode and synced == 0:
+        raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
+
+    message = f"已同步问题/售后 {total} 条（覆盖 {synced} 个店铺）"
+    if skipped:
+        message += f"，跳过未登录店铺 {skipped} 个"
+    return {
+        "tenant_id": tenant_id,
+        "job_id": job_id,
+        "scope": "issues",
+        "issues_count": total,
+        "partial": skipped > 0,
+        "message": message,
+        "synced_at": datetime.now(SHANGHAI).isoformat(),
+        "source_url": source_url,
+    }
+

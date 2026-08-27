@@ -51,6 +51,24 @@ export function formatRecordCount(job = {}, platform = '') {
     if (!parts.length && rows != null) parts.push(`${Number(rows) || 0} 条`)
     return parts.join(' · ') || '0 条'
   }
+  // pdd / douyin / 1688 / taobao：订单、商品、售后/预警、罗盘等分平台口径
+  if (['pdd', 'douyin', '1688', 'alibaba1688', 'taobao', 'issues'].includes(p)) {
+    const parts = []
+    const orders = job.orders_count ?? job.ordersCount
+    const products = job.products_count ?? job.productsCount
+    const issues = job.issues_count ?? job.issuesCount
+    const compass = job.compass_count ?? job.compassCount
+    const peers = job.peer_bestsellers_count ?? job.peerBestsellersCount
+    if (orders != null) parts.push(`${Number(orders) || 0} 订单`)
+    if (products != null) parts.push(`${Number(products) || 0} 商品`)
+    if (issues != null) parts.push(`${Number(issues) || 0} 预警`)
+    if (compass != null) parts.push(`${Number(compass) || 0} 罗盘`)
+    if (peers != null) parts.push(`${Number(peers) || 0} 同行`)
+    if (parts.length) return parts.join(' · ')
+  }
+  // 兜底：通用行数
+  const genericRows = job.rows_count ?? job.rowsCount
+  if (genericRows != null) return `${Number(genericRows) || 0} 条`
   // amazon
   const products = job.products_count ?? job.product_count ?? job.productsCount
   const items = job.item_count ?? job.items_count ?? job.itemCount
@@ -89,6 +107,7 @@ export function buildSyncSummaryText(job, platform) {
 
 export function normalizeSyncJob(raw = {}) {
   return {
+    label: raw.label || raw.task_type || '',
     job_id: raw.job_id || raw.id || '',
     status: raw.status || '',
     started_at: raw.started_at || raw.startedAt || '',
@@ -99,8 +118,12 @@ export function normalizeSyncJob(raw = {}) {
     orders_count: raw.orders_count ?? raw.ordersCount ?? null,
     products_count: raw.products_count ?? raw.product_count ?? raw.productsCount ?? null,
     violations_count: raw.violations_count ?? raw.violationsCount ?? null,
+    compass_count: raw.compass_count ?? raw.compassCount ?? null,
+    peer_bestsellers_count: raw.peer_bestsellers_count ?? raw.peerBestsellersCount ?? null,
     item_count: raw.item_count ?? raw.itemCount ?? null,
     metric_count: raw.metric_count ?? raw.metricCount ?? null,
+    rows_count: raw.rows_count ?? raw.rowsCount ?? null,
+    summary: raw.summary || raw.message || '',
     triggered_by: raw.triggered_by ?? raw.triggeredBy ?? null,
     trigger: raw.trigger || '',
     error_code: raw.error_code || raw.errorCode || raw.failure_code || '',

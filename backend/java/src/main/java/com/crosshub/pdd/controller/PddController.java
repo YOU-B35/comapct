@@ -40,8 +40,12 @@ public class PddController {
     }
 
     @GetMapping("/session")
-    public Map<String, Object> session() {
-        return ApiResult.ok(pddOpsService.session());
+    public Map<String, Object> session(
+            @RequestParam(required = false) String storeId,
+            @RequestParam(value = "store_id", required = false) String storeIdSnake
+    ) {
+        String sid = storeId != null && !storeId.isBlank() ? storeId : storeIdSnake;
+        return ApiResult.ok(pddOpsService.session(sid));
     }
 
     @PostMapping("/login/open")
@@ -172,6 +176,25 @@ public class PddController {
     @GetMapping("/products")
     public Map<String, Object> products(@RequestParam(value = "store_id", required = false) String storeId) {
         return ApiResult.ok(pddOpsService.listProducts(storeId));
+    }
+
+    @GetMapping("/product-analytics")
+    public Map<String, Object> productAnalytics(
+            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "store_id", required = false) String storeId
+    ) {
+        Long tenantId = dataScopeService.requireTenantId();
+        return ApiResult.ok(pddOpsService.productAnalytics(type, tenantId, resolveStoreId(storeId)));
+    }
+
+    @GetMapping("/peer-bestsellers")
+    public Map<String, Object> peerBestsellers(
+            @RequestParam(value = "store_id", required = false) String storeId,
+            @RequestParam(value = "page", required = false, defaultValue = "1") int page,
+            @RequestParam(value = "page_size", required = false, defaultValue = "10") int pageSize
+    ) {
+        Long tenantId = dataScopeService.requireTenantId();
+        return ApiResult.ok(pddOpsService.listPeerBestsellers(tenantId, resolveStoreId(storeId), page, pageSize));
     }
 
     @GetMapping("/compass")

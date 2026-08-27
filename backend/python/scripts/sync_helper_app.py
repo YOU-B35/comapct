@@ -349,6 +349,11 @@ def main() -> int:
     except Exception as exc:
         print(f"==> [WARN] install marker: {exc}", file=sys.stderr)
     ensure_pythonpath()
+    # 打包版 Playwright 默认在包内 .local-browsers 找浏览器；指向用户已安装的 ms-playwright
+    if not os.environ.get("PLAYWRIGHT_BROWSERS_PATH"):
+        local = os.environ.get("LOCALAPPDATA", "")
+        if local:
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(Path(local) / "ms-playwright")
     from agent.protocol_launch import (
         is_protocol_start_argv,
         ports_already_serving,
@@ -479,10 +484,14 @@ def _try_start_tray_mode(cfg: dict) -> bool:
             note_agent_loop_thread(None, ops_started=False)
 
         # 延迟 1.5s 自动打开面板
-        def _open_later():
-            time.sleep(1.5)
-            webbrowser.open(f"http://127.0.0.1:{PANEL_PORT}")
-        threading.Thread(target=_open_later, daemon=True).start()
+        if not (
+            str(os.environ.get("CROSSHUB_NO_AUTO_OPEN_PANEL") or "").strip() in {"1", "true", "True"}
+            or bool(cfg.get("no_auto_open_panel"))
+        ):
+            def _open_later():
+                time.sleep(1.5)
+                webbrowser.open(f"http://127.0.0.1:{PANEL_PORT}")
+            threading.Thread(target=_open_later, daemon=True).start()
 
         print(f"==> 托盘模式已启动，面板: http://127.0.0.1:{PANEL_PORT}")
         print("    最小化到系统托盘即可常驻，右键托盘图标可打开面板或退出。")

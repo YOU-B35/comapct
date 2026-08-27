@@ -25,6 +25,8 @@ $payload = @{
     project_root = $ProjectRoot
     temu_profile_root = (Join-Path $ProjectRoot "backend\python\.temu-browser-profile")
     ae_profile_root = (Join-Path $ProjectRoot "backend\python\.aliexpress-browser-profile")
+    pdd_profile_root = (Join-Path $ProjectRoot "backend\python")
+    a1688_profile_root = (Join-Path $ProjectRoot "backend\python\.1688-browser-profile")
 } | ConvertTo-Json
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText($path, $payload, $utf8NoBom)

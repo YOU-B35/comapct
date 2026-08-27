@@ -93,13 +93,18 @@ public class PddOpsService {
     // ---------------------------------------------------------------- session
 
     public Map<String, Object> session() {
+        return session(null);
+    }
+
+    public Map<String, Object> session(String storeIdOrNull) {
         Long tenantId = dataScopeService.requireTenantId();
         boolean agentOnline = agentPresenceService.isAgentOnline(tenantId);
         boolean profileBusy = hasRunningBusy(tenantId);
-        Map<String, Object> snapshot = readSessionSnapshot(tenantId);
+        Map<String, Object> snapshot = readSessionSnapshot(tenantId, storeIdOrNull);
         boolean loggedIn = Boolean.TRUE.equals(snapshot.get("logged_in")) || Boolean.TRUE.equals(snapshot.get("ready"));
         Map<String, Object> out = new LinkedHashMap<>(snapshot);
         out.put("tenant_id", tenantId);
+        out.put("store_id", normalizeStoreKey(storeIdOrNull));
         out.put("agent_online", agentOnline);
         out.put("profile_busy", profileBusy || Boolean.TRUE.equals(snapshot.get("profile_busy")));
         out.put("logged_in", loggedIn);
@@ -152,7 +157,7 @@ public class PddOpsService {
         payload.put("tenant_id", tenantId);
         payload.put("store_id", storeIdOrNull == null ? "" : storeIdOrNull.trim());
         insertAgentTask(tenantId, taskId, PddAgentTasks.LOGIN_OPEN, payload, agent.getId());
-        writeSessionSnapshot(tenantId, Map.of(
+        writeSessionSnapshot(tenantId, storeIdOrNull, Map.of(
                 "tenant_id", tenantId,
                 "ready", false,
                 "logged_in", false,
@@ -188,7 +193,7 @@ public class PddOpsService {
         payload.put("tenant_id", tenantId);
         payload.put("store_id", storeIdOrNull == null ? "" : storeIdOrNull.trim());
         insertAgentTask(tenantId, taskId, PddAgentTasks.SESSION_PROBE, payload, agent.getId());
-        writeSessionSnapshot(tenantId, Map.of(
+        writeSessionSnapshot(tenantId, storeIdOrNull, Map.of(
                 "tenant_id", tenantId,
                 "ready", false,
                 "logged_in", false,
@@ -211,6 +216,9 @@ public class PddOpsService {
     public Map<String, Object> enqueueSync(String scope, boolean force, String storeId, String dateWindow) {
         Long tenantId = dataScopeService.requireTenantId();
         IntegrationAgent agent = requireOnlineAgent(tenantId);
+        if (storeId != null && "all".equalsIgnoreCase(storeId.trim())) {
+            storeId = null;
+        }
         String normalizedScope = normalizeScope(scope);
         if (!"orders".equals(normalizedScope)
                 && !"products".equals(normalizedScope)
@@ -287,7 +295,20 @@ public class PddOpsService {
 
     /** 今日订单（date_window=today 的快捷） */
     public Map<String, Object> todayOrders(String storeId) {
-        return ordersByWindow(storeId, "today");
+        Long tenantId = dataScopeService.requireTenantId();
+        String today = LocalDate.now().toString();
+        List<PddOrder> rows;
+        if (storeId != null && !storeId.isBlank()) {
+            rows = orderRepository.findByTenantIdAndReportDayAndStoreIdOrderByOrderedAtDesc(
+                    tenantId, today, storeId.trim());
+        } else {
+            rows = orderRepository.findByTenantIdAndReportDayOrderByOrderedAtDesc(tenantId, today);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("report_day", today);
+        out.put("items", rows.stream().map(PddOpsService::toOrderDto).toList());
+        out.put("total", rows.size());
+        return out;
     }
 
     /** 按时间段查询订单。dateWindow ∈ today / d1 / d7 / d30 */
@@ -538,6 +559,13 @@ public class PddOpsService {
         try { return Double.parseDouble(String.valueOf(v)); } catch (Exception e) { return 0d; }
     }
 
+    private static String bestsellerTier(double salesQty) {
+        if (salesQty >= 30) return "\u7206\u6b3e";
+        if (salesQty >= 10) return "\u6f5c\u529b\u7206\u6b3e";
+        if (salesQty >= 1) return "\u4e00\u822c";
+        return "\u65e0\u9500\u91cf";
+    }
+
     private static long toLong(Object v) {
         if (v == null) return 0L;
         if (v instanceof Number n) return n.longValue();
@@ -600,7 +628,7 @@ public class PddOpsService {
                     }
                 }
             }
-            orderRepository.deleteByTenantIdAndStoreIdAndReportDayAndDateWindow(tenantId, storeId, replaceDay, dateWindow);
+            orderRepository.deleteByTenantIdAndStoreIdAndReportDay(tenantId, storeId, replaceDay);
             if (!saved.isEmpty()) {
                 orderRepository.saveAll(saved);
             }
@@ -630,6 +658,106 @@ public class PddOpsService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("items", rows.stream().map(PddOpsService::toProductDto).toList());
         out.put("total", rows.size());
+        return out;
+    }
+
+    public Map<String, Object> productAnalytics(String type, Long tenantId, String storeId) {
+        String normalizedType = type == null || type.isBlank() ? "bestsellers" : type.trim();
+        String store = storeId == null || storeId.isBlank() || "all".equals(storeId) ? "" : storeId.trim();
+        StringBuilder sql = new StringBuilder(
+                "SELECT product_id, product_name, price, stock, status, main_image, sales, updated_at "
+                        + "FROM pdd_product WHERE tenant_id = ?"
+        );
+        List<Object> args = new ArrayList<>();
+        args.add(tenantId);
+        if (!store.isBlank()) {
+            sql.append(" AND store_id = ?");
+            args.add(store);
+        }
+        if ("recent_sales".equals(normalizedType)) {
+            sql.append(" AND updated_at <> '' AND updated_at >= ?");
+            args.add(LocalDateTime.now().minusDays(3).format(TS));
+        }
+        if ("today_bestsellers".equals(normalizedType)) {
+            sql.append(" AND COALESCE(sales, 0) >= 10");
+        }
+        sql.append(" ORDER BY COALESCE(sales, 0) DESC, product_name");
+        List<Map<String, Object>> rows = jdbc.queryForList(sql.toString(), args.toArray());
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            double salesQty = toDouble(row.get("sales"));
+            double price = toDouble(row.get("price"));
+            Map<String, Object> dto = new LinkedHashMap<>();
+            dto.put("productId", row.get("product_id"));
+            dto.put("productName", row.get("product_name"));
+            dto.put("price", row.get("price"));
+            dto.put("stock", row.get("stock"));
+            dto.put("status", row.get("status"));
+            dto.put("imageUrl", row.get("main_image"));
+            dto.put("productUpdatedAt", row.get("updated_at"));
+            dto.put("salesQty", salesQty);
+            dto.put("salesAmount", salesQty * price);
+            dto.put("orderCount", 0L);
+            if ("bestsellers".equals(normalizedType)) {
+                dto.put("tier", bestsellerTier(salesQty));
+            }
+            items.add(dto);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("items", items);
+        out.put("total", items.size());
+        out.put("type", normalizedType);
+        return out;
+    }
+
+    public Map<String, Object> listPeerBestsellers(Long tenantId, String storeId, int page, int pageSize) {
+        String store = storeId == null || storeId.isBlank() || "all".equals(storeId) ? "" : storeId.trim();
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(50, Math.max(1, pageSize));
+        Integer total = jdbc.queryForObject(
+                "SELECT COUNT(1) FROM pdd_peer_bestseller WHERE tenant_id = ? AND (? = '' OR store_id = ?)",
+                Integer.class,
+                tenantId,
+                store,
+                store
+        );
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                """
+                SELECT store_id, product_id, shop_name, title, price, sales, sale_text,
+                       offer_url, image_url, quality_score, suggestion, synced_at
+                FROM pdd_peer_bestseller
+                WHERE tenant_id = ? AND (? = '' OR store_id = ?)
+                ORDER BY COALESCE(sales, 0) DESC, product_id
+                LIMIT ? OFFSET ?
+                """,
+                tenantId,
+                store,
+                store,
+                safeSize,
+                (safePage - 1) * safeSize
+        );
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> dto = new LinkedHashMap<>();
+            dto.put("storeId", row.get("store_id"));
+            dto.put("productId", row.get("product_id"));
+            dto.put("shopName", row.get("shop_name"));
+            dto.put("title", row.get("title"));
+            dto.put("price", row.get("price"));
+            dto.put("sales", row.get("sales"));
+            dto.put("saleText", row.get("sale_text"));
+            dto.put("offerUrl", row.get("offer_url"));
+            dto.put("imageUrl", row.get("image_url"));
+            dto.put("qualityScore", row.get("quality_score"));
+            dto.put("suggestion", row.get("suggestion"));
+            dto.put("syncedAt", row.get("synced_at"));
+            items.add(dto);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("items", items);
+        out.put("total", total == null ? 0 : total.intValue());
+        out.put("page", safePage);
+        out.put("pageSize", safeSize);
         return out;
     }
 
@@ -938,6 +1066,7 @@ public class PddOpsService {
             return;
         }
         Long tenantId = task.getTenantId();
+        String taskStore = storeIdFromTask(task);
         Map<String, Object> payload = parseJson(task.getPayloadJson());
         if (PddAgentTasks.LOGIN_OPEN.equals(task.getTaskType())
                 || PddAgentTasks.SESSION_PROBE.equals(task.getTaskType())) {
@@ -968,7 +1097,7 @@ public class PddOpsService {
                         ? AppErrorCode.PDD_SYNC_FAILED.getUserMessage()
                         : errorMessage);
             }
-            writeSessionSnapshot(tenantId, snap);
+            writeSessionSnapshot(tenantId, taskStore, snap);
             return;
         }
 
@@ -984,6 +1113,30 @@ public class PddOpsService {
             return;
         }
         String now = now();
+        Map<String, Object> snap = new LinkedHashMap<>(readSessionSnapshot(tenantId, taskStore));
+        snap.put("tenant_id", tenantId);
+        snap.put("profile_busy", false);
+        if ("success".equalsIgnoreCase(status)) {
+            Object msg = result == null ? null : result.get("message");
+            if (msg != null && !String.valueOf(msg).isBlank()) {
+                snap.put("message", String.valueOf(msg));
+            }
+            snap.remove("error_code");
+        } else {
+            snap.put("message", errorMessage == null || errorMessage.isBlank()
+                    ? AppErrorCode.PDD_SYNC_FAILED.getUserMessage()
+                    : errorMessage);
+            if (errorCode != null && !errorCode.isBlank()) {
+                snap.put("error_code", errorCode);
+            }
+            if (AppErrorCode.PDD_NOT_LOGGED_IN.getCode().equals(errorCode)
+                    || (errorMessage != null && errorMessage.contains("未登录"))) {
+                snap.put("logged_in", false);
+                snap.put("ready", false);
+                snap.put("requires_auth", true);
+            }
+        }
+        writeSessionSnapshot(tenantId, taskStore, snap);
         job.setUpdatedAt(now);
         job.setFinishedAt(now);
         if ("success".equalsIgnoreCase(status)) {
@@ -1016,8 +1169,12 @@ public class PddOpsService {
             return;
         }
         syncJobRepository.findByIdAndTenantId(jobId, tenantId).ifPresent(job -> {
-            if (isOrders) job.setOrdersCount(ingested);
-            if (isProducts) job.setProductsCount(ingested);
+            if (isOrders) {
+                job.setOrdersCount((job.getOrdersCount() == null ? 0 : job.getOrdersCount()) + ingested);
+            }
+            if (isProducts) {
+                job.setProductsCount((job.getProductsCount() == null ? 0 : job.getProductsCount()) + ingested);
+            }
             job.setUpdatedAt(now);
             syncJobRepository.save(job);
         });
@@ -1052,9 +1209,14 @@ public class PddOpsService {
         o.setCreatedAt(now);
         o.setUpdatedAt(now);
         // 经营驾驶舱字段：agent 携带 cookie 抓取订单 XHR 后回写
-        o.setPaidAmount(firstNonBlank(text(src.get("paid_amount")), text(src.get("paidAmount")), "0"));
+        String paidAmount = firstNonBlank(text(src.get("paid_amount")), text(src.get("paidAmount")), "0");
+        String paidAtText = firstNonBlank(text(src.get("paid_at")), text(src.get("paidAt")), "");
+        o.setPaidAmount(paidAmount);
         o.setRefundedAmount(firstNonBlank(text(src.get("refunded_amount")), text(src.get("refundedAmount")), "0"));
-        o.setPaidAt(firstNonBlank(text(src.get("paid_at")), text(src.get("paidAt")), o.getOrderedAt()));
+        // 未支付订单（paid_amount=0）不应回退为下单时间。
+        o.setPaidAt(
+                paidAtText.isBlank() && !"0".equals(paidAmount) ? o.getOrderedAt() : paidAtText
+        );
         o.setRefundedAt(text(src.get("refunded_at")));
         o.setBuyerMasked(text(src.get("buyer_masked")));
         o.setSyncedAt(now);
@@ -1275,13 +1437,42 @@ public class PddOpsService {
     }
 
     private Map<String, Object> readSessionSnapshot(Long tenantId) {
+        return readSessionSnapshot(tenantId, "");
+    }
+
+    private Map<String, Object> readSessionSnapshot(Long tenantId, String storeIdOrNull) {
+        String storeKey = normalizeStoreKey(storeIdOrNull);
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT payload_json FROM pdd_session_snapshot WHERE tenant_id = ? LIMIT 1",
-                tenantId
+                "SELECT payload_json FROM pdd_session_snapshot WHERE tenant_id = ? AND store_id = ? LIMIT 1",
+                tenantId, storeKey
         );
+        if (rows.isEmpty() && !"default".equals(storeKey)) {
+            // 指定店铺若为默认账号对应的店铺（最早绑定），回退到 default 快照，避免误报未登录
+            String defaultAccount = "";
+            try {
+                List<String> ids = jdbc.queryForList(
+                        "SELECT id FROM platform_account WHERE tenant_id = ? AND platform = 'pdd' "
+                                + "ORDER BY bound_at ASC LIMIT 1",
+                        String.class,
+                        tenantId
+                );
+                if (!ids.isEmpty()) {
+                    defaultAccount = ids.get(0);
+                }
+            } catch (Exception ignored) {
+                // keep empty
+            }
+            if (storeKey.equals(defaultAccount)) {
+                rows = jdbc.queryForList(
+                        "SELECT payload_json FROM pdd_session_snapshot WHERE tenant_id = ? AND store_id = 'default' LIMIT 1",
+                        tenantId
+                );
+            }
+        }
         if (rows.isEmpty()) {
             Map<String, Object> defaults = new LinkedHashMap<>();
             defaults.put("tenant_id", tenantId);
+            defaults.put("store_id", storeKey);
             defaults.put("ready", false);
             defaults.put("logged_in", false);
             defaults.put("requires_auth", true);
@@ -1295,6 +1486,11 @@ public class PddOpsService {
     }
 
     private void writeSessionSnapshot(Long tenantId, Map<String, Object> payload) {
+        writeSessionSnapshot(tenantId, "", payload);
+    }
+
+    private void writeSessionSnapshot(Long tenantId, String storeIdOrNull, Map<String, Object> payload) {
+        String storeKey = normalizeStoreKey(storeIdOrNull);
         String json;
         try {
             json = objectMapper.writeValueAsString(payload == null ? Map.of() : payload);
@@ -1303,12 +1499,26 @@ public class PddOpsService {
         }
         jdbc.update(
                 """
-                INSERT INTO pdd_session_snapshot (tenant_id, payload_json, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(tenant_id) DO UPDATE SET payload_json = excluded.payload_json, updated_at = excluded.updated_at
+                INSERT INTO pdd_session_snapshot (tenant_id, store_id, payload_json, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(tenant_id, store_id) DO UPDATE
+                  SET payload_json = excluded.payload_json, updated_at = excluded.updated_at
                 """,
-                tenantId, json, now()
+                tenantId, storeKey, json, now()
         );
+    }
+
+    private String normalizeStoreKey(String storeIdOrNull) {
+        String storeId = storeIdOrNull == null ? "" : storeIdOrNull.trim();
+        return storeId.isBlank() || "all".equalsIgnoreCase(storeId) ? "default" : storeId;
+    }
+
+    private String storeIdFromTask(AgentTask task) {
+        if (task == null) {
+            return "default";
+        }
+        Map<String, Object> payload = parseJson(task.getPayloadJson());
+        return normalizeStoreKey(text(payload.get("store_id")));
     }
 
     private void insertAgentTask(
@@ -1345,16 +1555,7 @@ public class PddOpsService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, AppErrorCode.ACCOUNT_NOT_FOUND.getUserMessage()));
             return;
         }
-        if (shops.size() > 1) {
-            boolean missing = shops.stream().anyMatch(s ->
-                    s.getExternalShopId() == null || s.getExternalShopId().isBlank());
-            if (missing) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        AppErrorCode.PDD_SHOP_MAPPING_REQUIRED.getUserMessage()
-                );
-            }
-        }
+        // “全部店铺”同步以平台账号 id 为店铺 key，不依赖外部店铺 ID（external_shop_id 仅是可选的映射字段）。
     }
 
     private Map<String, Object> parseJson(String json) {

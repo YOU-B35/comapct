@@ -20,13 +20,18 @@ category_id from the first page XHR (or reuse last known defaults).
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
+ROOT = Path(__file__).resolve().parents[1]
+
+_DEFAULT_CATEGORY_CACHE_NAME = ".douyin-compass-rank-cache.json"
 
 DOUYIN_COMPASS_RANK_PAGE = "https://compass.jinritemai.com/shop/chance/rank-product"
 DOUYIN_COMPASS_RANK_XHR_READY = True
@@ -685,6 +690,80 @@ def _capture_default_category(page) -> dict[str, str]:
     return found
 
 
+def _default_category_cache_path() -> Path:
+    return ROOT / _DEFAULT_CATEGORY_CACHE_NAME
+
+
+def _default_category_cache_key(tenant_id: int, store_id: str) -> str:
+    store = str(store_id or "").strip() or "default"
+    return f"{int(tenant_id)}:{store}"
+
+
+def load_default_category_cache(tenant_id: int, store_id: str) -> dict[str, str]:
+    """Last-known default industry/category captured from the rank page.
+
+    Once captured, the values rarely change, so later syncs reuse them instead
+    of re-running the per-run network-listener probe.
+    """
+    try:
+        data = json.loads(_default_category_cache_path().read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    cats = data.get(_default_category_cache_key(tenant_id, store_id))
+    if not isinstance(cats, dict):
+        return {}
+    return {
+        "industry_id": str(cats.get("industry_id") or "").strip(),
+        "category_id": str(cats.get("category_id") or "").strip(),
+        "category_name": str(cats.get("category_name") or "").strip(),
+    }
+
+
+def save_default_category_cache(tenant_id: int, store_id: str, cats: dict[str, str]) -> None:
+    path = _default_category_cache_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:  # noqa: BLE001
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    key = _default_category_cache_key(tenant_id, store_id)
+    data[key] = {
+        "industry_id": str(cats.get("industry_id") or "").strip(),
+        "category_id": str(cats.get("category_id") or "").strip(),
+        "category_name": str(cats.get("category_name") or "").strip(),
+        "captured_at": datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    try:
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as exc:  # noqa: BLE001
+        print(f"[DouyinCompassRank] default-category cache write failed: {exc}", flush=True)
+
+
+def clear_default_category_cache(tenant_id: int, store_id: str) -> None:
+    """Drop a stale default-category entry so the next sync recaptures it."""
+    path = _default_category_cache_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:  # noqa: BLE001
+        data = {}
+    if not isinstance(data, dict) or not data:
+        return
+    key = _default_category_cache_key(tenant_id, store_id)
+    if key not in data:
+        return
+    data.pop(key, None)
+    try:
+        if data:
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        else:
+            path.unlink(missing_ok=True)
+    except OSError as exc:  # noqa: BLE001
+        print(f"[DouyinCompassRank] default-category cache clear failed: {exc}", flush=True)
+
+
 def fetch_board_slice(
     page,
     *,
@@ -795,6 +874,7 @@ def run_compass_product_rank_sync(client, task: dict[str, Any]) -> dict[str, Any
         _looks_logged_in,
         _resolve_store_id,
         _wait_until_logged_in,
+        sync_headless_enabled,
     )
 
     payload = task.get("payload") or {}
@@ -818,11 +898,15 @@ def run_compass_product_rank_sync(client, task: dict[str, Any]) -> dict[str, Any
     try:
         pw, context, page = _launch(
             tenant_id,
-            headless=False,
+            headless=sync_headless_enabled(),
             force_navigate=True,
             store_id=store_id,
         )
         if not _looks_logged_in(page, context):
+            if sync_headless_enabled():
+                raise RuntimeError(
+                    "DY_NOT_LOGGED_IN: 抖音未登录（无头模式不弹窗）。请先点「打开登录」完成登录后再同步"
+                )
             logged_in, page = _wait_until_logged_in(
                 page,
                 context,
@@ -832,7 +916,17 @@ def run_compass_product_rank_sync(client, task: dict[str, Any]) -> dict[str, Any
             if not logged_in:
                 raise RuntimeError("DY_NOT_LOGGED_IN: 抖音商家后台未登录，请打开登录窗口完成登录")
 
-        cats = _capture_default_category(page)
+        cats = load_default_category_cache(tenant_id, store_id)
+        if cats.get("industry_id") and cats.get("category_id"):
+            print(
+                f"[DouyinCompassRank] reuse cached default category "
+                f"industry={cats['industry_id']} category={cats['category_id']}",
+                flush=True,
+            )
+        else:
+            cats = _capture_default_category(page)
+            if cats.get("industry_id") and cats.get("category_id"):
+                save_default_category_cache(tenant_id, store_id, cats)
         industry_id = cats.get("industry_id") or ""
         category_id = cats.get("category_id") or ""
         if not industry_id or not category_id:
@@ -896,6 +990,7 @@ def run_compass_product_rank_sync(client, task: dict[str, Any]) -> dict[str, Any
                     }
                 )
         if not any_ok:
+            clear_default_category_cache(tenant_id, store_id)
             raise RuntimeError("DY_COMPASS_RANK_SOURCE_UNAVAILABLE: 六个切片均无数据")
     finally:
         _close_pw(pw, context)

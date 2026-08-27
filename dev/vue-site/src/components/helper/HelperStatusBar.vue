@@ -17,6 +17,16 @@ import {
   pollTemuSessionUntilReady,
 } from '@/api/temuApi'
 import {
+  fetchPddSession,
+  enqueuePddLogin,
+  pollPddSessionUntilReady,
+} from '@/api/pddApi'
+import {
+  fetchTaobaoSession,
+  enqueueTaobaoLogin,
+  pollTaobaoSessionUntilReady,
+} from '@/api/taobaoApi'
+import {
   fetchAliExpressSessionStatus,
   openAliExpressSellerLogin,
   pollAliExpressSessionUntilReady,
@@ -45,7 +55,7 @@ import { useAuthStore } from '@/stores/auth'
 import HelperOpsGuideDialog from '@/components/helper/HelperOpsGuideDialog.vue'
 
 const props = defineProps({
-  /** temu | aliexpress | amazon | douyin | 1688 */
+  /** temu | aliexpress | amazon | douyin | 1688 | pdd | taobao */
   platform: { type: String, default: 'temu' },
   /** 当前选中店铺（多店铺独立登录时透传给后端） */
   storeId: { type: String, default: null },
@@ -108,6 +118,8 @@ const platformLabel = computed(() => {
   if (props.platform === 'amazon') return 'Amazon'
   if (props.platform === 'douyin') return '抖店'
   if (props.platform === '1688') return '1688'
+  if (props.platform === 'pdd') return '拼多多'
+  if (props.platform === 'taobao') return '淘宝'
   return 'Temu'
 })
 
@@ -116,7 +128,9 @@ const supportsSessionLogin = computed(
     props.platform === 'temu'
     || props.platform === 'aliexpress'
     || props.platform === 'douyin'
-    || props.platform === '1688',
+    || props.platform === '1688'
+    || props.platform === 'pdd'
+    || props.platform === 'taobao',
 )
 
 const online = computed(() => Boolean(helperStatus.value.online))
@@ -138,6 +152,8 @@ const offlineErrorCode = computed(() => {
   if (props.platform === 'amazon') return 'AMAZON_USER_HELPER_OFFLINE'
   if (props.platform === 'douyin') return 'DY_AGENT_OFFLINE'
   if (props.platform === '1688') return 'A1688_AGENT_OFFLINE'
+  if (props.platform === 'pdd') return 'PDD_AGENT_OFFLINE'
+  if (props.platform === 'taobao') return 'TAOBAO_AGENT_OFFLINE'
   return 'TEMU_USER_HELPER_OFFLINE'
 })
 
@@ -296,7 +312,11 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
     } else if (props.platform === 'douyin') {
       sessionStatus.value = await fetchDouyinSession()
     } else if (props.platform === '1688') {
-    sessionStatus.value = await fetchAlibaba1688Session({ storeId: props.storeId })
+      sessionStatus.value = await fetchAlibaba1688Session({ storeId: props.storeId })
+    } else if (props.platform === 'pdd') {
+      sessionStatus.value = await fetchPddSession({ storeId: props.storeId })
+    } else if (props.platform === 'taobao') {
+      sessionStatus.value = await fetchTaobaoSession()
     } else {
       sessionStatus.value = await fetchTemuSessionStatus()
     }
@@ -310,6 +330,10 @@ async function loadSessionStatus({ notifyIfPending = false } = {}) {
                 ? 'DY_NOT_LOGGED_IN'
                 : props.platform === '1688'
                   ? 'A1688_NOT_LOGGED_IN'
+                  : props.platform === 'pdd'
+                    ? 'PDD_NOT_LOGGED_IN'
+                    : props.platform === 'taobao'
+                      ? 'TAOBAO_NOT_LOGGED_IN'
                   : 'CRAWL_NOT_LOGGED_IN',
           ),
       )
@@ -380,6 +404,22 @@ async function startSessionPoll() {
       })
     } else if (props.platform === '1688') {
       session = await pollAlibaba1688SessionUntilReady({
+        timeoutMs: 90000,
+        intervalMs: 2000,
+        maxIntervalMs: 5000,
+        signal,
+        storeId: props.storeId,
+      })
+    } else if (props.platform === 'pdd') {
+      session = await pollPddSessionUntilReady({
+        timeoutMs: 90000,
+        intervalMs: 2000,
+        maxIntervalMs: 5000,
+        signal,
+        storeId: props.storeId,
+      })
+    } else if (props.platform === 'taobao') {
+      session = await pollTaobaoSessionUntilReady({
         timeoutMs: 90000,
         intervalMs: 2000,
         maxIntervalMs: 5000,
@@ -463,6 +503,10 @@ async function handleOpenLogin() {
       openRes = await enqueueDouyinLogin({ storeId: props.storeId })
     } else if (props.platform === '1688') {
       openRes = await enqueueAlibaba1688Login({ storeId: props.storeId })
+    } else if (props.platform === 'pdd') {
+      openRes = await enqueuePddLogin({ storeId: props.storeId })
+    } else if (props.platform === 'taobao') {
+      openRes = await enqueueTaobaoLogin({ storeId: props.storeId })
     } else {
       openRes = await enqueueTemuLogin({
         tenantId: currentTenantId.value,

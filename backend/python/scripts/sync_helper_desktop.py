@@ -43,7 +43,7 @@ def app_dir() -> Path:
 
 
 def load_config_light() -> dict:
-    """轻量 config：优先同目录 config.json → %LOCALAPPDATA%\CrossHub\SyncHelper\config.json"""
+    r"""轻量 config：优先同目录 config.json → %LOCALAPPDATA%\CrossHub\SyncHelper\config.json"""
     cfg: dict = {}
     candidates = [
         app_dir() / "config.json",
@@ -64,6 +64,16 @@ def load_config_light() -> dict:
 
 
 def main() -> int:
+    # ⚠ 默认禁用（含生产部署）：桌面窗口版仅在用户明确设置 CROSSHUB_ALLOW_DESKTOP=1
+    # 时才允许启动；日常请使用托盘浏览器版 scripts/sync_helper_app.py。
+    if (os.environ.get("CROSSHUB_ALLOW_DESKTOP") or "").strip() not in {"1", "true", "True"}:
+        print(
+            "桌面窗口版默认禁用：设置环境变量 CROSSHUB_ALLOW_DESKTOP=1 后才可启动。"
+            "日常请使用托盘浏览器版（scripts/sync_helper_app.py）。",
+            file=sys.stderr,
+        )
+        return 2
+
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -157,4 +167,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

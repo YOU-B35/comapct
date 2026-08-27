@@ -184,6 +184,12 @@ def is_allowed_pdd_flow_url(url: str) -> bool:
     return any(marker in normalized for marker in _PDD_FLOW_HOST_MARKERS)
 
 
+def is_pdd_auth_url(url: str) -> bool:
+    """True when the tab is still on the PDD login / passport / SSO flow."""
+    normalized = (url or "").lower()
+    return any(marker in normalized for marker in ("/login", "passport", "sso"))
+
+
 def sanitize_profile_startup_for_pdd(
     profile_dir: Path,
     *,
@@ -299,11 +305,17 @@ def ensure_pdd_home_page(context: BrowserContext, *, force_navigate: bool = True
             url = (candidate.url or "").lower()
             if "mms.pinduoduo.com" in url or "pinduoduo.com" in url:
                 page = candidate
-                break
+                if not is_pdd_auth_url(url):
+                    break
         if page is None:
             page = context.new_page()
             force_navigate = True
-        if force_navigate or "pinduoduo.com" not in (page.url or "").lower():
+        page_url = (page.url or "").lower()
+        if (
+            force_navigate
+            or "pinduoduo.com" not in page_url
+            or is_pdd_auth_url(page_url)
+        ):
             try:
                 page.goto(PDD_SELLER_HOME, wait_until="domcontentloaded", timeout=60_000)
             except Exception:
@@ -316,7 +328,10 @@ def ensure_pdd_home_page(context: BrowserContext, *, force_navigate: bool = True
         except Exception:
             pass
         close_foreign_pdd_pages(context)
-        if "pinduoduo.com" in (page.url or "").lower():
+        if (
+            "pinduoduo.com" in (page.url or "").lower()
+            and not is_pdd_auth_url(page.url)
+        ):
             return page
         time.sleep(0.35)
     page = context.new_page()

@@ -22,7 +22,6 @@ import {
   pollPddSyncJob,
 } from '@/api/pddApi'
 import { PDD_ISSUE_TYPES } from '@/constants/pddDemo'
-import { PRODUCT_TABS } from '@/constants/pddProducts'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
 import PageSection from '@/components/common/PageSection.vue'
@@ -35,16 +34,17 @@ import PddPeerBestsellersPanel from '@/components/pdd/PddPeerBestsellersPanel.vu
 import PddMonitorPanel from '@/components/pdd/PddMonitorPanel.vue'
 import DomesticIssuesPanel from '@/components/domestic/DomesticIssuesPanel.vue'
 import PlatformShipPushDialog from '@/components/domestic/PlatformShipPushDialog.vue'
+import SyncHistoryDrawer from '@/components/common/SyncHistoryDrawer.vue'
+import { fetchPlatformSyncLogs } from '@/api/syncLogApi'
+
+const syncHistoryOpen = ref(false)
 
 const auth = useAuthStore()
 const router = useRouter()
-const activeTab = ref('products-all')
 const activeSection = ref('details')
 const selectedStoreId = ref('all')
 const storesPdd = ref([])
 const products = ref([])
-const categoryCounts = ref({})
-const categorySync = ref({})
 const loadingStores = ref(false)
 const productsLoading = ref(false)
 const productsSyncing = ref(false)
@@ -70,18 +70,11 @@ const shipDialogType = ref('push')
 const shipSubmitting = ref(false)
 
 const backendReady = computed(() => canUsePddBackend(auth))
-const activeMeta = computed(() => PRODUCT_TABS.find((item) => item.name === activeTab.value) || PRODUCT_TABS[0])
 const showStoreColumn = computed(() => selectedStoreId.value === 'all')
 const storeNameMap = computed(() => Object.fromEntries(
   storesPdd.value.map((store) => [store.id, store.storeName]),
 ))
 const pendingIssueCount = computed(() => issues.value.filter((item) => !item.resolved).length)
-
-function tabLabel(tab) {
-  if (!tab.categoryCode) return tab.label
-  const count = Number(categoryCounts.value?.[tab.categoryCode])
-  return Number.isFinite(count) ? tab.label + ' (' + count + ')' : tab.label
-}
 
 async function loadStores() {
   loadingStores.value = true
@@ -110,12 +103,6 @@ async function loadProducts() {
       storeId: selectedStoreId.value === 'all' ? undefined : selectedStoreId.value,
     })
     products.value = Array.isArray(data?.items) ? data.items : []
-    categoryCounts.value = data?.categoryCounts && typeof data.categoryCounts === 'object'
-      ? data.categoryCounts
-      : {}
-    categorySync.value = data?.categorySync && typeof data.categorySync === 'object'
-      ? data.categorySync
-      : {}
   } catch (error) {
     products.value = []
     ElMessage.error(error?.message || '加载拼多多商品失败')
@@ -324,7 +311,7 @@ async function submitShipPush({ warehouseId, type, remark }) {
   }
 }
 
-watch([activeTab, selectedStoreId], () => {
+watch(selectedStoreId, () => {
   void loadProducts()
   void loadIssues()
 })
@@ -357,6 +344,7 @@ onActivated(() => {
           </el-radio-button>
         </el-radio-group>
         <el-button type="primary" :loading="ordersSyncing" @click="syncOrders">同步订单数据</el-button>
+        <el-button size="small" @click="syncHistoryOpen = true">同步日志</el-button>
       </div>
     </PageSection>
 
@@ -454,26 +442,15 @@ onActivated(() => {
           <PddMonitorPanel :backend-ready="backendReady" />
         </el-tab-pane>
         <el-tab-pane name="products" label="商品分类">
-          <el-tabs v-model="activeTab" class="module-tabs">
-            <el-tab-pane
-              v-for="tab in PRODUCT_TABS"
-              :key="tab.name"
-              :name="tab.name"
-              :label="tabLabel(tab)"
-            >
-              <PddProductPanel
-                :rows="products"
-                :loading="productsLoading"
-                :syncing="productsSyncing"
-                :category-code="tab.categoryCode || ''"
-                :category-sync="categorySync"
-                :show-store-column="showStoreColumn"
-                :store-name-map="storeNameMap"
-                @sync="syncProducts"
-                @refresh="loadProducts"
-              />
-            </el-tab-pane>
-          </el-tabs>
+          <PddProductPanel
+            :rows="products"
+            :loading="productsLoading"
+            :syncing="productsSyncing"
+            :show-store-column="showStoreColumn"
+            :store-name-map="storeNameMap"
+            @sync="syncProducts"
+            @refresh="loadProducts"
+          />
         </el-tab-pane>
       </el-tabs>
     </PageSection>
@@ -487,6 +464,12 @@ onActivated(() => {
       :request-type="shipDialogType"
       :submitting="shipSubmitting"
       @submit="submitShipPush"
+    />
+
+    <SyncHistoryDrawer
+      v-model="syncHistoryOpen"
+      platform="pdd"
+      :fetcher="() => fetchPlatformSyncLogs({ platform: 'pdd' })"
     />
   </PageScroll>
 </template>
