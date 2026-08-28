@@ -382,25 +382,6 @@ onActivated(() => {
             @sync="syncOrders"
           />
         </el-tab-pane>
-        <el-tab-pane name="issues">
-          <template #label>
-            <span>活动预警</span>
-            <el-badge v-if="pendingIssueCount" :value="pendingIssueCount" class="tab-badge" />
-          </template>
-          <DomesticIssuesPanel
-            ref="issuesPanelRef"
-            :issues="issues"
-            :synced-at="issuesSyncedAt"
-            :loading="loadingIssues || issuesSyncing"
-            :show-store-column="showStoreColumn"
-            :store-name-map="storeNameMap"
-            :initial-filter="issuesFilter"
-            issues-title="活动预警"
-            issues-description="拼团、价格与库存相关待跟进事项"
-            @refresh="syncIssues"
-            @resolve="handleResolveIssue"
-          />
-        </el-tab-pane>
         <el-tab-pane name="bestsellers" label="爆款商品">
           <PddProductAnalyticsPanel
             ref="bestsellersRef"
@@ -426,16 +407,6 @@ onActivated(() => {
             :backend-ready="backendReady"
             :stores="storesPdd"
             :selected-store-id="selectedStoreId"
-          />
-        </el-tab-pane>
-        <el-tab-pane name="peer-bestsellers" label="爆款追踪">
-          <PddPeerBestsellersPanel
-            ref="peerBestsellersRef"
-            :backend-ready="backendReady"
-            :stores="storesPdd"
-            :selected-store-id="selectedStoreId"
-            :syncing="peerSyncing"
-            @sync="syncPeerBestsellers"
           />
         </el-tab-pane>
         <el-tab-pane name="monitor" label="竞店监控">
