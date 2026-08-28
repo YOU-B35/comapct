@@ -841,3 +841,23 @@
 ---
 
 *本文路径固定：`docs/dev-handover.md` — AGENTS.md 强制读写。*
+
+---
+
+### 2026-08-28（拼多多同步加固 + 部署上线）
+
+- **背景**：上一位 AI（千问）断连时遗留未提交的拼多多改动；本次收尾、提交并部署生产。
+- **改动**（commit `c975163`，7 文件）：
+  - `pdd_tasks.py`：频控重试 3→5 次、退避 5s→8s+随机抖动；订单最大页数 60→200；新增 d90 窗口；默认同步窗口 today→d90；非订单爬取间隔 0.3s→1.5s
+  - `PddOpsService.ingestProducts`：商品入库改为全量替换（先删旧再写，含下架），按 product_key 去重，空列表不删除防误清空
+  - 新增 `V73PddOrderIndexMigration`：pdd_order / pdd_product 查询索引（生产日志已确认 applied）
+  - 三处 Java 注释补 d90；版本 `2026.08.28.1` → `2026.08.28.2`
+- **测试**：pytest 拼多多 37 passed；Java `mvn compile` 通过
+- **部署**：
+  - Java：`_deploy_java_pdd_20260828.js`（仿 `_deploy_java_only.js`，无 glob 依赖）上传 jar + Dockerfile → docker build → `crosshub-java` 重建；`/api/helper/update-info` 返回 2026.08.28.2
+  - Helper：main 仓库 dist 重建 + 打包 zip（95.9MB，SHA256 `ceefc727…`）上传生产 `/crosshub/downloads/CrossHub-Sync-Helper.zip`
+  - 本机 Helper：工作树 `sync-helper-bat-session` 源码重建（含新 pdd_tasks.py + 未提交 connect-ticket 改动），配置 token 原样保留
+- **遗留**：
+  - 工作树 `feat/sync-helper-bat-session` 的 connect-ticket SDD 改动仍未提交（17 文件，独立于本次 PDD 范围）
+  - 前端 d90 预设未加（PddDashboardPanel/PddOrderDetailsPanel 仍只到 d30）；agent 侧默认 d90 已生效
+  - `~/.codex/config.toml` 的 wire_api 曾为非法值 `chat/completions` 导致沙箱异常，已修复为 `responses`（与本仓库无关）
