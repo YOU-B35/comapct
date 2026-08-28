@@ -24,6 +24,8 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
     // Commander 抖店/抖音 Excel 上货平台 id 为 douyin（与线上 /douyin-auto-upload 一致）
     { value: 'douyin', label: '抖店' },
     { value: '1688', label: '1688' },
+    // Commander 拼多多平台 id 为 pinduoduo（平台清单「拼多多-Pinduoduo」；Agent 工厂已注册）
+    { value: 'pinduoduo', label: '拼多多' },
   ]
 
   const shopList = ref([])
@@ -84,6 +86,12 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
         shopLoadError.value =
           /店铺|Agent|agent|离线|offline|失败|读取/i.test(raw)
             ? '没有读取到抖店 Agent，请确认桌面 Agent 已开启「抖店」并保持在线后重试'
+            : raw
+      } else if (platform === 'pinduoduo') {
+        // 拼多多需桌面 Agent 开启「拼多多」模块；离线/未开启/未保存店铺时接口返回泛化失败文案
+        shopLoadError.value =
+          /店铺|Agent|agent|离线|offline|失败|读取|保存/i.test(raw)
+            ? '没有读取到拼多多店铺，请确认桌面 Agent 已开启「拼多多」并在 mms.pinduoduo.com 登录后「保存当前店铺」'
             : raw
       } else {
         shopLoadError.value = raw
@@ -162,7 +170,12 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
     statusMessage.value = null
     try {
       const platform = selectedPlatform.value || 'temu'
-      if (platform === 'temu' || platform === 'douyin' || platform === '1688') {
+      if (
+        platform === 'temu' ||
+        platform === 'douyin' ||
+        platform === '1688' ||
+        platform === 'pinduoduo'
+      ) {
         statusMessage.value = {
           type: 'info',
           text:
@@ -170,6 +183,8 @@ export const useCommanderAutoUploadStore = defineStore('commanderAutoUpload', ()
               ? '正在预检抖店登录与店铺…'
               : platform === '1688'
                 ? '正在预检1688登录与店铺…'
+                : platform === 'pinduoduo'
+                  ? '正在预检拼多多登录与店铺…'
                 : '正在预检…',
         }
         await productIssuePrecheck(agentId, shopId.value, platform)

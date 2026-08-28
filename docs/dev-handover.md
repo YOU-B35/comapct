@@ -861,3 +861,24 @@
   - 工作树 `feat/sync-helper-bat-session` 的 connect-ticket SDD 改动仍未提交（17 文件，独立于本次 PDD 范围）
   - 前端 d90 预设未加（PddDashboardPanel/PddOrderDetailsPanel 仍只到 d30）；agent 侧默认 d90 已生效
   - `~/.codex/config.toml` 的 wire_api 曾为非法值 `chat/completions` 导致沙箱异常，已修复为 `responses`（与本仓库无关）
+
+---
+
+### 2026-08-28（自动上货·拼多多接入真实后端 + 模板上线）
+
+- **背景**：用户要求把自动上货模块里的拼多多（PDD）从半成品完善为接入真实后端（Commander），含模板、测试后推送上线。
+- **真实后端核验结论**：
+  - Commander 平台清单（`get_platform_list`）已含「拼多多-Pinduoduo」，平台 id = **`pinduoduo`**（CrossHub 侧此前未提交的 `pdd` 是错的）。
+  - 最新 Commander Agent 源码/构建（Downloads `commander-agent-t260220-main+(1)\commander-agent`，`build\bin\Agent.exe`）已注册 `pinduoduo` 工厂（ShopList / ProductIssue / ProductIssuePrecheck / ProductList）。
+  - 生产 commander-server 容器 `ghcr.io/hyhacct/commander-server-t260220:v0.0.18-x86_64` 二进制**缺** `platformByPinduoduo`（`strings` 证实只有 dianxiaomi/aliexpress/ozon），服务端 `GetCategoryIdAndAttributes` 对 pinduoduo 会报「不支持的平台」。
+- **改动（本仓库）**：
+  - `dev/vue-site/src/modules/commander/stores/autoUpload.js`：平台值 `pdd` → `pinduoduo`；`submitExcel` 对 pinduoduo 执行真实后端预检（“正在预检拼多多登录与店铺…”）；`fetchShops` 增加拼多多专属错误提示（需 Agent 开启拼多多并在 mms.pinduoduo.com 登录后「保存当前店铺」）。
+  - `dev/vue-site/src/modules/commander/views/AutoUploadView.vue`：`PLATFORM_TEMPLATES` 增加 `pinduoduo` 模板下载 + 上传提示。
+  - 新增 `dev/vue-site/public/templates/pinduoduo-publish-template.xlsx`：A–P 16 列与 Commander 服务端 generic 解析器（`internal/utils/xlsx.go` → `XlsxData`）严格一致；选项仅「铅坠」（catId=11920，Agent 抓包模板类目）；填写说明写明前置条件与「存草稿」默认行为。
+  - 新增测试：`dev/vue-site/tests/commanderPinduoduoPlatform.test.mjs`、`backend/python/tests/test_pdd_autoupload_template.py`（模板表头契约）。
+- **测试**：前端 commander 相关测试全绿（含新用例）；pytest 44 passed（含模板契约 4 例）；`npm run build` exit 0。
+- **部署（前端已上线）**：`node scripts/deploy-web-only.js` 上传 162 文件 → 生产 `index.html` 引用 `index-DVmWIC5J.js`；`AutoUploadView-DBQn0OLo.js` 含 pinduoduo 全链路文案；`https://www.yoto.work/crosshub/templates/pinduoduo-publish-template.xlsx` 200（11400 B）。
+- **遗留/前置（不在本仓库控制）**：
+  - Commander 服务端需补 `internal/pkg/category.go` 的 `PlatformPinduoduo` 分支（本地已在 `D:\dev\workspace\commander-server-t260220-main\...` 打好补丁 `platformByPinduoduo` + `category_pinduoduo_test.go`，`go build ./...` 与 `go test ./internal/pkg/` 通过；需 hyhacct 随下个镜像发布，未部署）。
+  - 桌面 Commander Agent 需更新为含拼多多模块的构建，并在 Agent 内开启拼多多、登录 mms.pinduoduo.com、保存当前店铺后，CrossHub 自动上货 → 拼多多才能端到端发品。
+  - 已知同类问题：CrossHub `douyin-publish-template.xlsx` 表头（抖店 22 列）与 Commander 服务端 generic 解析器不一致，抖店 Web 上传路径同样会解析错位，建议后续按 pinduoduo 同样方式对齐。

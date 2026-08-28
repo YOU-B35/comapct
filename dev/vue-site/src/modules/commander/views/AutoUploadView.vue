@@ -93,6 +93,10 @@ const PLATFORM_TEMPLATES = {
     url: `${import.meta.env.BASE_URL}templates/1688-publish-template.xlsx`,
     filename: '1688Excel上货模板.xlsx',
   },
+  pinduoduo: {
+    url: `${import.meta.env.BASE_URL}templates/pinduoduo-publish-template.xlsx`,
+    filename: '拼多多批量上货表单.xlsx',
+  },
 }
 
 const canDownloadTemplate = computed(() => Boolean(PLATFORM_TEMPLATES[store.selectedPlatform]))
@@ -115,6 +119,9 @@ const uploadHint = computed(() => {
   }
   if (store.selectedPlatform === '1688') {
     return '请按 1688 Excel 上货模板填写后上传；可点右上角「下载模板」获取空白表，并确保 1688 Agent 处于开启状态。'
+  }
+  if (store.selectedPlatform === 'pinduoduo') {
+    return '请按拼多多批量上货表单填写后上传；可点右上角「下载模板」获取空白表，并确保拼多多 Agent 已开启且在 mms.pinduoduo.com 完成登录并保存店铺。'
   }
   if (store.selectedPlatform === 'temu') {
     return '请按 Temu 批量上货表单填写后上传；可点右上角「下载模板」获取空白表。'
