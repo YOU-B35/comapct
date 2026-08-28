@@ -367,11 +367,19 @@ def _fake_launch(monkeypatch: Any, orders_rows: list[dict[str, Any]], products_r
     def looks_logged_in(page, context=None) -> bool:
         return True
 
-    def fetch_orders(page, **kwargs: Any) -> tuple[list[dict[str, Any]], str]:
-        return orders_rows, "https://mms.pinduoduo.com/order/queryOrderList"
+    def fetch_orders(page, **kwargs: Any) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
+        return (
+            orders_rows,
+            "https://mms.pinduoduo.com/order/queryOrderList",
+            {"total_hint": len(orders_rows), "truncated": False},
+        )
 
-    def fetch_products(page, **kwargs: Any) -> tuple[list[dict[str, Any]], str]:
-        return products_rows, "https://mms.pinduoduo.com/goods/goodsList"
+    def fetch_products(page, **kwargs: Any) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
+        return (
+            products_rows,
+            "https://mms.pinduoduo.com/goods/goodsList",
+            {"total_hint": len(products_rows), "truncated": False},
+        )
 
     monkeypatch.setattr(mod, "_launch", launch)
     monkeypatch.setattr(mod, "_looks_logged_in", looks_logged_in)
@@ -525,10 +533,12 @@ def test_orders_sync_all_stores_ingests_logged_in_and_skips_others(monkeypatch: 
     def looks_logged_in(page, context=None) -> bool:
         return profile_logged_in.get(getattr(page, "store_id", ""), False)
 
-    def fetch_orders(page, **kwargs: Any) -> tuple[list[dict[str, Any]], str]:
+    def fetch_orders(page, **kwargs: Any) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
         sid = str(kwargs.get("store_id") or "default")
-        return [_map_order(_pdd_order_row(order_sn="O-" + sid), "2026-08-26")], (
-            "https://mms.pinduoduo.com/order/queryOrderList"
+        return (
+            [_map_order(_pdd_order_row(order_sn="O-" + sid), "2026-08-26")],
+            "https://mms.pinduoduo.com/order/queryOrderList",
+            {"total_hint": 1, "truncated": False},
         )
 
     monkeypatch.setattr(mod, "_launch", launch)

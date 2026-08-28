@@ -1447,6 +1447,12 @@ def _fetch_paged_rows(
     first_rows = _extract_captured_rows(first_payload, kind)
     all_rows: list[dict[str, Any]] = list(first_rows)
     total_hint = _extract_total_count(first_payload, len(first_rows))
+    meta: dict[str, Any] = {
+        "total_hint": total_hint,
+        # 分页循环因平台频控重试耗尽而中断时置位，用于把任务标记为 partial
+        # （仅“抓取中断”才算不完整；翻到窗口起点的正常停止不算）。
+        "truncated": False,
+    }
 
     # 以第一页实际返回行数作为分页步长，避免接口忽略 pageSize 时提前退出
     page_size = max(1, len(first_rows))
@@ -1490,6 +1496,7 @@ def _fetch_paged_rows(
                     "请确认列表接口的页码字段（pageNum/pageNo/page）后再试"
                 ) from exc
             print(f"[PddXhr] {kind} page={page_no} failed: {exc}", flush=True)
+            meta["truncated"] = True
             break
         batch = _extract_captured_rows(payload, kind)
         if not batch:
@@ -1519,7 +1526,7 @@ def _fetch_paged_rows(
             unique.append(row)
         all_rows = unique
     print(f"[PddXhr] {kind} rows={len(all_rows)} total_hint={total_hint} source={url}", flush=True)
-    return all_rows, source_url
+    return all_rows, source_url, meta
 
 
 def fetch_orders_via_xhr(
@@ -1527,9 +1534,9 @@ def fetch_orders_via_xhr(
     *,
     date_window: str = "today",
     store_id: str | None = None,
-) -> tuple[list[dict[str, Any]], str]:
+) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
     """打开订单列表页捕获真实列表 XHR，并按 date_window 过滤到对应日期。"""
-    rows, source_url = _fetch_paged_rows(
+    rows, source_url, meta = _fetch_paged_rows(
         page,
         kind="orders",
         page_urls=PDD_ORDER_LIST_PAGE_CANDIDATES,
@@ -1547,14 +1554,14 @@ def fetch_orders_via_xhr(
     elif window in ("d1", "d7", "d30", "d90"):
         start = _window_day_list(window)[0]
         rows = [r for r in rows if str(r.get("report_day") or "") >= start]
-    return rows, source_url
+    return rows, source_url, meta
 
 
 def fetch_products_via_xhr(
     page,
     *,
     store_id: str | None = None,
-) -> tuple[list[dict[str, Any]], str]:
+) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
     """直接从 mms.pinduoduo.com 商品列表接口抓取全部商品。返回 (rows, source_url)。"""
     return _fetch_paged_rows(
         page,
@@ -1717,7 +1724,7 @@ def fetch_issues_via_xhr(
     page,
     *,
     store_id: str | None = None,
-) -> tuple[list[dict[str, Any]], str]:
+) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
     """从 mms.pinduoduo.com 售后/违规页抓取问题预警列表。返回 (rows, source_url)。"""
     return _fetch_paged_rows(
         page,
@@ -1873,6 +1880,23 @@ def _open_pdd_session(
         raise
 
 
+def _is_partial_sync(*, captured: int, platform_total: int, truncated: bool, skipped: int) -> bool:
+    """同步是否只完成了部分数据：抓取中断（频控）或存在未登录店铺。"""
+    if skipped > 0 or truncated:
+        return True
+    return bool(platform_total > 0 and captured < platform_total)
+
+
+def _sync_message(label: str, captured: int, synced: int, skipped: int, platform_total: int) -> str:
+    """生成任务 message；数据不完整时说明平台总数与截断原因。"""
+    msg = f"已同步{label} {captured} 条（覆盖 {synced} 个店铺）"
+    if platform_total > 0 and captured < platform_total:
+        msg += f"，平台共 {platform_total} 条，受频控仅部分入库"
+    elif skipped:
+        msg += f"，跳过未登录店铺 {skipped} 个"
+    return msg
+
+
 def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
@@ -1889,6 +1913,8 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     total = 0
     synced = 0
     skipped = 0
+    truncated = False
+    platform_total_max = 0
     source_url = ""
     for store_id in store_ids:
         opened = _open_pdd_session(
@@ -1903,13 +1929,20 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             continue
         pw, context, page = opened
         try:
-            orders, source_url = fetch_orders_via_xhr(
+            orders, source_url, meta = fetch_orders_via_xhr(
                 page,
                 date_window=date_window,
                 store_id=store_id,
             )
         finally:
             _close_pw(pw, context)
+
+        platform_total = int((meta or {}).get("total_hint") or 0)
+        store_truncated = bool((meta or {}).get("truncated"))
+        if platform_total > platform_total_max:
+            platform_total_max = platform_total
+        if store_truncated:
+            truncated = True
 
         days = _sanitize_utf8(_build_days_payload(orders, date_window))
         if not days:
@@ -1919,6 +1952,12 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
         stored_count = sum(len(d["orders"]) for d in days)
         total += stored_count
         synced += 1
+        store_partial = _is_partial_sync(
+            captured=stored_count,
+            platform_total=platform_total,
+            truncated=store_truncated,
+            skipped=0,
+        )
         ingest_body = {
             "job_id": job_id,
             "store_id": store_id,
@@ -1926,24 +1965,31 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             "date_window": "d30",
             "source_url": source_url,
             "days": days,
+            "partial": store_partial,
+            "platform_total": platform_total,
         }
         client.ingest_pdd_orders(ingest_body)
 
     if all_mode and synced == 0:
         raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
 
-    message = f"已同步订单 {total} 条（覆盖 {synced} 个店铺）"
-    if skipped:
-        message += f"，跳过未登录店铺 {skipped} 个"
+    partial = _is_partial_sync(
+        captured=total,
+        platform_total=platform_total_max,
+        truncated=truncated,
+        skipped=skipped,
+    )
+    message = _sync_message("订单", total, synced, skipped, platform_total_max)
     return {
         "tenant_id": tenant_id,
         "job_id": job_id,
         "scope": "orders",
         "orders_count": total,
-        "partial": skipped > 0,
+        "partial": partial,
         "message": message,
         "synced_at": datetime.now(SHANGHAI).isoformat(),
         "source_url": source_url,
+        "platform_total": platform_total_max,
     }
 def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") or {}
@@ -1960,6 +2006,8 @@ def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     total = 0
     synced = 0
     skipped = 0
+    truncated = False
+    platform_total_max = 0
     source_url = ""
     for store_id in store_ids:
         opened = _open_pdd_session(
@@ -1974,36 +2022,56 @@ def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             continue
         pw, context, page = opened
         try:
-            products, source_url = fetch_products_via_xhr(page, store_id=store_id)
+            products, source_url, meta = fetch_products_via_xhr(page, store_id=store_id)
         finally:
             _close_pw(pw, context)
+
+        platform_total = int((meta or {}).get("total_hint") or 0)
+        store_truncated = bool((meta or {}).get("truncated"))
+        if platform_total > platform_total_max:
+            platform_total_max = platform_total
+        if store_truncated:
+            truncated = True
 
         products = _sanitize_utf8(products)
         total += len(products)
         synced += 1
+        store_partial = _is_partial_sync(
+            captured=len(products),
+            platform_total=platform_total,
+            truncated=store_truncated,
+            skipped=0,
+        )
         ingest_body = {
             "job_id": job_id,
             "store_id": store_id,
             "source_url": source_url,
             "products": products,
+            "partial": store_partial,
+            "platform_total": platform_total,
         }
         client.ingest_pdd_products(ingest_body)
 
     if all_mode and synced == 0:
         raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
 
-    message = f"已同步商品 {total} 条（覆盖 {synced} 个店铺）"
-    if skipped:
-        message += f"，跳过未登录店铺 {skipped} 个"
+    partial = _is_partial_sync(
+        captured=total,
+        platform_total=platform_total_max,
+        truncated=truncated,
+        skipped=skipped,
+    )
+    message = _sync_message("商品", total, synced, skipped, platform_total_max)
     return {
         "tenant_id": tenant_id,
         "job_id": job_id,
         "scope": "products",
         "products_count": total,
-        "partial": skipped > 0,
+        "partial": partial,
         "message": message,
         "synced_at": datetime.now(SHANGHAI).isoformat(),
         "source_url": source_url,
+        "platform_total": platform_total_max,
     }
 def run_compass_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") or {}
@@ -2090,6 +2158,8 @@ def run_issues_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     total = 0
     synced = 0
     skipped = 0
+    truncated = False
+    platform_total_max = 0
     source_url = ""
     for store_id in store_ids:
         opened = _open_pdd_session(
@@ -2104,35 +2174,55 @@ def run_issues_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             continue
         pw, context, page = opened
         try:
-            issues, source_url = fetch_issues_via_xhr(page, store_id=store_id)
+            issues, source_url, meta = fetch_issues_via_xhr(page, store_id=store_id)
         finally:
             _close_pw(pw, context)
+
+        platform_total = int((meta or {}).get("total_hint") or 0)
+        store_truncated = bool((meta or {}).get("truncated"))
+        if platform_total > platform_total_max:
+            platform_total_max = platform_total
+        if store_truncated:
+            truncated = True
 
         issues = _sanitize_utf8(issues)
         total += len(issues)
         synced += 1
+        store_partial = _is_partial_sync(
+            captured=len(issues),
+            platform_total=platform_total,
+            truncated=store_truncated,
+            skipped=0,
+        )
         ingest_body = {
             "job_id": job_id,
             "store_id": store_id,
             "source_url": source_url,
             "issues": issues,
+            "partial": store_partial,
+            "platform_total": platform_total,
         }
         client.ingest_pdd_issues(ingest_body)
 
     if all_mode and synced == 0:
         raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
 
-    message = f"已同步问题/售后 {total} 条（覆盖 {synced} 个店铺）"
-    if skipped:
-        message += f"，跳过未登录店铺 {skipped} 个"
+    partial = _is_partial_sync(
+        captured=total,
+        platform_total=platform_total_max,
+        truncated=truncated,
+        skipped=skipped,
+    )
+    message = _sync_message("问题/售后", total, synced, skipped, platform_total_max)
     return {
         "tenant_id": tenant_id,
         "job_id": job_id,
         "scope": "issues",
         "issues_count": total,
-        "partial": skipped > 0,
+        "partial": partial,
         "message": message,
         "synced_at": datetime.now(SHANGHAI).isoformat(),
         "source_url": source_url,
+        "platform_total": platform_total_max,
     }
 

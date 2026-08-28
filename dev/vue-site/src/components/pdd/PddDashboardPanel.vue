@@ -23,6 +23,7 @@ const PRESETS = [
   { key: 'yesterday', label: '昨日' },
   { key: 'd7', label: '近7日' },
   { key: 'd30', label: '近30日' },
+  { key: 'd90', label: '近90日' },
   { key: 'custom', label: '自定义' },
 ]
 
@@ -50,6 +51,7 @@ function rangeOf() {
   if (preset.value === 'yesterday') return [dateText(-1), dateText(-1)]
   if (preset.value === 'd7') return [dateText(-6), dateText(0)]
   if (preset.value === 'd30') return [dateText(-29), dateText(0)]
+  if (preset.value === 'd90') return [dateText(-89), dateText(0)]
   return [dateText(0), dateText(0)]
 }
 

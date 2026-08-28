@@ -317,17 +317,39 @@ public class PddOpsService {
     public Map<String, Object> ordersByWindow(String storeId, String dateWindow) {
         Long tenantId = dataScopeService.requireTenantId();
         String window = dateWindow == null || dateWindow.isBlank() ? "today" : dateWindow.trim();
+        // Agent 统一按 d30 标签入库（避免多窗口重复），因此按日期范围（report_day）查询，
+        // 保证 today / d1 / d7 / d90 等窗口都能返回正确数据。
+        List<String> reportDays = windowDayList(window);
         List<PddOrder> rows;
         if (storeId != null && !storeId.isBlank()) {
-            rows = orderRepository.findByTenantIdAndStoreIdAndDateWindowOrderByOrderedAtDesc(tenantId, storeId.trim(), window);
+            rows = orderRepository.findByTenantIdAndStoreIdAndReportDayInOrderByOrderedAtDesc(
+                    tenantId, storeId.trim(), reportDays);
         } else {
-            rows = orderRepository.findByTenantIdAndDateWindowOrderByOrderedAtDesc(tenantId, window);
+            rows = orderRepository.findByTenantIdAndReportDayInOrderByOrderedAtDesc(tenantId, reportDays);
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("date_window", window);
         out.put("items", rows.stream().map(PddOpsService::toOrderDto).toList());
         out.put("total", rows.size());
         return out;
+    }
+
+    /** 生成窗口覆盖的日期列表（含今天），语义与 agent 端 _window_day_list 对齐。 */
+    static List<String> windowDayList(String dateWindow) {
+        String window = dateWindow == null || dateWindow.isBlank() ? "today" : dateWindow.trim().toLowerCase();
+        int offset = switch (window) {
+            case "d1" -> 1;
+            case "d7" -> 6;
+            case "d30" -> 29;
+            case "d90" -> 89;
+            default -> 0;
+        };
+        LocalDate today = LocalDate.now();
+        List<String> days = new ArrayList<>(offset + 1);
+        for (int i = offset; i >= 0; i--) {
+            days.add(today.minusDays(i).toString());
+        }
+        return days;
     }
 
     // ---------------------------------------- operations (对齐 alibaba1688 RetailOpsService)

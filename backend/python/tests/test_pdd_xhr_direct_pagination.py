@@ -94,7 +94,7 @@ def test_fetch_paged_rows_orders_replays_pages_without_ui_click(monkeypatch, tmp
 
     monkeypatch.setattr(mod, "_replay_page", fake_replay)
 
-    rows, source = mod._fetch_paged_rows(
+    rows, source, meta = mod._fetch_paged_rows(
         page,
         kind="orders",
         page_urls=(mod.PDD_ORDER_LIST_PAGE,),
@@ -108,6 +108,8 @@ def test_fetch_paged_rows_orders_replays_pages_without_ui_click(monkeypatch, tmp
     assert "queryOrderList" in source
     assert page.post_calls
     assert (tmp_path / "pdd-cache.json").exists()
+    assert meta["total_hint"] == 5
+    assert meta["truncated"] is False
 
 
 def test_fetch_paged_rows_products_replays_and_dedupes(monkeypatch, tmp_path):
@@ -134,7 +136,7 @@ def test_fetch_paged_rows_products_replays_and_dedupes(monkeypatch, tmp_path):
 
     monkeypatch.setattr(mod, "_replay_page", fake_replay)
 
-    rows, _source = mod._fetch_paged_rows(
+    rows, _source, _meta = mod._fetch_paged_rows(
         page,
         kind="products",
         page_urls=(mod.PDD_PRODUCT_LIST_PAGE,),
@@ -171,7 +173,7 @@ def test_fetch_paged_rows_skips_capture_when_frozen_cache_works(monkeypatch, tmp
 
     monkeypatch.setattr(mod, "_replay_page", fake_replay)
 
-    rows, _source = mod._fetch_paged_rows(
+    rows, _source, _meta = mod._fetch_paged_rows(
         page,
         kind="orders",
         page_urls=(mod.PDD_ORDER_LIST_PAGE,),
@@ -289,7 +291,7 @@ def test_fetch_paged_rows_orders_normalizes_recent_order_list_to_all(monkeypatch
 
     monkeypatch.setattr(mod, "_replay_page", fake_replay)
 
-    rows, source = mod._fetch_paged_rows(
+    rows, source, _meta = mod._fetch_paged_rows(
         object(),
         kind="orders",
         page_urls=(mod.PDD_ORDER_LIST_PAGE,),
@@ -303,3 +305,57 @@ def test_fetch_paged_rows_orders_normalizes_recent_order_list_to_all(monkeypatch
     assert replayed_posts[0]["pageNumber"] == 1
     assert replayed_posts[0]["pageSize"] == 50
     assert replayed_posts[1]["pageNumber"] == 2
+
+
+def test_fetch_paged_rows_marks_truncated_when_page_fails_after_retries(monkeypatch, tmp_path):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    page = _FakePage(
+        direct_payload=_page_payload("products", [_product_row("G1"), _product_row("G2")], total=50),
+        replay_payloads=[_page_payload("products", [_product_row("G3")], total=50)],
+    )
+    monkeypatch.setattr(mod, "_capture_xhr", lambda *a, **k: None)
+    monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
+
+    calls = {"n": 0}
+
+    def fake_replay(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # 第 2 页成功（页大小=首屏行数 2），第 3 页起触发平台频控并重试耗尽
+            return _page_payload("products", [_product_row("G3"), _product_row("G4")], total=50)
+        raise RuntimeError("操作过于频繁，请稍后再试")
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+
+    rows, _source, meta = mod._fetch_paged_rows(
+        page,
+        kind="products",
+        page_urls=(mod.PDD_PRODUCT_LIST_PAGE,),
+        api_candidates=mod.PDD_PRODUCT_LIST_API_CANDIDATES,
+    )
+
+    assert meta["truncated"] is True
+    assert meta["total_hint"] == 50
+    assert len(rows) == 4
+
+
+def test_is_partial_sync_flags_rate_limited_or_skipped_runs():
+    # 频控截断：平台有更多数据但未抓全
+    assert mod._is_partial_sync(captured=100, platform_total=8197, truncated=True, skipped=0) is True
+    # 未中断但数量仍少于平台总数
+    assert mod._is_partial_sync(captured=100, platform_total=192, truncated=False, skipped=0) is True
+    # 正常完成
+    assert mod._is_partial_sync(captured=192, platform_total=192, truncated=False, skipped=0) is False
+    # 未登录店铺跳过
+    assert mod._is_partial_sync(captured=192, platform_total=192, truncated=False, skipped=1) is True
+    # 平台未返回总数时以中断标记为准
+    assert mod._is_partial_sync(captured=1, platform_total=0, truncated=False, skipped=0) is False
+
+
+def test_sync_message_mentions_rate_limit_when_partial():
+    msg = mod._sync_message("订单", 100, 1, 0, 8197)
+    assert "100" in msg
+    assert "8197" in msg
+    assert "频控" in msg
+    full = mod._sync_message("订单", 8197, 1, 0, 8197)
+    assert "频控" not in full
