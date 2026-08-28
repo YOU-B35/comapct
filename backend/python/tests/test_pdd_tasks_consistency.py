@@ -368,6 +368,13 @@ def _fake_launch(monkeypatch: Any, orders_rows: list[dict[str, Any]], products_r
         return True
 
     def fetch_orders(page, **kwargs: Any) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
+        on_day = kwargs.get("on_day")
+        if callable(on_day):
+            by_day: dict[str, list[dict[str, Any]]] = {}
+            for r in orders_rows:
+                by_day.setdefault(str(r.get("report_day") or ""), []).append(r)
+            for day, rows in sorted(by_day.items()):
+                on_day(day, rows, "https://mms.pinduoduo.com/order/queryOrderList")
         return (
             orders_rows,
             "https://mms.pinduoduo.com/order/queryOrderList",
@@ -402,13 +409,11 @@ def test_orders_sync_launches_browser_and_groups_by_day(monkeypatch: Any) -> Non
     )
     assert result.get("scope") == "orders"
     assert result.get("orders_count") == 2
-    name, body = client.ingest[-1]
-    assert name == "orders"
-    assert body["store_id"] == "shop-orders-4"
-    assert body["date_window"] == "d30"
-    days = body["days"]
-    assert len(days) == 2
-    by_day = {d["replace_day"]: d["orders"] for d in days}
+    ingested = [b for name, b in client.ingest if name == "orders"]
+    assert len(ingested) == 2
+    assert ingested[0]["store_id"] == "shop-orders-4"
+    assert ingested[0]["date_window"] == "d30"
+    by_day = {d["replace_day"]: d["orders"] for b in ingested for d in b["days"]}
     assert len(by_day["2026-08-25"]) == 1
     assert len(by_day["2026-08-26"]) == 1
 
@@ -535,8 +540,12 @@ def test_orders_sync_all_stores_ingests_logged_in_and_skips_others(monkeypatch: 
 
     def fetch_orders(page, **kwargs: Any) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
         sid = str(kwargs.get("store_id") or "default")
+        rows = [_map_order(_pdd_order_row(order_sn="O-" + sid), "2026-08-26")]
+        on_day = kwargs.get("on_day")
+        if callable(on_day):
+            on_day("2026-08-26", rows, "https://mms.pinduoduo.com/order/queryOrderList")
         return (
-            [_map_order(_pdd_order_row(order_sn="O-" + sid), "2026-08-26")],
+            rows,
             "https://mms.pinduoduo.com/order/queryOrderList",
             {"total_hint": 1, "truncated": False},
         )

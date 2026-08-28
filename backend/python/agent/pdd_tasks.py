@@ -1373,6 +1373,10 @@ def _load_pdd_xhr_cache(kind: str) -> dict[str, Any]:
         "post_data": str(post_data) if post_data else "",
         "updated_at": str(entry.get("updated_at") or ""),
         "last_page": int(entry.get("last_page") or 0),
+        "failed_days": entry.get("failed_days")
+        if isinstance(entry.get("failed_days"), list)
+        else [],
+        "window": str(entry.get("window") or ""),
     }
 
 
@@ -1411,6 +1415,25 @@ def _save_pdd_last_page(kind: str, last_page: int) -> None:
         data = {}
     entry = data.setdefault(kind, {})
     entry["last_page"] = int(last_page or 0)
+    entry["updated_at"] = datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as exc:  # noqa: BLE001
+        print(f"[PddXhr] cache write failed: {exc}", flush=True)
+
+
+def _save_pdd_failed_days(kind: str, date_window: str, failed_days: list[str]) -> None:
+    """持久化失败日，下次同步只补失败日+今天，逐轮补齐完整窗口。"""
+    path = _pdd_xhr_cache_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:  # noqa: BLE001
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    entry = data.setdefault(kind, {})
+    entry["failed_days"] = list(dict.fromkeys(failed_days or []))
+    entry["window"] = str(date_window or "").strip().lower()
     entry["updated_at"] = datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
     try:
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1647,6 +1670,7 @@ def fetch_orders_via_xhr(
     *,
     date_window: str = "today",
     store_id: str | None = None,
+    on_day=None,
 ) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
     """按天分窗直接重放订单接口：不开页面、不抓包，逐天完整且独立成败。"""
     if page is None:
@@ -1654,6 +1678,11 @@ def fetch_orders_via_xhr(
             "PDD_ORDERS_SOURCE_UNAVAILABLE: need a logged-in PDD seller browser session"
         )
     cached = _load_pdd_xhr_cache("orders")
+    cached_failed = cached.get("failed_days") if isinstance(cached, dict) else []
+    cached_window = str(cached.get("window") or "") if isinstance(cached, dict) else ""
+    days_to_fetch: list[str] | None = None
+    if cached_failed and cached_window == str(date_window or "today").strip().lower():
+        days_to_fetch = list(dict.fromkeys([*cached_failed, _today_str()]))
     spec: dict[str, Any] | None = None
     if cached.get("url") and cached.get("post_data"):
         # 已有完整请求规格（签名头/body）：直接按天重放，不再探测或开页。
@@ -1682,6 +1711,8 @@ def fetch_orders_via_xhr(
         headers=headers,
         post_data=post_data,
         date_window=date_window,
+        days=days_to_fetch,
+        on_day=on_day,
     )
     if meta.get("failed_days"):
         # 接口被拒/频控：重新抓包刷新签名后仅补失败日（规则允许的兜底）。
@@ -1701,6 +1732,7 @@ def fetch_orders_via_xhr(
                 post_data=fresh_post,
                 date_window=date_window,
                 days=meta["failed_days"],
+                on_day=on_day,
             )
             rows.extend(retry_rows)
             meta["failed_days"] = retry_meta.get("failed_days") or []
@@ -1708,6 +1740,7 @@ def fetch_orders_via_xhr(
             meta["total_hint"] = int(meta.get("total_hint") or 0) + int(
                 retry_meta.get("total_hint") or 0
             )
+    _save_pdd_failed_days("orders", date_window, meta.get("failed_days") or [])
     return rows, url, meta
 
 
@@ -1988,6 +2021,7 @@ def _fetch_orders_by_day(
     post_data: str,
     date_window: str,
     days: list[str] | None = None,
+    on_day=None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """按天分窗抓取订单：每天 1 页即完整，逐天独立成败，避免全窗口翻页触发频控。
 
@@ -1996,7 +2030,7 @@ def _fetch_orders_by_day(
     """
     day_list = days if days is not None else _window_day_list(date_window)
     page_size = int(os.getenv("PDD_ORDERS_PAGE_SIZE", "50") or "50")
-    pacing = float(os.getenv("PDD_DAY_PACING_SECONDS", "2.5") or "2.5")
+    pacing = float(os.getenv("PDD_DAY_PACING_SECONDS", "3.0") or "3.0")
     retry_delay = float(os.getenv("PDD_DAY_RETRY_DELAY", "10") or "10")
     base_payload: dict[str, Any] = {}
     try:
@@ -2036,11 +2070,22 @@ def _fetch_orders_by_day(
                     raise RuntimeError(f"HTTP {resp.status}")
                 data = resp.json()
                 rows = [_map_order_row(r) for r in _find_list_rows(data, "orders")]
+                for row in rows:
+                    if not str(row.get("report_day") or "")[:10]:
+                        row["report_day"] = day_iso
                 total = _extract_total_count(data, len(rows))
                 all_rows.extend(rows)
                 meta["total_hint"] += total
                 meta["last_page"] = day_list.index(day_iso) + 1
                 day_ok = True
+                if callable(on_day):
+                    try:
+                        on_day(day_iso, rows, url)
+                    except Exception as exc:  # noqa: BLE001
+                        print(
+                            f"[PddXhr] orders day={day_iso} ingest failed: {exc}",
+                            flush=True,
+                        )
                 break
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
@@ -2235,10 +2280,29 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             continue
         pw, context, page = opened
         try:
+            def on_day(day_iso, day_rows, day_url) -> None:
+                client.ingest_pdd_orders(
+                    {
+                        "job_id": job_id,
+                        "store_id": store_id,
+                        # 统一按近30天窗口标记存储，历史日期同样入库
+                        "date_window": "d30",
+                        "source_url": str(day_url or ""),
+                        "days": [
+                            {
+                                "replace_day": day_iso,
+                                "orders": _sanitize_utf8(day_rows),
+                            }
+                        ],
+                        "partial": False,
+                    }
+                )
+
             orders, source_url, meta = fetch_orders_via_xhr(
                 page,
                 date_window=date_window,
                 store_id=store_id,
+                on_day=on_day,
             )
         finally:
             _release_pdd_session(pw, context)
@@ -2252,31 +2316,15 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             if int(meta.get("last_page") or 0) > 1:
                 _save_pdd_last_page("orders", int(meta["last_page"]))
 
-        days = _sanitize_utf8(_build_days_payload(orders, date_window))
-        if not days:
-            # 0 条订单也必须按天回写，否则 Java ingest 因缺少 replace_day 返回 400；
-            # 同时用空列表覆盖窗口内各天，清掉该店旧数据。
-            days = [{"replace_day": day, "orders": []} for day in _window_day_list(date_window)]
-        stored_count = sum(len(d["orders"]) for d in days)
-        total += stored_count
+        # 数据已按天即时入库（on_day），orders 仅用于结果统计。
+        total += len(orders)
         synced += 1
         store_partial = _is_partial_sync(
-            captured=stored_count,
+            captured=len(orders),
             platform_total=platform_total,
             truncated=store_truncated,
             skipped=0,
         )
-        ingest_body = {
-            "job_id": job_id,
-            "store_id": store_id,
-            # 统一按近30天窗口标记存储，历史日期同样入库；「今日订单」接口按 report_day 查询
-            "date_window": "d30",
-            "source_url": source_url,
-            "days": days,
-            "partial": store_partial,
-            "platform_total": platform_total,
-        }
-        client.ingest_pdd_orders(ingest_body)
 
     if all_mode and synced == 0:
         raise RuntimeError("PDD_NOT_LOGGED_IN: 拼多多商家后台未登录，请打开登录窗口完成登录")
