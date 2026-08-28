@@ -53,11 +53,8 @@ def _run_in_clean_thread(fn, *, timeout: float | None = None):
 
 
 def _a1688_launch_kwargs(*, headless: bool, args: list[str] | None = None) -> dict[str, Any]:
-    """默认 Playwright 内置 Chromium；冻结态无内置浏览器时回退系统 Chrome/Edge。"""
-    import sys
-
-    from app.browser.context import _bundled_chromium_ready, _system_chrome_path
-    from app.config import BROWSER_CHANNEL
+    """统一使用 Playwright 内置 Chromium（不打开系统 Chrome/Edge，避免风控）。"""
+    from app.browser.context import _bundled_chromium_ready
 
     kwargs: dict[str, Any] = {
         "headless": headless,
@@ -65,15 +62,12 @@ def _a1688_launch_kwargs(*, headless: bool, args: list[str] | None = None) -> di
         "locale": "zh-CN",
         "args": list(args or []),
     }
-    frozen = bool(getattr(sys, "frozen", False))
-    if BROWSER_CHANNEL:
-        kwargs["channel"] = BROWSER_CHANNEL
-    elif frozen and not _bundled_chromium_ready():
-        chrome = _system_chrome_path()
-        if chrome:
-            kwargs["executable_path"] = chrome
-        else:
-            kwargs["channel"] = "chrome"
+    if not _bundled_chromium_ready():
+        raise RuntimeError(
+            "A1688_BROWSER_UNAVAILABLE: 未检测到 Playwright 内置 Chromium。"
+            "1688 登录/同步统一使用内置浏览器（不打开系统 Chrome/Edge），"
+            "请先执行 python -m playwright install chromium 后重试"
+        )
     return kwargs
 
 
@@ -112,7 +106,7 @@ def _launch(
             pass
     if goto:
         page.goto(goto, wait_until="domcontentloaded", timeout=90_000)
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(600)
     print(f"[1688] page url={getattr(page, 'url', '')!r}", flush=True)
     return pw, context, page
 
@@ -213,13 +207,13 @@ def open_login_window(
                     try:
                         if is_login_page(page.url or ""):
                             page.goto(HOME_URL, wait_until="domcontentloaded", timeout=60_000)
-                            page.wait_for_timeout(2000)
+                            page.wait_for_timeout(800)
                     except Exception:
                         pass
                     persist_1688_session(tenant_id, page, context, store_id)
                     logged_in = True
                     break
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(800)
             if not logged_in:
                 persist_1688_session(tenant_id, page, context)
             return _session_payload(

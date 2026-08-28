@@ -85,7 +85,7 @@ def test_fetch_paged_rows_orders_replays_pages_without_ui_click(monkeypatch, tmp
     monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
     replay_calls: list[tuple[int, int]] = []
 
-    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size):
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size, kind=""):
         replay_calls.append((page_no, page_size))
         idx = page_no - 2
         if idx < len(page.replay_payloads):
@@ -103,9 +103,9 @@ def test_fetch_paged_rows_orders_replays_pages_without_ui_click(monkeypatch, tmp
 
     assert capture_calls["n"] == 0
     # 订单列表统一按 50 条/页重放（减少请求次数，规避平台频控）。
-    assert replay_calls == [(2, 50)]
+    assert replay_calls == [(2, 50), (3, 50)]
     assert {r["order_no"] for r in rows} == {"O1", "O2", "O3", "O4"}
-    assert "queryOrderList" in source
+    assert "recentOrderList" in source
     assert page.post_calls
     assert (tmp_path / "pdd-cache.json").exists()
     assert meta["total_hint"] == 5
@@ -127,7 +127,7 @@ def test_fetch_paged_rows_products_replays_and_dedupes(monkeypatch, tmp_path):
     monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
     replay_calls: list[tuple[int, int]] = []
 
-    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size):
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size, kind=""):
         replay_calls.append((page_no, page_size))
         idx = page_no - 2
         if idx < len(page.replay_payloads):
@@ -164,7 +164,7 @@ def test_fetch_paged_rows_skips_capture_when_frozen_cache_works(monkeypatch, tmp
     )
     replay_calls: list[int] = []
 
-    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size):
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size, kind=""):
         replay_calls.append(page_no)
         idx = page_no - 2
         if idx < len(page.replay_payloads):
@@ -210,7 +210,10 @@ def test_fetch_paged_rows_page2_replay_failure_raises_for_orders(monkeypatch, tm
     )
     monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
 
-    def fake_replay(*args, **kwargs):
+    def fake_replay(page, *, page_no, **kwargs):
+        # 首页重放成功（进入分页循环），第 2 页拒绝修改页码参数。
+        if page_no == 1:
+            return _page_payload("orders", [_order_row("O1"), _order_row("O2")], total=5)
         raise RuntimeError("signature mismatch")
 
     monkeypatch.setattr(mod, "_replay_page", fake_replay)
@@ -270,7 +273,7 @@ def test_fetch_paged_rows_orders_normalizes_recent_order_list_to_all(monkeypatch
     monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: {})
     replayed_posts: list[dict] = []
 
-    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size):
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size, kind=""):
         body = json.loads(post_data)
         body = mod._set_page_in_payload(body, page_no, page_size)
         replayed_posts.append(body)
@@ -309,6 +312,7 @@ def test_fetch_paged_rows_orders_normalizes_recent_order_list_to_all(monkeypatch
 
 def test_fetch_paged_rows_marks_truncated_when_page_fails_after_retries(monkeypatch, tmp_path):
     monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    monkeypatch.setattr(mod.time, "sleep", lambda *_: None)
     page = _FakePage(
         direct_payload=_page_payload("products", [_product_row("G1"), _product_row("G2")], total=50),
         replay_payloads=[_page_payload("products", [_product_row("G3")], total=50)],
@@ -359,3 +363,74 @@ def test_sync_message_mentions_rate_limit_when_partial():
     assert "频控" in msg
     full = mod._sync_message("订单", 8197, 1, 0, 8197)
     assert "频控" not in full
+
+
+def test_pdd_replay_headers_include_browser_fingerprint():
+    headers = mod._pdd_replay_headers("orders", {})
+    for key in (
+        "accept-language",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "sec-ch-ua-platform",
+        "sec-fetch-dest",
+        "sec-fetch-mode",
+        "sec-fetch-site",
+        "referer",
+        "user-agent",
+    ):
+        assert headers.get(key), f"missing {key}"
+    assert headers["referer"] == "https://mms.pinduoduo.com/orders/list"
+    # 已捕获的签名/鉴权头优先生效
+    merged = mod._pdd_replay_headers(
+        "products",
+        {"headers": {"x-anti-content": "sig-123", "user-agent": "UA-captured"}},
+    )
+    assert merged["x-anti-content"] == "sig-123"
+    assert merged["user-agent"] == "UA-captured"
+
+
+def test_fetch_orders_uses_cached_xhr_without_opening_page(monkeypatch, tmp_path):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    cached = {
+        "method": "POST",
+        "url": "https://mms.pinduoduo.com/mangkhut/mms/recentOrderList",
+        "headers": {"content-type": "application/json;charset=UTF-8", "x-anti-content": "sig-1"},
+        "post_data": json.dumps(
+            {
+                "orderType": 1,
+                "afterSaleType": 1,
+                "pageNumber": 1,
+                "pageSize": 20,
+                "sortType": 10,
+                "groupStartTime": 1780033080,
+                "groupEndTime": 1787809080,
+            }
+        ),
+        "updated_at": "2026-08-28 16:00:00",
+    }
+    monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: cached)
+    capture_calls = {"n": 0}
+    monkeypatch.setattr(
+        mod,
+        "_capture_xhr",
+        lambda *a, **k: capture_calls.__setitem__("n", capture_calls["n"] + 1) or None,
+    )
+    replay_payload = _page_payload("orders", [_today_order_row("C1"), _today_order_row("C2")], total=2)
+
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size, kind=""):
+        return replay_payload if page_no == 2 else _page_payload("orders", [], total=2)
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+
+    rows, _source, meta = mod.fetch_orders_via_xhr(
+        _FakePage(
+            direct_payload=_page_payload(
+                "orders", [_today_order_row("C1"), _today_order_row("C2")], total=2
+            )
+        ),
+        date_window="today",
+        store_id="s1",
+    )
+    assert capture_calls["n"] == 0
+    assert meta["total_hint"] == 2
+    assert {r["order_no"] for r in rows} == {"C1", "C2"}

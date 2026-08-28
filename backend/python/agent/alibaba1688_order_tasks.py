@@ -279,7 +279,7 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
         )
         if not _looks_logged_in(page, context):
             raise RuntimeError("A1688_NOT_LOGGED_IN: 1688 未登录或登录已失效，请重新打开登录窗口")
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(800)
 
         date_range = _date_range(start_date, end_date)
         order_rows: list[dict[str, Any]] = []

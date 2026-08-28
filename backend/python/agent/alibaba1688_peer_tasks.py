@@ -210,7 +210,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
         )
         if not _looks_logged_in(page, context):
             raise RuntimeError("A1688_NOT_LOGGED_IN: 1688 未登录或登录已失效，请重新打开登录窗口")
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(800)
         for offer_id in seeds:
             calls = (
                 (
@@ -273,7 +273,7 @@ def run_peer_bestsellers_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             page.on("response", on_response)
             try:
                 page.goto(f"https://detail.1688.com/offer/{item['offer_id']}.html", wait_until="domcontentloaded", timeout=60_000)
-                page.wait_for_timeout(3000)
+                page.wait_for_timeout(1000)
             except Exception as exc:
                 print(f"[1688Peer] detail {item['offer_id']} EXC {str(exc)[:120]}", flush=True)
             try:

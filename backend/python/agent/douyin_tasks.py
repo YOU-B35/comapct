@@ -141,11 +141,8 @@ def _run_in_clean_thread(fn, *, timeout: float | None = None):
 
 
 def _douyin_launch_kwargs(*, headless: bool) -> dict[str, Any]:
-    """默认 Playwright 内置 Chromium；冻结态无内置浏览器时回退系统 Chrome/Edge。"""
-    import sys
-
-    from app.browser.context import _bundled_chromium_ready, _system_chrome_path
-    from app.config import BROWSER_CHANNEL
+    """统一使用 Playwright 内置 Chromium（不打开系统 Chrome/Edge，避免风控）。"""
+    from app.browser.context import _bundled_chromium_ready
 
     kwargs: dict[str, Any] = {
         "headless": headless,
@@ -163,16 +160,12 @@ def _douyin_launch_kwargs(*, headless: bool) -> dict[str, Any]:
             f"--homepage={DOUYIN_SELLER_HOME}",
         ],
     }
-    frozen = bool(getattr(sys, "frozen", False))
-    if BROWSER_CHANNEL:
-        kwargs["channel"] = BROWSER_CHANNEL
-    elif frozen and not _bundled_chromium_ready():
-        chrome = _system_chrome_path()
-        if chrome:
-            kwargs["executable_path"] = chrome
-        else:
-            # Last resort for frozen builds without detectable Chrome path.
-            kwargs["channel"] = "chrome"
+    if not _bundled_chromium_ready():
+        raise RuntimeError(
+            "DOUYIN_BROWSER_UNAVAILABLE: 未检测到 Playwright 内置 Chromium。"
+            "抖音登录/同步统一使用内置浏览器（不打开系统 Chrome/Edge），"
+            "请先执行 python -m playwright install chromium 后重试"
+        )
     return kwargs
 
 
@@ -730,7 +723,7 @@ def fetch_products_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
         try:
             print(f"[DouyinProducts] goto {list_url}", flush=True)
             page.goto(list_url, wait_until="domcontentloaded", timeout=90_000)
-            time.sleep(1.0)
+            time.sleep(0.4)
             warmed = True
             break
         except Exception as exc:  # noqa: BLE001
@@ -1089,7 +1082,7 @@ def fetch_orders_via_xhr(page) -> tuple[list[dict[str, Any]], str]:
     )
     try:
         page.goto(DOUYIN_ORDER_LIST_PAGE, wait_until="domcontentloaded", timeout=90_000)
-        time.sleep(1.0)
+        time.sleep(0.4)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"DY_ORDERS_SOURCE_UNAVAILABLE: 无法打开订单管理页: {exc}") from exc
 
@@ -1754,7 +1747,7 @@ def fetch_compass_snapshots(page) -> list[tuple[dict[str, Any], dict[str, Any]]]
         page.goto(DOUYIN_COMPASS_PAGE, wait_until="domcontentloaded", timeout=90_000)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"DY_COMPASS_SOURCE_UNAVAILABLE: 无法打开罗盘首页: {exc}") from exc
-    time.sleep(2.0)
+    time.sleep(0.8)
 
     exp_body: dict[str, Any] = {}
     try:
@@ -2173,7 +2166,7 @@ def fetch_opportunity_top100(
         page.goto(DOUYIN_OPPORTUNITY_PAGE, wait_until="domcontentloaded", timeout=90_000)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"DY_OPPORTUNITY_SOURCE_UNAVAILABLE: 无法打开商机中心: {exc}") from exc
-    time.sleep(2.0)
+    time.sleep(0.8)
 
     condition: dict[str, Any] = {
         "hit_clue_label_ext": True,

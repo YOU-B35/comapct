@@ -50,8 +50,9 @@ PDD_ORDER_LIST_PAGE_CANDIDATES = (
     "https://mms.pinduoduo.com/od/index.html",
     "https://mms.pinduoduo.com/order/index.html",
 )
-PDD_ORDER_LIST_API = ""  # Day0 冻结后可填；为空时走运行时发现
+PDD_ORDER_LIST_API = "https://mms.pinduoduo.com/mangkhut/mms/recentOrderList"  # 已冻结，直连优先
 PDD_ORDER_LIST_API_CANDIDATES = (
+    "https://mms.pinduoduo.com/mangkhut/mms/recentOrderList",
     "https://mms.pinduoduo.com/mangkhut/mms/order/queryOrderList",
 )
 
@@ -61,8 +62,9 @@ PDD_PRODUCT_LIST_PAGE_CANDIDATES = (
     "https://mms.pinduoduo.com/goods/goodsList",
     "https://mms.pinduoduo.com/goods/goods_list.html",
 )
-PDD_PRODUCT_LIST_API = ""
+PDD_PRODUCT_LIST_API = "https://mms.pinduoduo.com/vodka/v2/mms/query/display/mall/goodsList"  # 已冻结，直连优先
 PDD_PRODUCT_LIST_API_CANDIDATES = (
+    "https://mms.pinduoduo.com/vodka/v2/mms/query/display/mall/goodsList",
     "https://mms.pinduoduo.com/mangkhut/mms/goods/goodsList",
     "https://mms.pinduoduo.com/goods/goodsList",
 )
@@ -80,6 +82,53 @@ PDD_ISSUE_LIST_PAGE_CANDIDATES = (
     "https://mms.pinduoduo.com/aftersale/index.html",
 )
 PDD_ISSUE_LIST_API = ""
+
+# 直连重放时的完整浏览器请求头（伪装用）：不能只带 Content-Type/UA。
+# 缺省值补齐浏览器真实调用特征；captured headers 中的签名/鉴权字段优先生效。
+_PDD_BROWSER_HEADERS: dict[str, str] = {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "content-type": "application/json;charset=UTF-8",
+    "origin": "https://mms.pinduoduo.com",
+    "referer": "https://mms.pinduoduo.com/orders/list",
+    "sec-ch-ua": '"Chromium";v="130", "Not?A_Brand";v="99", "Microsoft Edge";v="130"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "user-agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+    ),
+    "x-requested-with": "XMLHttpRequest",
+}
+
+_PDD_REFERERS: dict[str, str] = {
+    "orders": "https://mms.pinduoduo.com/orders/list",
+    "products": "https://mms.pinduoduo.com/goods/goods_list",
+    "issues": "https://mms.pinduoduo.com/aftersales/aftersale_list",
+}
+
+
+def _pdd_replay_headers(kind: str, captured: dict[str, Any] | None = None) -> dict[str, str]:
+    """合并缺省完整请求头与已捕获请求头（captured 的签名/鉴权字段优先生效）。"""
+    merged = dict(_PDD_BROWSER_HEADERS)
+    merged["referer"] = _PDD_REFERERS.get(kind, merged["referer"])
+    if isinstance(captured, dict):
+        for k, v in (captured.get("headers") or {}).items():
+            if isinstance(v, str) and k.lower() not in {"content-length", "host", "connection", "cookie"}:
+                merged[k] = v
+    return merged
+
+
+def _pdd_page_sleep(kind: str) -> float:
+    """页间隔：默认 0.5s + 0-0.25s 抖动（env 可调），下限 0.4s。"""
+    base = float(os.getenv("PDD_PAGE_SLEEP_SECONDS", "0.5") or "0.5")
+    jitter = float(os.getenv("PDD_PAGE_SLEEP_JITTER", "0.25") or "0.25")
+    return max(0.4, base + random.uniform(0, jitter))
+
+
 PDD_COMPASS_DATE_TYPES: list[dict[str, Any]] = [
     {"date_type": 1, "label": "实时", "window": "realtime"},
     {"date_type": 20, "label": "近1天", "window": "d1"},
@@ -185,7 +234,6 @@ def _run_in_clean_thread(fn, *, timeout: float | None = None):
 
 def _pdd_launch_kwargs(*, headless: bool) -> dict[str, Any]:
     from app.browser.context import _bundled_chromium_ready
-    from app.config import BROWSER_CHANNEL
 
     kwargs: dict[str, Any] = {
         "headless": headless,
@@ -201,12 +249,12 @@ def _pdd_launch_kwargs(*, headless: bool) -> dict[str, Any]:
             f"--homepage={PDD_SELLER_HOME}",
         ],
     }
-    if BROWSER_CHANNEL:
-        kwargs["channel"] = BROWSER_CHANNEL
-    elif not _bundled_chromium_ready():
+    # 统一使用 Playwright 内置 Chromium（无头/有头均不打开系统 Chrome/Edge），
+    # 避免系统浏览器指纹触发平台风控。
+    if not _bundled_chromium_ready():
         raise RuntimeError(
             "PDD_BROWSER_UNAVAILABLE: 未检测到 Playwright 内置 Chromium。"
-            "拼多多登录/同步默认使用内置浏览器（不打开系统 Chrome/Edge），"
+            "拼多多登录/同步统一使用内置浏览器（不打开系统 Chrome/Edge），"
             "请先执行 python -m playwright install chromium 后重试"
         )
     return kwargs
@@ -1203,14 +1251,11 @@ def _replay_page(
     post_data: str | None,
     page_no: int,
     page_size: int,
+    kind: str = "",
 ) -> dict[str, Any]:
     """Replay one page of a captured XHR with the same browser cookie jar."""
     method_u = (method or "GET").upper()
-    req_headers = {
-        k: v
-        for k, v in (headers or {}).items()
-        if k.lower() not in {"content-length", "host", "connection", "cookie"}
-    }
+    req_headers = _pdd_replay_headers(kind, {"headers": headers or {}})
     body = post_data
     target_url = url
     if method_u == "GET":
@@ -1226,7 +1271,6 @@ def _replay_page(
         if isinstance(payload, (dict, list)):
             payload = _set_page_in_payload(payload, page_no, page_size)
             body = json.dumps(payload, ensure_ascii=False)
-            req_headers.setdefault("content-type", "application/json;charset=UTF-8")
         else:
             target_url = _set_page_in_url(url, page_no, page_size)
     print(f"[PddXhr] fetch page={page_no} {method_u} {target_url}", flush=True)
@@ -1267,8 +1311,9 @@ def _replay_with_retry(
     post_data: str | None,
     page_no: int,
     page_size: int,
+    kind: str = "",
     retries: int = 5,
-    base_delay: float = 8.0,
+    base_delay: float = 12.0,
 ) -> dict[str, Any]:
     """Replay one page, backing off when the platform rate-limits the account."""
     last_exc: Exception | None = None
@@ -1282,11 +1327,12 @@ def _replay_with_retry(
                 post_data=post_data,
                 page_no=page_no,
                 page_size=page_size,
+                kind=kind,
             )
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             if attempt + 1 < retries and _is_rate_limit_error(exc):
-                delay = base_delay * (attempt + 1) + random.uniform(1, 3)
+                delay = base_delay * (2 ** attempt) + random.uniform(1, 4)
                 print(
                     f"[PddXhr] page={page_no} 频控，{int(delay)}s 后重试",
                     flush=True,
@@ -1300,7 +1346,12 @@ def _replay_with_retry(
 
 
 def _pdd_xhr_cache_path() -> Path:
-    return ROOT / _PDD_XHR_CACHE_NAME
+    # 优先存到 profile 根目录（源码=backend/python，冻结版=工作树 backend/python），
+    # 避免 Helper 重新打包把 _internal 里的缓存清掉。
+    try:
+        return Path(_pdd_profile_root()) / _PDD_XHR_CACHE_NAME
+    except Exception:  # noqa: BLE001
+        return ROOT / _PDD_XHR_CACHE_NAME
 
 
 def _load_pdd_xhr_cache(kind: str) -> dict[str, Any]:
@@ -1311,9 +1362,14 @@ def _load_pdd_xhr_cache(kind: str) -> dict[str, Any]:
     entry = data.get(kind) if isinstance(data, dict) else None
     if not isinstance(entry, dict):
         return {}
+    headers = entry.get("headers")
+    post_data = entry.get("post_data")
     return {
         "method": str(entry.get("method") or "POST"),
         "url": str(entry.get("url") or "").strip(),
+        "headers": headers if isinstance(headers, dict) else {},
+        "post_data": str(post_data) if post_data else "",
+        "updated_at": str(entry.get("updated_at") or ""),
     }
 
 
@@ -1331,6 +1387,8 @@ def _save_pdd_xhr_cache(kind: str, captured: dict[str, Any]) -> None:
     data[kind] = {
         "method": str(captured.get("method") or "POST"),
         "url": url,
+        "headers": captured.get("headers") if isinstance(captured.get("headers"), dict) else {},
+        "post_data": str(captured.get("post_data") or ""),
         "updated_at": datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S"),
     }
     try:
@@ -1345,21 +1403,32 @@ def _try_direct_first_page(
     api_candidates: tuple[str, ...],
     cached: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Try a plain POST {pageNum:1,pageSize:100} against known/frozen endpoints.
+    """Try the cached/hardcoded endpoint WITHOUT opening the list page.
 
-    不打开列表页、不点击任何 UI；成功后直接进入按页码重放的分页循环。
+    优先用缓存里保存的完整请求规格（headers + post_data，含平台签名）直接重放；
+    无缓存规格时才退化为纯 POST 探测。只有本函数全部失败才允许 _capture_xhr 开页。
     """
     urls: list[str] = []
     cached_url = str(cached.get("url") or "").strip()
     if cached_url:
         urls.append(cached_url)
     urls.extend(str(u) for u in api_candidates)
+    seen_urls: set[str] = set()
     for api in urls:
+        if not api or api in seen_urls:
+            continue
+        seen_urls.add(api)
+        cached_post = str(cached.get("post_data") or "")
+        body = None
+        headers = _pdd_replay_headers(kind, cached)
+        if cached_post:
+            body = _normalize_orders_post_data(cached_post) if kind == "orders" else cached_post
         try:
+            post_data = body if body is not None else json.dumps({"pageNum": 1, "pageSize": 100})
             resp = page.request.post(
                 api,
-                headers={"content-type": "application/json;charset=UTF-8"},
-                data=json.dumps({"pageNum": 1, "pageSize": 100}),
+                headers=headers,
+                data=post_data,
                 timeout=60_000,
             )
             if resp.status >= 400:
@@ -1368,13 +1437,21 @@ def _try_direct_first_page(
             rows = _find_list_rows(payload, kind)
             if not rows:
                 continue
+            replayed_post = _set_page_in_payload(
+                json.loads(post_data) if isinstance(post_data, str) else {},
+                1,
+                100,
+            )
             return {
                 "method": "POST",
                 "url": api,
-                "headers": {"content-type": "application/json;charset=UTF-8"},
-                "post_data": json.dumps({"pageNum": 1, "pageSize": 100}),
+                "headers": headers,
+                "post_data": json.dumps(replayed_post, ensure_ascii=False)
+                if isinstance(replayed_post, dict)
+                else post_data,
                 "payload": payload,
                 "rows": rows,
+                "_direct": True,
             }
         except Exception:  # noqa: BLE001
             continue
@@ -1390,7 +1467,7 @@ def _fetch_paged_rows(
     date_window: str = "today",
     store_id: str | None = None,
     skip_direct: bool = False,
-) -> tuple[list[dict[str, Any]], str]:
+) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
     if page is None:
         raise RuntimeError(
             f"PDD_{kind.upper()}_SOURCE_UNAVAILABLE: 需要已登录的拼多多商家后台浏览器会话"
@@ -1421,28 +1498,35 @@ def _fetch_paged_rows(
 
     # 订单列表：把捕获到的 recentOrderList 强制改成“全部订单”查询（orderType=0），
     # 并重放第一页作为基准（页面默认是“待发货”Tab，orderType=1）。
-    target_page_size = 50 if kind == "orders" else None
+    # 商品分页默认 50/页（PDD_PRODUCTS_PAGE_SIZE 可调）；平台若忽略 pageSize，
+    # 分页循环按实际返回行数自适应，不会提前截断。
+    target_page_size = 50 if kind == "orders" else (
+        int(os.getenv("PDD_PRODUCTS_PAGE_SIZE", "50") or "0") or None
+    )
     if kind == "orders" and "recentorderlist" in url.lower():
         normalized = _normalize_orders_post_data(post_data)
         if normalized:
             post_data = normalized
-            # 页面自身的两次列表调用之后紧接重放容易触发频控，先冷却一下。
-            time.sleep(2.5)
-            try:
-                first_payload = _replay_with_retry(
-                    page,
-                    method=method,
-                    url=url,
-                    headers=headers,
-                    post_data=post_data,
-                    page_no=1,
-                    page_size=target_page_size,
-                )
-            except Exception as exc:  # noqa: BLE001
-                raise RuntimeError(
-                    "PDD_ORDERS_SOURCE_UNAVAILABLE: 订单列表接口重放失败"
-                    f"（可能触发平台频控），请稍后再试：{exc}。"
-                ) from exc
+            # 直连成功（_direct）时首页已是“全部订单”查询，无需再重放一次；
+            # 只有来自页面抓包（默认“待发货”Tab）时才需要重放首页并归一化。
+            if not captured.get("_direct"):
+                time.sleep(1.0)
+                try:
+                    first_payload = _replay_with_retry(
+                        page,
+                        method=method,
+                        url=url,
+                        headers=headers,
+                        post_data=post_data,
+                        page_no=1,
+                        page_size=target_page_size,
+                        kind=kind,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    raise RuntimeError(
+                        "PDD_ORDERS_SOURCE_UNAVAILABLE: 订单列表接口重放失败"
+                        f"（可能触发平台频控），请稍后再试：{exc}。"
+                    ) from exc
 
     first_rows = _extract_captured_rows(first_payload, kind)
     all_rows: list[dict[str, Any]] = list(first_rows)
@@ -1454,16 +1538,16 @@ def _fetch_paged_rows(
         "truncated": False,
     }
 
-    # 以第一页实际返回行数作为分页步长，避免接口忽略 pageSize 时提前退出
-    page_size = max(1, len(first_rows))
-    if target_page_size:
-        page_size = max(page_size, target_page_size)
+    # 请求 pageSize 用目标值（平台可能忽略并按实际上限返回）；
+    # 翻页上限按“实际返回行数”计算，避免平台忽略 pageSize 时提前停止。
+    page_size = target_page_size or max(1, len(first_rows))
+    step = max(1, len(first_rows))
     page_no = 2
     max_pages = max(
         1,
         min(
             200,
-            (max(total_hint, 1) + page_size - 1) // page_size + 2,
+            (max(total_hint, 1) + step - 1) // step + 2,
         ),
     )
     window_start = ""
@@ -1487,6 +1571,7 @@ def _fetch_paged_rows(
                 post_data=post_data,
                 page_no=page_no,
                 page_size=page_size,
+                kind=kind,
             )
         except Exception as exc:  # noqa: BLE001
             if kind in ("orders", "products") and page_no == 2:
@@ -1507,10 +1592,10 @@ def _fetch_paged_rows(
             batch_days = [str(r.get("report_day") or "")[:10] for r in batch]
             if any(d and d < window_start for d in batch_days):
                 break
-        if len(batch) < page_size:
+        if not batch:
             break
         page_no += 1
-        time.sleep(1.2 if kind == "orders" else 1.5)
+        time.sleep(_pdd_page_sleep(kind))
 
     if kind in ("orders", "products"):
         seen: set[str] = set()
@@ -1535,7 +1620,7 @@ def fetch_orders_via_xhr(
     date_window: str = "today",
     store_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
-    """打开订单列表页捕获真实列表 XHR，并按 date_window 过滤到对应日期。"""
+    """直接重放已冻结的订单列表接口（不开页面），并按 date_window 过滤。"""
     rows, source_url, meta = _fetch_paged_rows(
         page,
         kind="orders",
@@ -1543,9 +1628,9 @@ def fetch_orders_via_xhr(
         api_candidates=PDD_ORDER_LIST_API_CANDIDATES,
         date_window=date_window,
         store_id=store_id,
-        # 订单列表必须以页面真实 XHR（recentOrderList）为基准：页面自带的请求头
-        # 携带平台签名，直接伪造最小 body 会被频控拒绝。
-        skip_direct=True,
+        # 接口地址已硬编码 + 缓存完整请求规格（含签名头/body）：默认直连重放，
+        # 不开页面、不抓包；直连无响应/签名过期时才回退 _capture_xhr 刷新。
+        skip_direct=False,
     )
     window = str(date_window or "today").strip().lower()
     if window == "today":
@@ -1828,6 +1913,36 @@ def _build_days_payload(orders: list[dict[str, Any]], date_window: str) -> list[
     return [{"replace_day": day, "orders": by_day[day]} for day in sorted(by_day)]
 
 
+_PDD_CONTEXT_CACHE: dict[str, dict[str, Any]] = {}
+_PDD_CONTEXT_CACHE_MAX = 2
+_PDD_CONTEXT_IDLE_SECONDS = 300.0
+
+
+def _pdd_context_key(tenant_id: int, profile_store: str) -> str:
+    return f"pdd:{int(tenant_id)}:{normalize_session_key(profile_store)}"
+
+
+def _evict_pdd_contexts() -> None:
+    """回收空闲超时或超出上限的持久化浏览器上下文（仅无头同步会话）。"""
+    now = time.time()
+    for key in list(_PDD_CONTEXT_CACHE):
+        entry = _PDD_CONTEXT_CACHE[key]
+        idle = now - entry.get("last_used", 0)
+        if idle > _PDD_CONTEXT_IDLE_SECONDS or len(_PDD_CONTEXT_CACHE) > _PDD_CONTEXT_CACHE_MAX:
+            _close_pw(entry.get("pw"), entry.get("context"))
+            _PDD_CONTEXT_CACHE.pop(key, None)
+
+
+def _release_pdd_session(pw, context) -> None:
+    """同步结束把浏览器放回缓存复用；不在缓存中的会话直接关闭。"""
+    key = getattr(context, "_pdd_cache_key", None)
+    entry = _PDD_CONTEXT_CACHE.get(key) if key else None
+    if entry is not None and entry.get("context") is context:
+        entry["last_used"] = time.time()
+        return
+    _close_pw(pw, context)
+
+
 def _open_pdd_session(
     client,
     tenant_id: int,
@@ -1842,12 +1957,42 @@ def _open_pdd_session(
     headless = True
     pw = context = page = None
     try:
-        pw, context, page = _launch(
-            tenant_id,
-            headless=headless,
-            force_navigate=True,
-            store_id=profile_store,
-        )
+        key = _pdd_context_key(tenant_id, profile_store)
+        entry = _PDD_CONTEXT_CACHE.get(key)
+        if entry is not None:
+            try:
+                context_closed = entry["context"].is_closed()
+            except Exception:  # noqa: BLE001
+                context_closed = True
+            if context_closed:
+                _PDD_CONTEXT_CACHE.pop(key, None)
+                entry = None
+        if entry is not None:
+            # 复用同一持久化浏览器（多标签页模式）：关闭旧页，新开一页进首页。
+            pw, context = entry["pw"], entry["context"]
+            context._pdd_cache_key = key  # type: ignore[attr-defined]
+            entry["last_used"] = time.time()
+            try:
+                for p in list(context.pages):
+                    p.close()
+            except Exception:  # noqa: BLE001
+                pass
+            page = context.new_page()
+            page.goto(PDD_SELLER_HOME, wait_until="domcontentloaded", timeout=90_000)
+        else:
+            pw, context, page = _launch(
+                tenant_id,
+                headless=headless,
+                force_navigate=True,
+                store_id=profile_store,
+            )
+            context._pdd_cache_key = key  # type: ignore[attr-defined]
+            _PDD_CONTEXT_CACHE[key] = {
+                "pw": pw,
+                "context": context,
+                "last_used": time.time(),
+            }
+            _evict_pdd_contexts()
         if not _looks_logged_in(page, context) and _has_auth_cookies(context):
             # 登录 cookie 有效但商家后台 SPA 尚未渲染完（启动瞬间 body 为空），
             # 等待页面渲染稳定再判定，避免把有效会话误判为未登录。
@@ -1935,7 +2080,7 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
                 store_id=store_id,
             )
         finally:
-            _close_pw(pw, context)
+            _release_pdd_session(pw, context)
 
         platform_total = int((meta or {}).get("total_hint") or 0)
         store_truncated = bool((meta or {}).get("truncated"))
@@ -2024,7 +2169,7 @@ def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
         try:
             products, source_url, meta = fetch_products_via_xhr(page, store_id=store_id)
         finally:
-            _close_pw(pw, context)
+            _release_pdd_session(pw, context)
 
         platform_total = int((meta or {}).get("total_hint") or 0)
         store_truncated = bool((meta or {}).get("truncated"))
@@ -2109,7 +2254,7 @@ def run_compass_sync(client, task: dict[str, Any]) -> dict[str, Any]:
                 store_id=store_id,
             )
         finally:
-            _close_pw(pw, context)
+            _release_pdd_session(pw, context)
 
         payload_data = _sanitize_utf8(payload_data)
         window = next(
@@ -2176,7 +2321,7 @@ def run_issues_sync(client, task: dict[str, Any]) -> dict[str, Any]:
         try:
             issues, source_url, meta = fetch_issues_via_xhr(page, store_id=store_id)
         finally:
-            _close_pw(pw, context)
+            _release_pdd_session(pw, context)
 
         platform_total = int((meta or {}).get("total_hint") or 0)
         store_truncated = bool((meta or {}).get("truncated"))

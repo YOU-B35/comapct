@@ -76,12 +76,13 @@ def test_open_login_window_runs_playwright_on_clean_thread(monkeypatch):
     assert seen["thread"] not in (None, outer)
 
 
-def test_browser_fallback_uses_system_chrome_when_bundled_missing(monkeypatch):
+def test_browser_refuses_system_chrome_when_bundled_missing(monkeypatch):
     from agent.alibaba1688_tasks import _a1688_launch_kwargs
-    import sys
-    monkeypatch.setattr(sys, "frozen", True, raising=False)
 
     monkeypatch.setattr("app.browser.context._bundled_chromium_ready", lambda: False)
-    monkeypatch.setattr("app.browser.context._system_chrome_path", lambda: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")
-    kwargs = _a1688_launch_kwargs(headless=False)
-    assert kwargs.get("executable_path") == "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    try:
+        _a1688_launch_kwargs(headless=False)
+    except RuntimeError as exc:
+        assert "A1688_BROWSER_UNAVAILABLE" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError when bundled chromium is missing")

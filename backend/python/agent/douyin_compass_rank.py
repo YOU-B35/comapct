@@ -678,7 +678,7 @@ def _capture_default_category(page) -> dict[str, str]:
                     loc = page.get_by_text(label, exact=True).first
                     if loc.is_visible(timeout=800):
                         loc.click(timeout=2000)
-                        time.sleep(1.5)
+                        time.sleep(0.5)
                         break
                 except Exception:
                     continue

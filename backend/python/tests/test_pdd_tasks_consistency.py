@@ -555,6 +555,51 @@ def test_orders_sync_all_stores_ingests_logged_in_and_skips_others(monkeypatch: 
     assert ingested_stores == ["store-a", "store-c"]
 
 
+def test_pdd_session_reuses_cached_browser_context(monkeypatch: Any) -> None:
+    from agent import pdd_tasks as mod
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.pages: list[Any] = []
+
+        def close(self) -> None:
+            pass
+
+        def is_closed(self) -> bool:
+            return False
+
+        def new_page(self) -> Any:
+            page = type("FakePage", (), {})()
+            page.goto = lambda *a, **k: None
+            self.pages.append(page)
+            return page
+
+    class _Pw:
+        def stop(self) -> None:
+            pass
+
+    launches = {"n": 0}
+
+    def launch(*args: Any, **kwargs: Any) -> tuple[Any, Any, Any]:
+        launches["n"] += 1
+        return _Pw(), _Ctx(), type("FakePage", (), {})()
+
+    monkeypatch.setattr(mod, "_launch", launch)
+    monkeypatch.setattr(mod, "_looks_logged_in", lambda page, context=None: True)
+    mod._PDD_CONTEXT_CACHE.clear()
+    client = _FakeClient()
+    try:
+        first = mod._open_pdd_session(client, 7, "store-a", wait_login=False, label="t")
+        mod._release_pdd_session(first[0], first[1])
+        second = mod._open_pdd_session(client, 7, "store-a", wait_login=False, label="t")
+        mod._release_pdd_session(second[0], second[1])
+        assert launches["n"] == 1
+    finally:
+        for entry in list(mod._PDD_CONTEXT_CACHE.values()):
+            mod._close_pw(entry["pw"], entry["context"])
+        mod._PDD_CONTEXT_CACHE.clear()
+
+
 def test_looks_kind_api_url_rejects_recent_order_widget() -> None:
     from agent.pdd_tasks import _looks_kind_api_url
 
