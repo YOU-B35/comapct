@@ -434,3 +434,63 @@ def test_fetch_orders_uses_cached_xhr_without_opening_page(monkeypatch, tmp_path
     assert capture_calls["n"] == 0
     assert meta["total_hint"] == 2
     assert {r["order_no"] for r in rows} == {"C1", "C2"}
+
+
+def test_fetch_paged_rows_resumes_from_cached_last_page(monkeypatch, tmp_path):
+    monkeypatch.setattr(mod, "_pdd_xhr_cache_path", lambda: tmp_path / "pdd-cache.json")
+    cached = {
+        "method": "POST",
+        "url": "https://mms.pinduoduo.com/vodka/v2/mms/query/display/mall/goodsList",
+        "headers": {"content-type": "application/json;charset=UTF-8"},
+        "post_data": json.dumps({"pageNum": 1, "pageSize": 50}),
+        "updated_at": "2026-08-28 16:00:00",
+        "last_page": 3,
+    }
+    monkeypatch.setattr(mod, "_load_pdd_xhr_cache", lambda kind: cached)
+    monkeypatch.setattr(mod, "_capture_xhr", lambda *a, **k: None)
+    replay_calls: list[int] = []
+
+    def fake_replay(page, *, method, url, headers, post_data, page_no, page_size, kind=""):
+        replay_calls.append(page_no)
+        if page_no <= 4:
+            return _page_payload("products", [_product_row(f"G{page_no}")], total=5)
+        if page_no == 5:
+            return _page_payload("products", [_product_row("G5")], total=5)
+        return _page_payload("products", [], total=5)
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+
+    rows, _source, meta = mod._fetch_paged_rows(
+        _FakePage(direct_payload=_page_payload("products", [_product_row("G0")], total=5)),
+        kind="products",
+        page_urls=(mod.PDD_PRODUCT_LIST_PAGE,),
+        api_candidates=mod.PDD_PRODUCT_LIST_API_CANDIDATES,
+    )
+    assert replay_calls == [4, 5, 6]
+    assert {r["product_id"] for r in rows} == {"G0", "G4", "G5"}
+    assert meta["last_page"] == 5
+
+
+def test_replay_with_retry_caps_attempts(monkeypatch):
+    monkeypatch.setattr(mod.time, "sleep", lambda *_: None)
+    calls = {"n": 0}
+
+    def fake_replay(*args, **kwargs):
+        calls["n"] += 1
+        raise RuntimeError("操作过于频繁，请稍后再试")
+
+    monkeypatch.setattr(mod, "_replay_page", fake_replay)
+    try:
+        mod._replay_with_retry(
+            None,
+            method="POST",
+            url="https://mms.pinduoduo.com/x",
+            headers={},
+            post_data="{}",
+            page_no=3,
+            page_size=50,
+            kind="products",
+        )
+    except RuntimeError:
+        pass
+    assert calls["n"] == 2

@@ -14,6 +14,7 @@ import os
 import random
 import re
 import sys
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -123,8 +124,9 @@ def _pdd_replay_headers(kind: str, captured: dict[str, Any] | None = None) -> di
 
 
 def _pdd_page_sleep(kind: str) -> float:
-    """页间隔：默认 0.5s + 0-0.25s 抖动（env 可调），下限 0.4s。"""
-    base = float(os.getenv("PDD_PAGE_SLEEP_SECONDS", "0.5") or "0.5")
+    """页间隔：订单 1.2s / 商品 1.0s + 0.3s 抖动（env 可调），避免请求过密触发频控。"""
+    default = "1.2" if kind == "orders" else "1.0"
+    base = float(os.getenv("PDD_PAGE_SLEEP_SECONDS", default) or default)
     jitter = float(os.getenv("PDD_PAGE_SLEEP_JITTER", "0.25") or "0.25")
     return max(0.4, base + random.uniform(0, jitter))
 
@@ -1312,8 +1314,8 @@ def _replay_with_retry(
     page_no: int,
     page_size: int,
     kind: str = "",
-    retries: int = 5,
-    base_delay: float = 12.0,
+    retries: int = 2,
+    base_delay: float = 10.0,
 ) -> dict[str, Any]:
     """Replay one page, backing off when the platform rate-limits the account."""
     last_exc: Exception | None = None
@@ -1370,6 +1372,7 @@ def _load_pdd_xhr_cache(kind: str) -> dict[str, Any]:
         "headers": headers if isinstance(headers, dict) else {},
         "post_data": str(post_data) if post_data else "",
         "updated_at": str(entry.get("updated_at") or ""),
+        "last_page": int(entry.get("last_page") or 0),
     }
 
 
@@ -1391,6 +1394,24 @@ def _save_pdd_xhr_cache(kind: str, captured: dict[str, Any]) -> None:
         "post_data": str(captured.get("post_data") or ""),
         "updated_at": datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S"),
     }
+    try:
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as exc:  # noqa: BLE001
+        print(f"[PddXhr] cache write failed: {exc}", flush=True)
+
+
+def _save_pdd_last_page(kind: str, last_page: int) -> None:
+    """把已成功翻到的最后一页写入缓存，下次同步从该页续抓，避免重复请求。"""
+    path = _pdd_xhr_cache_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:  # noqa: BLE001
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    entry = data.setdefault(kind, {})
+    entry["last_page"] = int(last_page or 0)
+    entry["updated_at"] = datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
     try:
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except OSError as exc:  # noqa: BLE001
@@ -1536,13 +1557,15 @@ def _fetch_paged_rows(
         # 分页循环因平台频控重试耗尽而中断时置位，用于把任务标记为 partial
         # （仅“抓取中断”才算不完整；翻到窗口起点的正常停止不算）。
         "truncated": False,
+        "last_page": 1,
     }
 
     # 请求 pageSize 用目标值（平台可能忽略并按实际上限返回）；
     # 翻页上限按“实际返回行数”计算，避免平台忽略 pageSize 时提前停止。
     page_size = target_page_size or max(1, len(first_rows))
     step = max(1, len(first_rows))
-    page_no = 2
+    cached_last = int(cached.get("last_page") or 0) if isinstance(cached, dict) else 0
+    page_no = max(2, cached_last + 1)
     max_pages = max(
         1,
         min(
@@ -1574,7 +1597,11 @@ def _fetch_paged_rows(
                 kind=kind,
             )
         except Exception as exc:  # noqa: BLE001
-            if kind in ("orders", "products") and page_no == 2:
+            if (
+                kind in ("orders", "products")
+                and page_no == 2
+                and not _is_rate_limit_error(exc)
+            ):
                 raise RuntimeError(
                     f"PDD_{kind.upper()}_SOURCE_UNAVAILABLE: 接口拒绝修改页码参数"
                     f"（可能受 anti-content 签名限制）：{exc}。"
@@ -1587,6 +1614,7 @@ def _fetch_paged_rows(
         if not batch:
             break
         all_rows.extend(batch)
+        meta["last_page"] = page_no
         if kind == "orders" and window_start:
             # 列表按下单时间倒序；一旦越过窗口起点即可停止，避免把 90 天全量拉完。
             batch_days = [str(r.get("report_day") or "")[:10] for r in batch]
@@ -1922,6 +1950,12 @@ def _pdd_context_key(tenant_id: int, profile_store: str) -> str:
     return f"pdd:{int(tenant_id)}:{normalize_session_key(profile_store)}"
 
 
+def _pdd_context_thread_key(tenant_id: int, profile_store: str) -> tuple[int, str]:
+    # Playwright sync 对象绑定创建线程；缓存按线程隔离，避免跨线程复用报
+    # “Sync API inside the asyncio loop”错误。
+    return (threading.get_ident(), _pdd_context_key(tenant_id, profile_store))
+
+
 def _evict_pdd_contexts() -> None:
     """回收空闲超时或超出上限的持久化浏览器上下文（仅无头同步会话）。"""
     now = time.time()
@@ -1957,7 +1991,7 @@ def _open_pdd_session(
     headless = True
     pw = context = page = None
     try:
-        key = _pdd_context_key(tenant_id, profile_store)
+        key = _pdd_context_thread_key(tenant_id, profile_store)
         entry = _PDD_CONTEXT_CACHE.get(key)
         if entry is not None:
             try:
@@ -2088,6 +2122,8 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             platform_total_max = platform_total
         if store_truncated:
             truncated = True
+            if int(meta.get("last_page") or 0) > 1:
+                _save_pdd_last_page("orders", int(meta["last_page"]))
 
         days = _sanitize_utf8(_build_days_payload(orders, date_window))
         if not days:
@@ -2177,6 +2213,8 @@ def run_products_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             platform_total_max = platform_total
         if store_truncated:
             truncated = True
+            if int(meta.get("last_page") or 0) > 1:
+                _save_pdd_last_page("products", int(meta["last_page"]))
 
         products = _sanitize_utf8(products)
         total += len(products)
@@ -2329,6 +2367,8 @@ def run_issues_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             platform_total_max = platform_total
         if store_truncated:
             truncated = True
+            if int(meta.get("last_page") or 0) > 1:
+                _save_pdd_last_page("issues", int(meta["last_page"]))
 
         issues = _sanitize_utf8(issues)
         total += len(issues)
