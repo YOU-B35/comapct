@@ -2,6 +2,9 @@ package com.crosshub.pdd.repository;
 
 import com.crosshub.pdd.entity.PddOrder;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
@@ -35,9 +38,21 @@ public interface PddOrderRepository extends JpaRepository<PddOrder, String> {
             Collection<String> reportDays
     );
 
+    @Modifying
+    @Query("delete from PddOrder p where p.tenantId = :tenantId and p.storeId = :storeId "
+            + "and p.reportDay = :reportDay and p.dateWindow = :dateWindow")
     void deleteByTenantIdAndStoreIdAndReportDayAndDateWindow(
-            Long tenantId, String storeId, String reportDay, String dateWindow);
+            @Param("tenantId") Long tenantId,
+            @Param("storeId") String storeId,
+            @Param("reportDay") String reportDay,
+            @Param("dateWindow") String dateWindow);
 
     /** 按自然日整体替换（不区分 date_window，避免历史窗口标签残留导致重复）。 */
-    void deleteByTenantIdAndStoreIdAndReportDay(Long tenantId, String storeId, String reportDay);
+    @Modifying
+    @Query("delete from PddOrder p where p.tenantId = :tenantId and p.storeId = :storeId "
+            + "and p.reportDay = :reportDay")
+    void deleteByTenantIdAndStoreIdAndReportDay(
+            @Param("tenantId") Long tenantId,
+            @Param("storeId") String storeId,
+            @Param("reportDay") String reportDay);
 }
