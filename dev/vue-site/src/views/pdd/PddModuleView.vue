@@ -330,7 +330,7 @@ onActivated(() => {
   <PageScroll>
     <PageHeader
       title="拼多多运营中心"
-      description="百亿补贴与商城订单、活动预警经营数据"
+      description="百亿补贴与商城订单经营数据"
     />
 
     <HelperStatusBar platform="pdd" :store-id="selectedStoreId" />
