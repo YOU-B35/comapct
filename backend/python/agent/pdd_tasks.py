@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -1266,8 +1267,8 @@ def _replay_with_retry(
     post_data: str | None,
     page_no: int,
     page_size: int,
-    retries: int = 3,
-    base_delay: float = 5.0,
+    retries: int = 5,
+    base_delay: float = 8.0,
 ) -> dict[str, Any]:
     """Replay one page, backing off when the platform rate-limits the account."""
     last_exc: Exception | None = None
@@ -1285,7 +1286,7 @@ def _replay_with_retry(
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             if attempt + 1 < retries and _is_rate_limit_error(exc):
-                delay = base_delay * (attempt + 1)
+                delay = base_delay * (attempt + 1) + random.uniform(1, 3)
                 print(
                     f"[PddXhr] page={page_no} 频控，{int(delay)}s 后重试",
                     flush=True,
@@ -1455,14 +1456,14 @@ def _fetch_paged_rows(
     max_pages = max(
         1,
         min(
-            60 if kind == "orders" else 200,
+            200,
             (max(total_hint, 1) + page_size - 1) // page_size + 2,
         ),
     )
     window_start = ""
     if kind == "orders":
         window = str(date_window or "today").strip().lower()
-        if window in ("today", "d1", "d7", "d30"):
+        if window in ("today", "d1", "d7", "d30", "d90"):
             window_start = _window_day_list(window)[0]
     while page_no < max_pages and len(all_rows) < max(total_hint, 1):
         if kind == "orders" and window_start and any(
@@ -1502,7 +1503,7 @@ def _fetch_paged_rows(
         if len(batch) < page_size:
             break
         page_no += 1
-        time.sleep(1.2 if kind == "orders" else 0.3)
+        time.sleep(1.2 if kind == "orders" else 1.5)
 
     if kind in ("orders", "products"):
         seen: set[str] = set()
@@ -1543,7 +1544,7 @@ def fetch_orders_via_xhr(
     if window == "today":
         today = _today_str()
         rows = [r for r in rows if str(r.get("report_day") or "")[:10] == today]
-    elif window in ("d1", "d7", "d30"):
+    elif window in ("d1", "d7", "d30", "d90"):
         start = _window_day_list(window)[0]
         rows = [r for r in rows if str(r.get("report_day") or "") >= start]
     return rows, source_url
@@ -1804,6 +1805,8 @@ def _window_day_list(date_window: str) -> list[str]:
         offset = 6
     elif window == "d30":
         offset = 29
+    elif window == "d90":
+        offset = 89
     else:
         offset = 0
     return [(today - timedelta(days=offset - i)).isoformat() for i in range(offset + 1)]
@@ -1874,7 +1877,7 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
     job_id = str(payload.get("job_id") or "")
-    date_window = str(payload.get("date_window") or "today").strip() or "today"
+    date_window = str(payload.get("date_window") or "d90").strip() or "d90"
 
     if not PDD_ORDERS_XHR_READY:
         raise RuntimeError("PDD_ORDERS_NEED_DAY0: 拼多多订单接口尚未完成 Day0 探测固化")

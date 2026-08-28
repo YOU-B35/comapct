@@ -23,7 +23,7 @@ public class PddOrder {
     @Column(name = "report_day", nullable = false)
     private String reportDay = "";
 
-    /** 时间窗口：today / d1 / d7 / d30，对齐用户「订单按时间段分」需求 */
+    /** 时间窗口：today / d1 / d7 / d30 / d90，对齐用户「订单按时间段分」需求 */
     @Column(name = "date_window", nullable = false)
     private String dateWindow = "today";
 

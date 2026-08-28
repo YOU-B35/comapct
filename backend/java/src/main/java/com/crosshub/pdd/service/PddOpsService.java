@@ -31,11 +31,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -209,7 +211,7 @@ public class PddOpsService {
     }
 
     /**
-     * 触发同步。scope ∈ orders / products / compass / all；date_window ∈ today / d1 / d7 / d30
+     * 触发同步。scope ∈ orders / products / compass / all；date_window ∈ today / d1 / d7 / d30 / d90
      * （仅 orders scope 生效，对齐用户「订单按时间段分」需求）。
      */
     @Transactional
@@ -311,7 +313,7 @@ public class PddOpsService {
         return out;
     }
 
-    /** 按时间段查询订单。dateWindow ∈ today / d1 / d7 / d30 */
+    /** 按时间段查询订单。dateWindow ∈ today / d1 / d7 / d30 / d90 */
     public Map<String, Object> ordersByWindow(String storeId, String dateWindow) {
         Long tenantId = dataScopeService.requireTenantId();
         String window = dateWindow == null || dateWindow.isBlank() ? "today" : dateWindow.trim();
@@ -785,21 +787,27 @@ public class PddOpsService {
         }
         String now = now();
         int ingested = 0;
+        if (!products.isEmpty()) {
+            // 全量替换：先删除该店铺旧商品再写入，确保库中结果 = 平台当前全部商品（含下架）。
+            // 空列表不删除，避免同步异常时误清空。
+            productRepository.deleteByTenantIdAndStoreId(tenantId, storeId);
+        }
+        Set<String> seenKeys = new HashSet<>();
         for (Map<String, Object> src : products) {
             String productKey = firstNonBlank(text(src.get("product_key")), text(src.get("productKey")));
             if (productKey.isBlank()) {
                 String pid = text(src.get("product_id"));
                 productKey = storeId + ":" + pid;
             }
-            Optional<PddProduct> existing = productRepository.findByTenantIdAndProductKey(tenantId, productKey);
-            PddProduct p = existing.orElseGet(PddProduct::new);
-            if (existing.isEmpty()) {
-                p.setId(UUID.randomUUID().toString());
-                p.setTenantId(tenantId);
-                p.setStoreId(storeId);
-                p.setProductKey(productKey);
-                p.setCreatedAt(now);
+            if (!seenKeys.add(productKey)) {
+                continue;
             }
+            PddProduct p = new PddProduct();
+            p.setId(UUID.randomUUID().toString());
+            p.setTenantId(tenantId);
+            p.setStoreId(storeId);
+            p.setProductKey(productKey);
+            p.setCreatedAt(now);
             mapProductFields(p, src, storeId, now);
             productRepository.save(p);
             ingested++;

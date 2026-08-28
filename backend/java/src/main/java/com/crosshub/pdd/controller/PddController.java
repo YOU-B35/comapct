@@ -75,7 +75,7 @@ public class PddController {
     }
 
     /**
-     * 触发同步。body: scope(orders/products/compass/all) / force / store_id / date_window(today/d1/d7/d30)
+     * 触发同步。body: scope(orders/products/compass/all) / force / store_id / date_window(today/d1/d7/d30/d90)
      */
     @PostMapping("/sync")
     public ResponseEntity<Map<String, Object>> sync(@RequestBody(required = false) Map<String, Object> body) {
