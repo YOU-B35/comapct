@@ -1838,6 +1838,13 @@ def _open_pdd_session(
             force_navigate=True,
             store_id=profile_store,
         )
+        if not _looks_logged_in(page, context) and _has_auth_cookies(context):
+            # 登录 cookie 有效但商家后台 SPA 尚未渲染完（启动瞬间 body 为空），
+            # 等待页面渲染稳定再判定，避免把有效会话误判为未登录。
+            for _ in range(10):
+                time.sleep(1.5)
+                if _looks_logged_in(page, context):
+                    break
         if not _looks_logged_in(page, context):
             if not wait_login:
                 print(
@@ -1902,6 +1909,10 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
             _close_pw(pw, context)
 
         days = _sanitize_utf8(_build_days_payload(orders, date_window))
+        if not days:
+            # 0 条订单也必须按天回写，否则 Java ingest 因缺少 replace_day 返回 400；
+            # 同时用空列表覆盖窗口内各天，清掉该店旧数据。
+            days = [{"replace_day": day, "orders": []} for day in _window_day_list(date_window)]
         stored_count = sum(len(d["orders"]) for d in days)
         total += stored_count
         synced += 1

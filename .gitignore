@@ -32,6 +32,7 @@ agnets.md
 backend/python/crosshub.db
 backend/python/.aliexpress-browser-profile/
 backend/python/.temu-browser-profile/
+backend/python/.pdd-browser-profile/
 backend/data/
 backend/python/.1688-browser-profile/
 backend/python/_tmp_*

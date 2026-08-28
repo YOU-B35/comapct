@@ -1,7 +1,7 @@
 # CrossHub 开发交接文档
 
 > **唯一活文档**：任何 Agent / 开发者接手本项目时**必须先读本文**，开发结束前**必须更新本文**。  
-> **最后更新**：2026-08-20（Asia/Shanghai，浏览器内置化改造）  
+> **最后更新**：2026-08-27（Asia/Shanghai，生产拼多多 404 修复）  
 > **更新人**：开发会话（完整基建交接文档）  
 > **Git 分支**：`feat/amazon-v2-ops-crawl` · 最近提交 `1091976`（其后有未提交 JP/自启/并发/托盘等）  
 > **全量快照**：`docs/progress-snapshot-2026-07-30.md`  
@@ -33,6 +33,7 @@
 3. 清理已污染目录 `backend/python/.temu-browser-profile/tenant-5/account-13861260796`，再对 `YONI / 13861260796` 做干净首次登录回归。  
 4. AE `CRAWL_PYTHON_ENV` 架构债（应 Agent 化）与 Profile Sync AP-01/AP-02 证据收口（后续项）。  
 5. 【2026-08-20】爬虫已默认改用 Playwright 内置 Chromium（未提交）；重建 Helper exe 部署前，目标机需先 `py -m playwright install chromium`（无内置浏览器时冻结 exe 会自动回退本机 Chrome/Edge）。  
+6. 【2026-08-27】生产拼多多/淘宝 404 已修复：根因是生产 Nginx 反代片段（`/opt/1panel/www/sites/www.yoto.work/proxy/crosshub.conf`）缺 `/api/pdd`、`/api/taobao`、`/api/sync-logs` 三个转发块；本地 `deploy/crosshub-proxy.conf` 已补齐并同步上线（备份 `.bak.20260827T08362`）。**以后新增平台后端接口，必须同步在 `deploy/crosshub-proxy.conf` 增加对应 `location` 块并部署，否则生产会 404。**  
 
 ---
 
@@ -826,6 +827,16 @@
 - **不动**：1688 与竞品快照本就用内置 Chromium；Amazon 走紫鸟 WebDriver + CDP（账号隔离架构，不改）；`manual_chrome.py` 买家侧人工登录刻意用真实 Chrome（Playwright 页面登录空白问题），保留
 - **验证**：本机 Playwright 1.60 所需 chromium-1223 已缓存；三平台 launch kwargs 实测无 channel/executable_path；`TEMU_BROWSER_CHANNEL=chrome` 覆盖生效；相关 21 测试通过；全量测试失败 8 项均为改动前既有问题（HEAD 基线 11 项），零新增回归
 - **遗留**：① 部署/重建 Helper exe 的目标机需先 `py -m playwright install chromium`（冻结态无内置浏览器时自动回退本机浏览器，不会崩）；② 若后续发现内置 Chromium 被 Temu/AE 风控识别，可用 `TEMU_BROWSER_CHANNEL=chrome` 一键切回；③ 本次改动未提交，与既有未提交面（agent/main.py、tray_app.py、sync_helper_app.py、crosshub-proxy.conf）并存
+
+---
+
+### 2026-08-27（生产事故修复：拼多多导航 404）
+
+- **现象**：线上 https://www.yoto.work/crosshub/ 点击「拼多多」导航，`/api/pdd/session`、`/api/pdd/orders`、`/api/pdd/product-analytics`、`/api/pdd/peer-bestsellers`、`/api/pdd/products`、`/api/pdd/issues`、`/api/pdd/operations/overview` 全部 404
+- **根因**：不是部署漏传文件。生产 Java 容器（`crosshub-java`，`/app/app.jar`）含完整拼多多控制器（本机直连 18080 返回 401 而非 404）；真正原因是生产 Nginx 反代片段 `crosshub.conf` 只有 18 个 location，缺 `/api/pdd`、`/api/taobao`、`/api/sync-logs` 三个转发块，请求没被转给 Java
+- **修复**：本地 `deploy/crosshub-proxy.conf` 补上三个 location（pdd/taobao 带 600s 超时），上传替换生产配置，备份 `.bak.20260827T08362`，`openresty -t` 通过后 `openresty -s reload`（容器 `1Panel-openresty-UN3Y`）
+- **验证**：HangZhouYiTuo 登录取 token 后，9 个端点全部 200（pdd session/orders/product-analytics/products/issues/peer-bestsellers/operations/overview、taobao session、sync-logs）
+- **教训**：新平台接入时，后端控制器 + 前端代理（Vite）+ 生产 Nginx 反代三处必须同步，缺一即生产 404
 
 ---
 
