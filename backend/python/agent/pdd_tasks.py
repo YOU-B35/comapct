@@ -1648,26 +1648,67 @@ def fetch_orders_via_xhr(
     date_window: str = "today",
     store_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
-    """直接重放已冻结的订单列表接口（不开页面），并按 date_window 过滤。"""
-    rows, source_url, meta = _fetch_paged_rows(
+    """按天分窗直接重放订单接口：不开页面、不抓包，逐天完整且独立成败。"""
+    if page is None:
+        raise RuntimeError(
+            "PDD_ORDERS_SOURCE_UNAVAILABLE: need a logged-in PDD seller browser session"
+        )
+    cached = _load_pdd_xhr_cache("orders")
+    spec: dict[str, Any] | None = None
+    if cached.get("url") and cached.get("post_data"):
+        # 已有完整请求规格（签名头/body）：直接按天重放，不再探测或开页。
+        spec = cached
+    else:
+        spec = _try_direct_first_page(page, "orders", PDD_ORDER_LIST_API_CANDIDATES, cached)
+        if spec is None:
+            spec = _capture_xhr(page, PDD_ORDER_LIST_PAGE_CANDIDATES, "orders", timeout=45.0)
+            if spec:
+                _save_pdd_xhr_cache("orders", spec)
+    if spec is None:
+        raise RuntimeError(
+            "PDD_ORDERS_SOURCE_UNAVAILABLE: 未能在拼多多商家后台发现订单列表接口，"
+            "请确认已登录且页面已打开"
+        )
+    url = str(spec.get("url") or "")
+    headers = spec.get("headers") or {}
+    post_data = str(spec.get("post_data") or "")
+    if "recentorderlist" in url.lower():
+        normalized = _normalize_orders_post_data(post_data)
+        if normalized:
+            post_data = normalized
+    rows, meta = _fetch_orders_by_day(
         page,
-        kind="orders",
-        page_urls=PDD_ORDER_LIST_PAGE_CANDIDATES,
-        api_candidates=PDD_ORDER_LIST_API_CANDIDATES,
+        url=url,
+        headers=headers,
+        post_data=post_data,
         date_window=date_window,
-        store_id=store_id,
-        # 接口地址已硬编码 + 缓存完整请求规格（含签名头/body）：默认直连重放，
-        # 不开页面、不抓包；直连无响应/签名过期时才回退 _capture_xhr 刷新。
-        skip_direct=False,
     )
-    window = str(date_window or "today").strip().lower()
-    if window == "today":
-        today = _today_str()
-        rows = [r for r in rows if str(r.get("report_day") or "")[:10] == today]
-    elif window in ("d1", "d7", "d30", "d90"):
-        start = _window_day_list(window)[0]
-        rows = [r for r in rows if str(r.get("report_day") or "") >= start]
-    return rows, source_url, meta
+    if meta.get("failed_days"):
+        # 接口被拒/频控：重新抓包刷新签名后仅补失败日（规则允许的兜底）。
+        fresh = _capture_xhr(page, PDD_ORDER_LIST_PAGE_CANDIDATES, "orders", timeout=45.0)
+        if fresh:
+            _save_pdd_xhr_cache("orders", fresh)
+            fresh_url = str(fresh.get("url") or "")
+            fresh_post = str(fresh.get("post_data") or "")
+            if "recentorderlist" in fresh_url.lower():
+                normalized = _normalize_orders_post_data(fresh_post)
+                if normalized:
+                    fresh_post = normalized
+            retry_rows, retry_meta = _fetch_orders_by_day(
+                page,
+                url=fresh_url,
+                headers=fresh.get("headers") or {},
+                post_data=fresh_post,
+                date_window=date_window,
+                days=meta["failed_days"],
+            )
+            rows.extend(retry_rows)
+            meta["failed_days"] = retry_meta.get("failed_days") or []
+            meta["truncated"] = bool(meta["failed_days"])
+            meta["total_hint"] = int(meta.get("total_hint") or 0) + int(
+                retry_meta.get("total_hint") or 0
+            )
+    return rows, url, meta
 
 
 def fetch_products_via_xhr(
@@ -1915,6 +1956,13 @@ def _today_str() -> str:
     return datetime.now(SHANGHAI).strftime("%Y-%m-%d")
 
 
+def _day_epoch_bounds(day_iso: str) -> tuple[int, int]:
+    """返回某天（Asia/Shanghai）的 [00:00, 次日00:00) 秒级时间戳。"""
+    day = datetime.strptime(day_iso, "%Y-%m-%d").replace(tzinfo=SHANGHAI)
+    start = int(day.timestamp())
+    return start, start + 86400
+
+
 def _window_day_list(date_window: str) -> list[str]:
     """按 date_window 生成需要覆盖的日期列表（含今天）。"""
     today = datetime.now(SHANGHAI).date()
@@ -1930,6 +1978,85 @@ def _window_day_list(date_window: str) -> list[str]:
     else:
         offset = 0
     return [(today - timedelta(days=offset - i)).isoformat() for i in range(offset + 1)]
+
+
+def _fetch_orders_by_day(
+    page,
+    *,
+    url: str,
+    headers: dict[str, str],
+    post_data: str,
+    date_window: str,
+    days: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """按天分窗抓取订单：每天 1 页即完整，逐天独立成败，避免全窗口翻页触发频控。
+
+    某天被限流时标记 failed_days 并继续后续日期；下次同步可只补失败日。
+    返回 (rows, meta)，meta 含 total_hint / truncated / failed_days。
+    """
+    day_list = days if days is not None else _window_day_list(date_window)
+    page_size = int(os.getenv("PDD_ORDERS_PAGE_SIZE", "50") or "50")
+    pacing = float(os.getenv("PDD_DAY_PACING_SECONDS", "2.5") or "2.5")
+    retry_delay = float(os.getenv("PDD_DAY_RETRY_DELAY", "10") or "10")
+    base_payload: dict[str, Any] = {}
+    try:
+        parsed = json.loads(post_data)
+        if isinstance(parsed, dict):
+            base_payload = parsed
+    except Exception:  # noqa: BLE001
+        base_payload = {}
+
+    all_rows: list[dict[str, Any]] = []
+    meta: dict[str, Any] = {
+        "total_hint": 0,
+        "truncated": False,
+        "last_page": 1,
+        "failed_days": [],
+    }
+    req_headers = _pdd_replay_headers("orders", {"headers": headers})
+    for day_iso in day_list:
+        start_ts, end_ts = _day_epoch_bounds(day_iso)
+        payload = dict(base_payload)
+        payload["groupStartTime"] = start_ts
+        payload["groupEndTime"] = end_ts - 1
+        payload["pageNumber"] = 1
+        payload["pageSize"] = page_size
+        body = json.dumps(payload, ensure_ascii=False)
+        day_ok = False
+        last_exc: Exception | None = None
+        for attempt in range(2):
+            try:
+                resp = page.request.post(
+                    url,
+                    headers=req_headers,
+                    data=body,
+                    timeout=60_000,
+                )
+                if resp.status >= 400:
+                    raise RuntimeError(f"HTTP {resp.status}")
+                data = resp.json()
+                rows = [_map_order_row(r) for r in _find_list_rows(data, "orders")]
+                total = _extract_total_count(data, len(rows))
+                all_rows.extend(rows)
+                meta["total_hint"] += total
+                meta["last_page"] = day_list.index(day_iso) + 1
+                day_ok = True
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt == 0 and _is_rate_limit_error(exc):
+                    time.sleep(retry_delay)
+                    continue
+                break
+        if not day_ok:
+            meta["failed_days"].append(day_iso)
+            meta["truncated"] = True
+            print(
+                f"[PddXhr] orders day={day_iso} failed: {last_exc}",
+                flush=True,
+            )
+        time.sleep(pacing)
+    return all_rows, meta
 
 
 def _build_days_payload(orders: list[dict[str, Any]], date_window: str) -> list[dict[str, Any]]:

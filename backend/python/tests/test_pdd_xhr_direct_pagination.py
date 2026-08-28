@@ -494,3 +494,53 @@ def test_replay_with_retry_caps_attempts(monkeypatch):
     except RuntimeError:
         pass
     assert calls["n"] == 2
+
+
+def test_fetch_orders_by_day_marks_failed_days(monkeypatch):
+    monkeypatch.setattr(mod.time, "sleep", lambda *_: None)
+    posts: list[dict] = []
+
+    class _Page:
+        request = None
+
+        def post(self, url, *, headers=None, data=None, timeout=None):
+            body = json.loads(data)
+            posts.append(body)
+            if len(posts) == 1:
+                return _Resp(
+                    200,
+                    {
+                        "result": {
+                            "totalItemNum": 1,
+                            "pageItems": [_today_order_row("D1")],
+                        }
+                    },
+                )
+            raise RuntimeError("操作过于频繁，请稍后再试")
+
+    page = _Page()
+    page.request = page
+    base_post = json.dumps(
+        {
+            "orderType": 0,
+            "afterSaleType": 0,
+            "sortType": 1,
+            "pageNumber": 1,
+            "pageSize": 50,
+            "groupStartTime": 1,
+            "groupEndTime": 2,
+        }
+    )
+    rows, meta = mod._fetch_orders_by_day(
+        page,
+        url="https://mms.pinduoduo.com/mangkhut/mms/recentOrderList",
+        headers={},
+        post_data=base_post,
+        date_window="d1",
+    )
+    # d1 = 2 天：首日成功，次日频控（2 次尝试）
+    assert len(posts) == 3
+    assert posts[0]["groupStartTime"] < posts[1]["groupStartTime"]
+    assert meta["truncated"] is True
+    assert len(meta["failed_days"]) == 1
+    assert {r["order_no"] for r in rows} == {"D1"}
