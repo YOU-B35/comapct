@@ -232,16 +232,27 @@ def _build_flask_app(java_client: Any) -> "Flask":
 
             path = _helper_config_path()
             cfg = _read_config(path)
+            token = (
+                str(cfg.get("agent_token") or cfg.get("token") or os.environ.get("AGENT_TOKEN") or "")
+                .strip()
+            )
+            # 守卫：本机 Java 必须能用当前 token 认证，否则拒绝切换。
+            # 避免本地开发页把生产助手切到 401 的本地实例，导致生产同步静默失效。
+            if token:
+                try:
+                    AgentApiClient(token=token, base_url=local_api).heartbeat(ziniao_online=False)
+                except Exception as exc:  # noqa: BLE001
+                    return jsonify({
+                        "ok": False,
+                        "msg": f"本机 Java :18080 拒绝当前助手 token（{exc}），已保持现有连接",
+                        "live_java_api_url": _api_base(),
+                    }), 409
             cfg["java_api_url"] = local_api
             cfg["allow_local_java"] = True
             _write_config(path, cfg)
 
             os.environ["JAVA_API_URL"] = local_api
             os.environ["CROSSHUB_ALLOW_LOCAL_JAVA"] = "1"
-            token = (
-                str(cfg.get("agent_token") or cfg.get("token") or os.environ.get("AGENT_TOKEN") or "")
-                .strip()
-            )
             sync_agent_config_module(api=local_api, token=token)
 
             if token:

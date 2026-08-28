@@ -1892,7 +1892,7 @@ def _sync_message(label: str, captured: int, synced: int, skipped: int, platform
     msg = f"已同步{label} {captured} 条（覆盖 {synced} 个店铺）"
     if platform_total > 0 and captured < platform_total:
         msg += f"，平台共 {platform_total} 条，受频控仅部分入库"
-    elif skipped:
+    if skipped:
         msg += f"，跳过未登录店铺 {skipped} 个"
     return msg
 
