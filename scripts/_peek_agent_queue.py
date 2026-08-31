@@ -16,3 +16,4 @@ for row in c.execute(
     "ORDER BY last_heartbeat_at DESC LIMIT 6"
 ):
     print(dict(row))
+ 
