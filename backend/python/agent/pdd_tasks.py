@@ -13,6 +13,7 @@ import json
 import os
 import random
 import re
+import shutil
 import sys
 import threading
 import time
@@ -145,7 +146,7 @@ _PDD_XHR_CACHE_NAME = ".pdd-xhr-cache.json"
 
 # 按天节奏令牌桶：默认等价于原 3s/天，但按令牌匀速发放并支持突发。
 _PDD_DAY_BUCKET = TokenBucket(
-    rate=1.0 / max(float(os.getenv("PDD_DAY_PACING_SECONDS", "3.0") or "3.0"), 0.5),
+    rate=1.0 / max(float(os.getenv("PDD_DAY_PACING_SECONDS", "1.0") or "1.0"), 0.5),
     capacity=1.0,
 )
 
@@ -202,7 +203,7 @@ def _pdd_profile_root() -> Path:
             continue
         value = (cfg.get("pdd_profile_root") or "").strip()
         if value:
-            return Path(value)
+            return Path(os.path.expandvars(value))
     if getattr(sys, "frozen", False):
         # EXE 位于 <项目>/dist/CrossHub-Sync-Helper/CrossHub-Sync-Helper/ 下
         candidate = Path(sys.executable).resolve().parents[3] / "backend" / "python"
@@ -278,8 +279,10 @@ def _has_pdd_profile_lock(profile_dir: Path) -> bool:
 
 def _close_pw(pw, context) -> None:
     """Graceful close so cookies flush before next sync."""
+    tmp_profile = None
     try:
         if context is not None:
+            tmp_profile = getattr(context, "_pdd_sync_profile_tmp", None)
             try:
                 context.close()
             except Exception:
@@ -290,6 +293,40 @@ def _close_pw(pw, context) -> None:
                 pw.stop()
             except Exception:
                 pass
+    if tmp_profile is not None:
+        try:
+            shutil.rmtree(tmp_profile, ignore_errors=True)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _clone_pdd_profile(master: Path) -> Path | None:
+    """Copy the logged-in profile so headless sync cannot clobber the master cookies.
+
+    同步用无头浏览器跑在副本上：即使平台让无头会话失效/写回登出 cookie，
+    主 profile 的登录态也保持不变，下次 probe 仍显示已登录。
+    """
+    try:
+        if not master.is_dir():
+            return None
+        tmp = master.parent / f"{master.name}.sync-{int(time.time() * 1000)}"
+        shutil.copytree(
+            master,
+            tmp,
+            ignore=shutil.ignore_patterns(
+                "SingletonLock",
+                "SingletonSocket",
+                "SingletonCookie",
+                "DevToolsActivePort",
+                "lockfile",
+                "LOCK",
+                "*.tmp",
+            ),
+        )
+        return tmp
+    except Exception as exc:  # noqa: BLE001
+        print(f"[PddBrowser] profile clone failed, fallback to master: {exc}", flush=True)
+        return None
 
 
 def _launch(
@@ -298,10 +335,11 @@ def _launch(
     headless: bool = False,
     force_navigate: bool = True,
     store_id: str | None = None,
+    profile_dir_override: Path | None = None,
 ):
     from playwright.sync_api import sync_playwright
 
-    user_dir = profile_dir(tenant_id, store_id)
+    user_dir = profile_dir_override if profile_dir_override is not None else profile_dir(tenant_id, store_id)
     if _has_pdd_profile_lock(user_dir):
         print("[PddBrowser] stale profile lock present, reclaiming before launch…", flush=True)
         close_pdd_profile_browsers(user_dir)
@@ -1177,6 +1215,54 @@ def _order_rows_from_payload(data: Any) -> list[dict[str, Any]]:
     return [_map_order_row(r) for r in rows]
 
 
+_ORDER_LIST_EMPTY_HINTS = (
+    "orderlist",
+    "order_list",
+    "orders",
+    "pageitems",
+    "resultlist",
+    "rows",
+    "items",
+    "list",
+)
+
+
+def _looks_like_empty_order_list(data: Any) -> bool:
+    """True when the payload carries an explicit（可能为空的）订单列表字段。"""
+    if not isinstance(data, dict):
+        return False
+    for key, value in data.items():
+        if isinstance(value, list):
+            low = str(key).lower()
+            if any(hint in low for hint in _ORDER_LIST_EMPTY_HINTS):
+                return True
+        elif isinstance(value, dict) and _looks_like_empty_order_list(value):
+            return True
+    return False
+
+
+def _validate_order_response(data: Any) -> None:
+    """Raise when the replay response is not a usable order-list payload.
+
+    PDD 在签名过期/未登录/频控时可能返回 null 或错误体；这些必须按“失败日”处理，
+    否则会被当成“今天没有订单”静默入库，导致同步显示成功但前端没有数据。
+    """
+    if data is None:
+        raise RuntimeError("订单接口返回空响应（可能登录态失效或签名过期）")
+    if not isinstance(data, dict):
+        raise RuntimeError("订单接口返回非对象响应")
+    if data.get("success") is False:
+        msg = (
+            data.get("error_msg")
+            or data.get("errorMsg")
+            or data.get("message")
+            or "unknown"
+        )
+        raise RuntimeError(f"订单接口返回错误: {msg}")
+    if _find_list_rows(data, "orders") is None and not _looks_like_empty_order_list(data):
+        raise RuntimeError("订单接口响应中未发现订单列表（可能签名过期或触发频控）")
+
+
 def _sanitize_utf8(value: Any) -> Any:
     """递归清理孤立代理字符（emoji 拆包等），避免 httpx 序列化时 UnicodeEncodeError。"""
     if isinstance(value, dict):
@@ -1442,6 +1528,11 @@ def _save_pdd_last_page(kind: str, last_page: int) -> None:
 
 def _save_pdd_failed_days(kind: str, date_window: str, failed_days: list[str]) -> None:
     """持久化失败日，下次同步只补失败日+今天，逐轮补齐完整窗口。"""
+    window = str(date_window or "today").strip().lower()
+    if window in ("today", "d1", "d7", "d30", "d90"):
+        allowed = set(_window_day_list(window))
+    else:
+        allowed = None
     path = _pdd_xhr_cache_path()
     try:
         data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -1450,8 +1541,12 @@ def _save_pdd_failed_days(kind: str, date_window: str, failed_days: list[str]) -
     if not isinstance(data, dict):
         data = {}
     entry = data.setdefault(kind, {})
-    entry["failed_days"] = list(dict.fromkeys(failed_days or []))
-    entry["window"] = str(date_window or "").strip().lower()
+    failed = list(dict.fromkeys(failed_days or []))
+    if allowed is not None:
+        failed = [d for d in failed if d in allowed]
+    failed.sort(reverse=True)
+    entry["failed_days"] = failed
+    entry["window"] = window
     entry["updated_at"] = datetime.now(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
     try:
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1699,8 +1794,11 @@ def fetch_orders_via_xhr(
     cached_failed = cached.get("failed_days") if isinstance(cached, dict) else []
     cached_window = str(cached.get("window") or "") if isinstance(cached, dict) else ""
     days_to_fetch: list[str] | None = None
-    if cached_failed and cached_window == str(date_window or "today").strip().lower():
-        days_to_fetch = list(dict.fromkeys([*cached_failed, _today_str()]))
+    window = str(date_window or "today").strip().lower()
+    if cached_failed and cached_window == window:
+        window_days = set(_window_day_list(window))
+        days_to_fetch = [d for d in dict.fromkeys([*cached_failed, _today_str()]) if d in window_days]
+        days_to_fetch.sort(reverse=True)
     spec: dict[str, Any] | None = None
     if cached.get("url") and cached.get("post_data"):
         # 已有完整请求规格（签名头/body）：直接按天重放，不再探测或开页。
@@ -2041,6 +2139,7 @@ def _fetch_orders_by_day(
     days: list[str] | None = None,
     on_day=None,
     bucket: TokenBucket | None = None,
+    max_consecutive_failures: int | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """按天分窗抓取订单：每天 1 页即完整，逐天独立成败，避免全窗口翻页触发频控。
 
@@ -2048,8 +2147,18 @@ def _fetch_orders_by_day(
     返回 (rows, meta)，meta 含 total_hint / truncated / failed_days。
     """
     day_list = days if days is not None else _window_day_list(date_window)
+    # 从今天开始逐天往前抓：今天 → 昨天 → …（用户预期顺序，也让今日数据最先入库）
+    day_list = list(dict.fromkeys(day_list))
+    day_list.sort(key=lambda d: d, reverse=True)
     page_size = int(os.getenv("PDD_ORDERS_PAGE_SIZE", "50") or "50")
-    retry_delay = float(os.getenv("PDD_DAY_RETRY_DELAY", "10") or "10")
+    retry_delay = float(os.getenv("PDD_DAY_RETRY_DELAY", "3") or "3")
+    request_timeout = int(os.getenv("PDD_DAY_REQUEST_TIMEOUT_SECONDS", "20") or "20")
+    if max_consecutive_failures is None:
+        max_consecutive = int(
+            os.getenv("PDD_DAY_MAX_CONSECUTIVE_FAILURES", "4") or "4"
+        )
+    else:
+        max_consecutive = max(1, int(max_consecutive_failures))
     pacing_bucket = bucket if bucket is not None else _PDD_DAY_BUCKET
     base_payload: dict[str, Any] = {}
     try:
@@ -2067,6 +2176,7 @@ def _fetch_orders_by_day(
         "failed_days": [],
     }
     req_headers = _pdd_replay_headers("orders", {"headers": headers})
+    consecutive = 0
     for day_iso in day_list:
         start_ts, end_ts = _day_epoch_bounds(day_iso)
         payload = dict(base_payload)
@@ -2083,11 +2193,12 @@ def _fetch_orders_by_day(
                     url,
                     headers=req_headers,
                     data=body,
-                    timeout=60_000,
+                    timeout=request_timeout * 1000,
                 )
                 if resp.status >= 400:
                     raise RuntimeError(f"HTTP {resp.status}")
                 data = resp.json()
+                _validate_order_response(data)
                 rows = _order_rows_from_payload(data)
                 for row in rows:
                     if not str(row.get("report_day") or "")[:10]:
@@ -2115,11 +2226,25 @@ def _fetch_orders_by_day(
         if not day_ok:
             meta["failed_days"].append(day_iso)
             meta["truncated"] = True
+            consecutive += 1
             print(
                 f"[PddXhr] orders day={day_iso} failed: {last_exc}",
                 flush=True,
             )
+        else:
+            consecutive = 0
         pacing_bucket.consume()
+        if consecutive >= max_consecutive:
+            remaining = day_list[day_list.index(day_iso) + 1 :]
+            if remaining:
+                meta["failed_days"].extend(remaining)
+                meta["truncated"] = True
+                print(
+                    f"[PddXhr] orders abort after {consecutive} consecutive failures; "
+                    f"{len(remaining)} days pending for next sync",
+                    flush=True,
+                )
+            break
     return all_rows, meta
 
 
@@ -2205,13 +2330,20 @@ def _open_pdd_session(
             page = context.new_page()
             page.goto(PDD_SELLER_HOME, wait_until="domcontentloaded", timeout=90_000)
         else:
+            # 无头同步使用主 profile 的临时副本，避免平台让无头会话失效时把
+            # 主 profile 的登录 cookie 覆盖成登出状态（否则每次同步都要重新登录）。
+            sync_profile = _clone_pdd_profile(profile_dir(tenant_id, profile_store)) if headless else None
             pw, context, page = _launch(
                 tenant_id,
                 headless=headless,
                 force_navigate=True,
                 store_id=profile_store,
+                profile_dir_override=sync_profile,
             )
             context._pdd_cache_key = key  # type: ignore[attr-defined]
+            if sync_profile is not None:
+                # 副本会话随缓存复用/回收；主 profile 登录态始终不受无头同步影响
+                context._pdd_sync_profile_tmp = sync_profile  # type: ignore[attr-defined]
             _PDD_CONTEXT_CACHE[key] = {
                 "pw": pw,
                 "context": context,
@@ -2271,7 +2403,8 @@ def run_orders_sync(client, task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") or {}
     tenant_id = int(payload.get("tenant_id") or 0)
     job_id = str(payload.get("job_id") or "")
-    date_window = str(payload.get("date_window") or "d90").strip() or "d90"
+    # 默认同步近 30 日，从今天往前逐天抓取；需要更长窗口可显式传 date_window=d90
+    date_window = str(payload.get("date_window") or "d30").strip() or "d30"
 
     if not PDD_ORDERS_XHR_READY:
         raise RuntimeError("PDD_ORDERS_NEED_DAY0: 拼多多订单接口尚未完成 Day0 探测固化")

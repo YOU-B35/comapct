@@ -35,6 +35,12 @@ const trend = ref([])
 const overview = ref(null)
 const trendEl = ref(null)
 
+function setPreset(key) {
+  if (!PRESETS.some((p) => p.key === key)) return
+  preset.value = key
+  void load()
+}
+
 function dateText(offsetDays = 0) {
   const d = new Date()
   d.setDate(d.getDate() + offsetDays)
@@ -245,7 +251,7 @@ watch(customRange, () => {
 
 onMounted(() => void load())
 
-defineExpose({ load })
+defineExpose({ load, setPreset })
 </script>
 
 <template>

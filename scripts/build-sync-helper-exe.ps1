@@ -256,7 +256,7 @@ if ($SUBSYS -notlike "GUI*") {
 # 5) README + 完成汇总
 # ============================================================
 $readme = @"
-CrossHub Sync Helper · 桌面端（64 位 · 真窗口版）
+CrossHub Sync Helper · 电商跨平台同步助手（64 位 · 浏览器面板版）
 =================================================
 架构：            x64 (AMD64) — 仅限 64 位 Windows 10/11
 可执行文件：      CrossHub-Sync-Helper.exe
@@ -264,13 +264,20 @@ CrossHub Sync Helper · 桌面端（64 位 · 真窗口版）
 文件版本：        $($FVER -replace '^=','')
 文件描述：        $DESC
 图标：            CrossHub.ico（16~256 多尺寸，任务栏/桌面/开始菜单自适应）
-启动模式：        双击 EXE → 直接弹出桌面窗口（pywebview + Edge WebView2）
-                  若本机未装 WebView2 会自动退化为默认浏览器打开
+启动模式：        双击 SETUP.cmd / EXE → 系统托盘常驻，
+                  并用默认浏览器打开本地面板 http://127.0.0.1:18766
+
+【重要 · 必读】
+本程序是“多文件”结构，exe 依赖同目录下的 _internal 文件夹。
+- 必须把整个 zip【完整解压】到一个文件夹，exe 和 _internal 要在同一层；
+- 不要从压缩包里直接双击 exe，也不要只把 exe 单独拖出来，否则会报
+  “Failed to load Python DLL ... _internal\python311.dll / 找不到指定的模块”；
+- 首次启动请双击 SETUP.cmd（它会检查文件是否完整，并注册连接助手协议）。
 
 【首次使用 · 必做】
-1. 将整个 CrossHub-Sync-Helper 文件夹拷贝到任意目录（如桌面或 %PROGRAMFILES%）。
-2. 双击 CrossHub-Sync-Helper.exe（或 SETUP.cmd：会顺便注册 crosshub-sync-helper:// 协议）。
-3. 程序启动后自动弹出桌面窗口，完成绑定码 / 账号密码绑定。
+1. 将 zip 完整解压，得到整个 CrossHub-Sync-Helper 文件夹后，拷贝到任意目录（如桌面或 %PROGRAMFILES%）。
+2. 双击 SETUP.cmd（会检查文件完整并注册 crosshub-sync-helper:// 协议；之后也可直接双击 EXE）。
+3. 程序启动后默认浏览器自动打开助手面板，完成绑定码 / 账号密码绑定。
 4. 保持程序运行（可最小化；托盘图标右键可「打开面板 / 退出」）。
 5. 网站状态栏显示「助手在线」后，即可使用打开登录 / 同步订单 / 同步商品等功能。
 
@@ -292,7 +299,7 @@ Set-Content -Path (Join-Path $AppDir "README.txt") -Value $readme -Encoding UTF8
 
 Write-Host ""
 Write-Host "===============================================" -ForegroundColor Green
-Write-Host " 打包完成！ CrossHub Sync Helper 桌面版"        -ForegroundColor Green
+Write-Host " 打包完成！ CrossHub Sync Helper 浏览器版（托盘常驻 + 默认浏览器打开面板）" -ForegroundColor Green
 Write-Host "===============================================" -ForegroundColor Green
 Write-Host " 目录     : $AppDir"                             -ForegroundColor Green
 Write-Host " EXE      : $ExePath"                            -ForegroundColor Green

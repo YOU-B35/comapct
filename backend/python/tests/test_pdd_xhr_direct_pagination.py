@@ -538,9 +538,9 @@ def test_fetch_orders_by_day_marks_failed_days(monkeypatch):
         post_data=base_post,
         date_window="d1",
     )
-    # d1 = 2 天：首日成功，次日频控（2 次尝试）
+    # d1 = 2 天：从今天往前抓，首日成功，次日频控（2 次尝试）
     assert len(posts) == 3
-    assert posts[0]["groupStartTime"] < posts[1]["groupStartTime"]
+    assert posts[0]["groupStartTime"] > posts[1]["groupStartTime"]
     assert meta["truncated"] is True
     assert len(meta["failed_days"]) == 1
     assert {r["order_no"] for r in rows} == {"D1"}

@@ -172,13 +172,26 @@ async function syncOrders() {
       return
     }
     ElMessage.success('已开始同步拼多多订单')
-    await pollPddSyncJob(jobId)
+    const job = await pollPddSyncJob(jobId)
+    const count = Number(job?.orders_count || 0)
+    const partial = String(job?.status || '').toLowerCase() === 'partial'
+    // 同步覆盖近 30 日，成功后切到近 30 日并刷新，确保数据直接映射到页面
+    dashboardRef.value?.setPreset?.('d30')
+    orderDetailsRef.value?.setPreset?.('d30')
     dashboardRef.value?.load?.()
     orderDetailsRef.value?.load?.()
     bestsellersRef.value?.load?.()
     todayBestsellersRef.value?.load?.()
     recentSalesRef.value?.load?.()
-    ElMessage.success('拼多多订单同步完成')
+    if (partial) {
+      ElMessage.warning(
+        count > 0
+          ? `拼多多订单部分完成：已入库 ${count} 条；受限流影响的日期已记录，下次同步自动补齐`
+          : '拼多多订单部分完成：受限流影响暂未取到数据，稍后重试会自动补齐',
+      )
+    } else {
+      ElMessage.success(count > 0 ? `拼多多订单同步完成，共 ${count} 条` : '拼多多订单同步完成')
+    }
   } catch (error) {
     ElMessage.error(error?.message || '拼多多订单同步失败')
   } finally {

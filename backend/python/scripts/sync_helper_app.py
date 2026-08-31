@@ -122,6 +122,18 @@ def load_config() -> dict:
             except Exception as exc:
                 print(f"==> 读取配置失败 {path}: {exc}", file=sys.stderr)
 
+    # 模板配置里 %APPDATA% / %LOCALAPPDATA% 等占位符需要展开成真实用户目录
+    for key in (
+        "project_root",
+        "temu_profile_root",
+        "ae_profile_root",
+        "a1688_profile_root",
+        "pdd_profile_root",
+    ):
+        raw = cfg.get(key)
+        if isinstance(raw, str):
+            cfg[key] = os.path.expandvars(raw)
+
     # 进程环境里已有的值才算“显式”；项目 .env 不得劫持 Sync Helper 的 API/Token
     explicit_token = os.environ.get("AGENT_TOKEN")
     explicit_api = os.environ.get("JAVA_API_URL")

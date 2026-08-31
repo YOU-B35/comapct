@@ -11,6 +11,20 @@ if not exist "%EXE%" (
   exit /b 1
 )
 
+if not exist "%~dp0_internal\python311.dll" (
+  echo [错误] 缺少运行文件 _internal\python311.dll
+  echo.
+  echo 请把下载的 zip【完整解压】到一个文件夹后再运行本脚本；
+  echo 不要从压缩包里直接双击 exe，也不要只把 exe 单独拖出来。
+  echo 正确结构应该是（两者在同一文件夹下）：
+  echo   CrossHub-Sync-Helper.exe
+  echo   _internal\python311.dll
+  echo.
+  echo 如果下载后解压报错/缺少文件，请删除后重新下载完整 zip 再解压。
+  pause
+  exit /b 1
+)
+
 echo [1/2] 注册「连接助手」协议...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0register-protocol.ps1" -ExePath "%EXE%"
 if errorlevel 1 (

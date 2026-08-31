@@ -94,6 +94,13 @@ function search() {
   void load()
 }
 
+function setPreset(key) {
+  if (!PRESETS.some((p) => p.key === key)) return
+  preset.value = key
+  page.value = 1
+  void load()
+}
+
 function thumbSrc(row) {
   const raw = String(row?.imageUrl || '').trim()
   if (!raw) return ''
@@ -110,7 +117,7 @@ watch(page, () => void load())
 
 onMounted(() => void load())
 
-defineExpose({ load })
+defineExpose({ load, setPreset })
 </script>
 
 <template>
