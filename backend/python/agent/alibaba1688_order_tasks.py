@@ -18,6 +18,7 @@ from agent.alibaba1688_order_constants import (
     assert_orders_xhr_ready,
 )
 from agent.alibaba1688_tasks import _close, _launch, _looks_logged_in
+from app.rate_limit import retry_with_backoff
 
 _CN = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
@@ -202,24 +203,28 @@ def _mtop(page, api: str, data: dict[str, Any], timeout_ms: int = 30000) -> dict
         f"&api=mtop.{api_name}&v=1.0&ecode=1"
         "&type=originaljson&dataType=json&data=" + quote(data_json, safe="")
     )
-    result = page.evaluate(
-        """async ({ url, timeoutMs }) => {
-            const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-            try {
-                const resp = await fetch(url, {
-                    credentials: 'include',
-                    headers: { 'Accept': 'application/json' },
-                    signal: ctrl.signal,
-                });
-                return await resp.json();
-            } catch (e) {
-                return { ret: ['FAIL::' + String(e)] };
-            } finally {
-                clearTimeout(timer);
-            }
-        }""",
-        {"url": url, "timeoutMs": timeout_ms},
+    result = retry_with_backoff(
+        lambda: page.evaluate(
+            """async ({ url, timeoutMs }) => {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+                try {
+                    const resp = await fetch(url, {
+                        credentials: 'include',
+                        headers: { 'Accept': 'application/json' },
+                        signal: ctrl.signal,
+                    });
+                    return await resp.json();
+                } catch (e) {
+                    return { ret: ['FAIL::' + String(e)] };
+                } finally {
+                    clearTimeout(timer);
+                }
+            }""",
+            {"url": url, "timeoutMs": timeout_ms},
+        ),
+        retries=1,
+        base_delay=1.5,
     )
     if not isinstance(result, dict):
         raise RuntimeError("A1688_ORDERS_SOURCE_UNAVAILABLE: 订单接口无响应")

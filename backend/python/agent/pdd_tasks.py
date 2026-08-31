@@ -30,6 +30,7 @@ from app.browser.pdd_context import (
     sanitize_profile_startup_for_pdd,
 )
 from app.session_scope import normalize_session_key, resolve_platform_profile_dir
+from app.rate_limit import TokenBucket
 # ============================================================================
 # PDD 数据源：真实接口直连（运行时自动发现 mms.pinduoduo.com 列表 XHR 并分页拉全量）
 # ============================================================================
@@ -141,6 +142,12 @@ PDD_COMPASS_DATE_TYPES: list[dict[str, Any]] = [
 # 冻结接口缓存：首次发现列表 XHR 后写盘，后续同步直接按缓存 URL 发请求，
 # 不再每次打开页面监听网络（接口拿到一次后固化复用）。
 _PDD_XHR_CACHE_NAME = ".pdd-xhr-cache.json"
+
+# 按天节奏令牌桶：默认等价于原 3s/天，但按令牌匀速发放并支持突发。
+_PDD_DAY_BUCKET = TokenBucket(
+    rate=1.0 / max(float(os.getenv("PDD_DAY_PACING_SECONDS", "3.0") or "3.0"), 0.5),
+    capacity=1.0,
+)
 
 # 拼多多登录态 cookie 标记（probe 后可补充；先用 PASS_ID/ruipk 等常见）
 _AUTH_COOKIE_MARKERS = (
@@ -1159,6 +1166,17 @@ def _extract_captured_rows(payload: Any, kind: str) -> list[dict[str, Any]]:
     return rows
 
 
+def _order_rows_from_payload(data: Any) -> list[dict[str, Any]]:
+    """Map order rows from a replay payload; empty list when no rows are found.
+
+    ``_find_list_rows`` returns ``None`` when the payload has no recognizable
+    order list (e.g. a rate-limit or error body), which used to crash the
+    per-day fetch with ``'NoneType' object is not iterable``.
+    """
+    rows = _find_list_rows(data, "orders") or []
+    return [_map_order_row(r) for r in rows]
+
+
 def _sanitize_utf8(value: Any) -> Any:
     """递归清理孤立代理字符（emoji 拆包等），避免 httpx 序列化时 UnicodeEncodeError。"""
     if isinstance(value, dict):
@@ -2022,6 +2040,7 @@ def _fetch_orders_by_day(
     date_window: str,
     days: list[str] | None = None,
     on_day=None,
+    bucket: TokenBucket | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """按天分窗抓取订单：每天 1 页即完整，逐天独立成败，避免全窗口翻页触发频控。
 
@@ -2030,8 +2049,8 @@ def _fetch_orders_by_day(
     """
     day_list = days if days is not None else _window_day_list(date_window)
     page_size = int(os.getenv("PDD_ORDERS_PAGE_SIZE", "50") or "50")
-    pacing = float(os.getenv("PDD_DAY_PACING_SECONDS", "3.0") or "3.0")
     retry_delay = float(os.getenv("PDD_DAY_RETRY_DELAY", "10") or "10")
+    pacing_bucket = bucket if bucket is not None else _PDD_DAY_BUCKET
     base_payload: dict[str, Any] = {}
     try:
         parsed = json.loads(post_data)
@@ -2069,7 +2088,7 @@ def _fetch_orders_by_day(
                 if resp.status >= 400:
                     raise RuntimeError(f"HTTP {resp.status}")
                 data = resp.json()
-                rows = [_map_order_row(r) for r in _find_list_rows(data, "orders")]
+                rows = _order_rows_from_payload(data)
                 for row in rows:
                     if not str(row.get("report_day") or "")[:10]:
                         row["report_day"] = day_iso
@@ -2100,7 +2119,7 @@ def _fetch_orders_by_day(
                 f"[PddXhr] orders day={day_iso} failed: {last_exc}",
                 flush=True,
             )
-        time.sleep(pacing)
+        pacing_bucket.consume()
     return all_rows, meta
 
 

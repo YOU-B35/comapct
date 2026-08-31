@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => {
           '/api/pdd',
           '/api/agent',
           '/api/sau',
+          '/api/sync-logs',
           '/api/commander',
           '/api/ai-image',
           '/api/health',

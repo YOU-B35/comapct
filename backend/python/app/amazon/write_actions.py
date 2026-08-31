@@ -33,6 +33,32 @@ REVIEW_ACTION_LABELS = (
 )
 CASE_ACTION_LABELS = ("Mark as read", "Acknowledge", "标记已读", "已读")
 
+TRACKING_INPUT_SELECTORS = [
+    "input[name*='tracking' i]",
+    "input[id*='tracking' i]",
+    "input[placeholder*='tracking' i]",
+    "input[aria-label*='tracking' i]",
+    "input[data-testid*='tracking' i]",
+    "input[name*='trackingNumber' i]",
+    "input[name*='carrier' i]",
+    "input[id*='carrier' i]",
+    "input[placeholder*='carrier' i]",
+    "input[aria-label*='carrier' i]",
+    "input[placeholder*='运单' i]",
+    "input[aria-label*='运单' i]",
+    "input[placeholder*='追踪' i]",
+    "input[aria-label*='追踪' i]",
+    "input[name*='shipment' i]",
+]
+
+
+def supports_ship_action(fulfillment_type: Any) -> bool:
+    """FBA 订单由亚马逊履约，无需在卖家后台确认发货。"""
+    value = str(fulfillment_type or "").strip().lower()
+    if not value:
+        return True
+    return value not in {"fba", "amazon"}
+
 
 def execute_amazon_write(
     *,
@@ -128,19 +154,24 @@ def _click_first_action(page, labels: tuple[str, ...]) -> bool:
 
 
 def _find_tracking_input(page):
-    selectors = [
-        "input[name*='tracking' i]",
-        "input[id*='tracking' i]",
-        "input[placeholder*='tracking' i]",
-        "input[aria-label*='tracking' i]",
-        "input[name*='carrier' i]",
-        "input[placeholder*='运单' i]",
+    """优先在发货弹窗内查找，其次整页；避免兜底抓到页面搜索框。"""
+    scopes = [
+        page.get_by_role("dialog"),
+        page.locator("kat-dialog"),
+        page.locator("awd-dialog"),
+        page,
     ]
-    for selector in selectors:
-        locator = page.locator(selector).first
-        if locator.count() > 0:
-            return locator
-    return page.locator("input[type='text']").filter(has_text=re.compile("tracking", re.I)).first
+    for scope in scopes:
+        for selector in TRACKING_INPUT_SELECTORS:
+            locator = scope.locator(selector).first
+            if locator.count() > 0:
+                return locator
+        # 弹窗内的任意可见文本框兜底（弹窗内一般没有搜索框）
+        if scope is not page:
+            textbox = scope.get_by_role("textbox").first
+            if textbox.count() > 0:
+                return textbox
+    return None
 
 
 def _write_buyer_message_reply(
@@ -190,18 +221,31 @@ def _write_outbound_ship(
     tracking_no = str(request.get("tracking_no") or request.get("trackingNo") or "").strip()
     if not tracking_no:
         raise ValueError("运单号不能为空")
+    fulfillment_type = payload.get("fulfillment_type") or payload.get("fulfillmentType") or ""
+    if not supports_ship_action(fulfillment_type):
+        result["capture_path"] = _save_capture(page, store_name=store_name, suffix="write_ship_fba")
+        raise RuntimeError(
+            f"AMAZON_WRITE_FBA_ORDER: 订单 {order_no or '-'} 为 FBA 履约，无需确认发货"
+        )
 
     _open_order_context(page, order_no)
-    _click_first_action(page, SHIP_ACTION_LABELS)
+    clicked = _click_first_action(page, SHIP_ACTION_LABELS)
+    if not clicked:
+        result["capture_path"] = _save_capture(page, store_name=store_name, suffix="write_ship_no_action")
+        raise RuntimeError("AMAZON_WRITE_DOM_FAILED: 未找到确认发货入口（订单可能已发货或为 FBA）")
+    page.wait_for_timeout(2500)
 
     tracking_input = _find_tracking_input(page)
-    if tracking_input.count() == 0:
+    if tracking_input is None or tracking_input.count() == 0:
         result["capture_path"] = _save_capture(page, store_name=store_name, suffix="write_ship_no_input")
         raise RuntimeError("AMAZON_WRITE_DOM_FAILED: 未找到运单号输入框")
 
     tracking_input.fill(tracking_no)
     page.wait_for_timeout(500)
-    _click_first_action(page, SUBMIT_LABELS)
+    clicked = _click_first_action(page, SUBMIT_LABELS)
+    if not clicked:
+        result["capture_path"] = _save_capture(page, store_name=store_name, suffix="write_ship_no_submit")
+        raise RuntimeError("AMAZON_WRITE_DOM_FAILED: 未找到确认提交按钮")
 
     result["page_url"] = page.url
     result["capture_path"] = _save_capture(page, store_name=store_name, suffix="write_ship_done")

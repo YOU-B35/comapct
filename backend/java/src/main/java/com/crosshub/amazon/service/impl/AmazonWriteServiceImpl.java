@@ -84,6 +84,19 @@ public class AmazonWriteServiceImpl implements AmazonWriteService {
         if (trackingNo == null || trackingNo.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "运单号不能为空");
         }
+        Long tenantId = dataScopeService.requireTenantId();
+        AmazonOperationalItem item = requireItem(id, "outbound_order", tenantId);
+        Map<String, Object> payload = payload(item);
+        String fulfillmentType = text(payload.get("fulfillment_type"));
+        if (fulfillmentType.isBlank()) {
+            fulfillmentType = text(payload.get("fulfillmentType"));
+        }
+        if ("fba".equalsIgnoreCase(fulfillmentType) || "amazon".equalsIgnoreCase(fulfillmentType)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "FBA 订单由亚马逊履约，无需确认发货"
+            );
+        }
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("tracking_no", trackingNo.trim());
         return enqueueWrite(id, "outbound_order", "outbound_ship", request, "shipped");

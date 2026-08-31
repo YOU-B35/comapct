@@ -56,6 +56,17 @@ from app.amazon.session_context import (
 from app.ziniao.client import ZiniaoClient, ZiniaoConfig
 
 PRODUCT_SYNC_SCOPES = frozenset({"daily", "insights", "reports"})
+CSV_FIRST_SCOPES = frozenset({"daily", "reports"})
+
+
+def scope_uses_csv(scope: str) -> bool:
+    """daily/reports 一律 CSV 导出优先，避免 BR/库存/广告 DOM 解析慢且不稳定。"""
+    return normalize_scope(scope) in CSV_FIRST_SCOPES
+
+
+def should_crawl_orders(scope: str) -> bool:
+    """出库订单只在 daily 范围爬取；reports 以 CSV 报表为主，不再逐页翻订单。"""
+    return normalize_scope(scope) == "daily"
 
 
 def _now_text() -> str:
@@ -128,11 +139,11 @@ def _load_inventory_products(
         if csv_result.rows:
             return csv_result.rows, "inv_csv", csv_result.page_url, ""
         if inventory_dom_fallback_enabled():
-            dom_rows = crawl_inventory_products(page, store_name=store_name, max_pages=3, fast=False)
+            dom_rows = crawl_inventory_products(page, store_name=store_name, max_pages=2, fast=True)
             return dom_rows, "inventory_all_dom", page.url, "" if dom_rows else csv_result.warning
         return [], "inv_csv", csv_result.page_url, csv_result.warning or "ZERO_ROWS"
 
-    dom_rows = crawl_inventory_products(page, store_name=store_name, max_pages=3, fast=False)
+    dom_rows = crawl_inventory_products(page, store_name=store_name, max_pages=2, fast=True)
     return dom_rows, "inventory_all", page.url, "" if dom_rows else "ZERO_ROWS"
 
 
@@ -153,11 +164,11 @@ def _load_ads_campaigns(
         if csv_result.rows:
             return csv_result.rows, {}, csv_result.merchant_id, "ads_csv", ""
         if ads_dom_fallback_enabled():
-            summary, campaigns, resolved = crawl_ads_data(page, merchant_id=merchant_id, fast=False)
+            summary, campaigns, resolved = crawl_ads_data(page, merchant_id=merchant_id, fast=True)
             return campaigns, summary, resolved, "ads_campaign_manager_dom", "" if campaigns else csv_result.warning
         return [], {}, csv_result.merchant_id, "ads_csv", csv_result.warning or "ADS_CSV_EMPTY"
 
-    summary, campaigns, resolved = crawl_ads_data(page, merchant_id=merchant_id, fast=False)
+    summary, campaigns, resolved = crawl_ads_data(page, merchant_id=merchant_id, fast=True)
     return campaigns, summary, resolved, "ads_campaign_manager", "" if campaigns else "ZERO_ROWS"
 
 
@@ -180,7 +191,7 @@ def _load_business_report_products(
                 "",
             )
         if br_dom_fallback_enabled():
-            dom_rows = crawl_business_report(page, store_name=store_name, fast=False)
+            dom_rows = crawl_business_report(page, store_name=store_name, fast=True)
             return (
                 dom_rows,
                 "br_child_asin_dom",
@@ -197,7 +208,7 @@ def _load_business_report_products(
         )
 
     started = time.time()
-    dom_rows = crawl_business_report(page, store_name=store_name, fast=False)
+    dom_rows = crawl_business_report(page, store_name=store_name, fast=True)
     return (
         dom_rows,
         "br_child_asin",
@@ -296,8 +307,8 @@ def run_crawl(
             ads_count = 0
 
             if normalized_scope in {"daily", "reports"}:
-                use_br_csv = normalized_scope == "reports"
-                print(f"[AmazonPipeline] product scopes start use_csv={use_br_csv}", file=sys.stderr)
+                use_csv = scope_uses_csv(normalized_scope)
+                print(f"[AmazonPipeline] product scopes start use_csv={use_csv}", file=sys.stderr)
                 started = time.time()
                 home_products = crawl_home_catalog(page)
                 _record(diagnostics, "home_catalog", HOME_URL, home_products, started)
@@ -307,7 +318,7 @@ def run_crawl(
                 report_products, br_key, br_url, _br_ms, br_warning = _load_business_report_products(
                     page,
                     store_name=store_name,
-                    use_csv=use_br_csv,
+                    use_csv=use_csv,
                 )
                 br_count = len(report_products)
                 _record(
@@ -327,7 +338,7 @@ def run_crawl(
                 inventory_products, inv_key, inv_url, inv_warning = _load_inventory_products(
                     page,
                     store_name=store_name,
-                    use_csv=use_br_csv,
+                    use_csv=use_csv,
                 )
                 inv_count = len(inventory_products)
                 catalog_count = inv_count
@@ -344,7 +355,7 @@ def run_crawl(
                     file=sys.stderr,
                 )
 
-                if use_br_csv and report_products:
+                if use_csv and report_products:
                     known = {str(r.get("asin") or "").upper(): r for r in inventory_products if r.get("asin")}
                     missing_asins = [
                         str(p.get("asin") or "").upper()
@@ -375,12 +386,12 @@ def run_crawl(
                     inventory_products,
                     home_products,
                     store_name=store_name,
-                    page=page if not (use_br_csv and br_count >= 5) else None,
+                    page=page if not (use_csv and br_count >= 5) else None,
                 )
                 catalog_count = max(catalog_count, len(inventory_products))
 
                 order_rows: list[dict[str, Any]] = []
-                if not use_br_csv:
+                if should_crawl_orders(normalized_scope):
                     started = time.time()
                     order_rows = crawl_orders_v3(page)
                     if order_rows:
@@ -398,7 +409,7 @@ def run_crawl(
                     report_products,
                     inventory_products,
                     home_products,
-                    None if use_br_csv else order_rows,
+                    order_rows if should_crawl_orders(normalized_scope) else None,
                 )
                 if composed:
                     result["products"] = enrich_product_rows(composed)
@@ -408,7 +419,7 @@ def run_crawl(
                     page,
                     store_name=store_name,
                     merchant_id=ctx.merchant_id,
-                    use_csv=use_br_csv,
+                    use_csv=use_csv,
                 )
                 ads_count = len(ad_campaigns)
                 ctx.merchant_id = resolved_merchant or ctx.merchant_id

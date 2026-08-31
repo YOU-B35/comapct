@@ -35,7 +35,8 @@ import java.util.UUID;
 @Service
 public class AgentServiceImpl implements AgentService {
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final long AMAZON_TASK_RUNNING_TTL_SECONDS = 6 * 60;
+    // 与 Python 侧 Amazon 爬取超时（40 分钟）对齐，留 5 分钟余量；否则 6 分钟就回收合法长任务。
+    private static final long AMAZON_TASK_RUNNING_TTL_SECONDS = 45 * 60;
     private static final long AGENT_TASK_RUNNING_TTL_SECONDS = 40 * 60;
     private static final long AGENT_TASK_DEFAULT_TTL_SECONDS = 10 * 60;
     /** 1688 商品同步安全上限；正常应像抖音一样 1–2 分钟内结束。 */
@@ -467,7 +468,7 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
-    private boolean isStaleAgentTask(AgentTask task) {
+    boolean isStaleAgentTask(AgentTask task) {
         LocalDateTime base = parseTime(task.getStartedAt());
         if (base == null) {
             base = parseTime(task.getCreatedAt());

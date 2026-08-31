@@ -30,7 +30,9 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Set<String> ACTIVE = Set.of("pending", "running");
     private static final Set<String> NEEDS_PRODUCT_ROWS = Set.of("daily", "insights", "reports");
-    private static final long RUNNING_TTL_SECONDS = 6 * 60;
+    // Python 侧 Amazon 爬取超时为 40 分钟（agent/handlers.py CRAWL_TIMEOUT_SECONDS=2400），
+    // 运行中 TTL 必须留足余量，否则合法长爬取会被误判为中断。
+    private static final long RUNNING_TTL_SECONDS = 45 * 60;
     private static final long PENDING_TTL_SECONDS = 3 * 60;
     private static final int MAX_AUTO_RETRY_COUNT = 2;
 
@@ -571,7 +573,7 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         return syncJobRepository.findFirstByAgentTaskId(taskId).orElse(null);
     }
 
-    private boolean isStale(AmazonSyncJob job) {
+    boolean isStale(AmazonSyncJob job) {
         LocalDateTime base = parseTime("running".equals(job.getStatus()) ? job.getStartedAt() : job.getCreatedAt());
         if (base == null) {
             return true;

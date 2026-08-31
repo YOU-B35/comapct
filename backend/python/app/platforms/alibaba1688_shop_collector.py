@@ -7,6 +7,7 @@ import threading
 import time
 from typing import Any
 
+from app.cache_store import CacheStore
 from app.platforms.alibaba1688_monitor_parse import (
     parse_offer_detail_responses,
     parse_shop_list_response,
@@ -24,6 +25,71 @@ PROFILE_LOCK = threading.Lock()
 _MODULEDATA_API = "mtop.alisite.cbu.winport.sync.moduledata.get"
 _MMGA_API = "mtop.1688.mmga.offerdetail.service"
 _SHOPCARD_API = "mtop.1688.moga.pc.shopcard"
+
+_ENRICH_NAMESPACE = "1688_offer_enrich"
+_ENRICH_TTL = 7 * 24 * 3600
+_ENRICH_STATIC_FIELDS = (
+    "title",
+    "image_url",
+    "shop_name",
+    "quality_rate",
+    "rebuy_rate",
+    "shop_return_rate",
+    "delivery_48h_rate",
+    "category",
+    "shop_fans",
+    "listed_at",
+    "dropship_heat",
+    "dropship_7d",
+    "dropship_30d",
+    "attrs_json",
+)
+
+_ENRICH_CACHE_STORE: CacheStore | None = None
+
+
+def _default_enrich_cache_path() -> Path:
+    return Path(__file__).resolve().parents[2] / ".sync-data-cache.json"
+
+
+def _enrich_cache_store() -> CacheStore:
+    global _ENRICH_CACHE_STORE
+    if _ENRICH_CACHE_STORE is None:
+        _ENRICH_CACHE_STORE = CacheStore(
+            _default_enrich_cache_path(),
+            default_ttl=_ENRICH_TTL,
+        )
+    return _ENRICH_CACHE_STORE
+
+
+def _enrichment_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Static, rarely-changing fields worth caching across sync runs."""
+    return {k: row[k] for k in _ENRICH_STATIC_FIELDS if row.get(k) not in (None, "")}
+
+
+def _apply_cached_enrichment(row: dict[str, Any], cached: dict[str, Any] | None) -> bool:
+    """Merge cached static fields into ``row``; True when a hit should skip detail fetch."""
+    if not isinstance(cached, dict) or not cached:
+        return False
+    for key in _ENRICH_STATIC_FIELDS:
+        if cached.get(key) not in (None, "") and row.get(key) in (None, ""):
+            row[key] = cached[key]
+    return True
+
+
+def _load_enrich_cache(store: CacheStore, *, tenant_id: int, offer_id: str) -> dict[str, Any] | None:
+    return store.get(_ENRICH_NAMESPACE, f"{int(tenant_id)}:{offer_id}")
+
+
+def _save_enrich_cache(store: CacheStore, *, tenant_id: int, offer_id: str, row: dict[str, Any]) -> None:
+    fields = _enrichment_fields(row)
+    if fields:
+        store.set(_ENRICH_NAMESPACE, f"{int(tenant_id)}:{offer_id}", fields)
+
+
+def _offer_detail_cache_enabled(offer_id: str, pinned: list[str]) -> bool:
+    """Pinned offers are monitored targets and must always be fetched fresh."""
+    return offer_id not in pinned
 
 
 def crawl_shop(*, tenant_id: int, target: dict, max_products: int) -> dict[str, Any]:
@@ -56,7 +122,7 @@ def crawl_shop(*, tenant_id: int, target: dict, max_products: int) -> dict[str, 
             page.wait_for_timeout(4000)
             if shop_url:
                 shop, offers = _fetch_shop_offers(page, shop_url, top_n)
-            rows = _fetch_offer_details(page, offers, pinned)
+            rows = _fetch_offer_details(page, offers, pinned, tenant_id=tenant_id)
         finally:
             _close(pw, context)
 
@@ -148,13 +214,30 @@ def _extract_member_id(page) -> str:
     return ""
 
 
-def _fetch_offer_details(page, offers: list[dict[str, Any]], pinned: list[str]) -> list[dict[str, Any]]:
+def _fetch_offer_details(
+    page,
+    offers: list[dict[str, Any]],
+    pinned: list[str],
+    *,
+    tenant_id: int,
+) -> list[dict[str, Any]]:
     rows = {str(o["offer_id"]): dict(o) for o in offers}
     for oid in pinned:
         if oid not in rows:
             rows[oid] = _empty_offer(oid, f"https://detail.1688.com/offer/{oid}.html")
     out: list[dict[str, Any]] = []
     for oid in list(rows):
+        row = rows[oid]
+        row["is_pinned"] = 1 if oid in pinned else 0
+        if _offer_detail_cache_enabled(oid, pinned):
+            cached = _load_enrich_cache(
+                _enrich_cache_store(),
+                tenant_id=tenant_id,
+                offer_id=oid,
+            )
+            if _apply_cached_enrichment(row, cached):
+                out.append(row)
+                continue
         captured: list[str] = []
 
         def on_response(resp) -> None:
@@ -194,7 +277,6 @@ def _fetch_offer_details(page, offers: list[dict[str, Any]], pinned: list[str]) 
         except Exception:
             pass
 
-        row = rows[oid]
         try:
             detail = parse_offer_detail_responses(captured)
             shop = {}
@@ -207,7 +289,13 @@ def _fetch_offer_details(page, offers: list[dict[str, Any]], pinned: list[str]) 
         except Exception:
             # 单商品失败不阻断整店：保留列表已有字段，继续下一个
             pass
-        row["is_pinned"] = 1 if oid in pinned else 0
+        if _offer_detail_cache_enabled(oid, pinned):
+            _save_enrich_cache(
+                _enrich_cache_store(),
+                tenant_id=tenant_id,
+                offer_id=oid,
+                row=row,
+            )
         out.append(row)
         time.sleep(0.8)
     return out
