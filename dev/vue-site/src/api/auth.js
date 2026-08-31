@@ -1,12 +1,5 @@
 import { isTemuBackendEnabled } from './config'
 import { backendLogin, clearAccessToken, service } from './request'
-import {
-  ensureDefaultUser,
-  loginLocalBoss,
-  registerLocalUser,
-} from './authLocal'
-import { loginLocalWarehouse } from './warehouseAuthLocal'
-import { fetchLocalEmployees } from './employeesLocal'
 import { resolveWarehouseNames } from '@/utils/warehouseScope'
 
 function mapBackendSession(backend) {
@@ -143,6 +136,7 @@ export async function registerCompany(payload) {
     return { success: true, data }
   }
 
+  const { registerLocalUser } = await import('./authLocal')
   const result = registerLocalUser({ company, account, password })
   if (result.error) throw new Error(result.error)
   return result
@@ -193,6 +187,7 @@ export async function loginBoss(payload) {
     }
   }
 
+  const { loginLocalBoss } = await import('./authLocal')
   const result = loginLocalBoss({ account, password })
   if (result.error) throw new Error(result.error)
   clearAccessToken()
@@ -229,6 +224,8 @@ export async function loginEmployee({ account, password }) {
     }
   }
 
+  const { ensureDefaultUser } = await import('./authLocal')
+  const { fetchLocalEmployees } = await import('./employeesLocal')
   ensureDefaultUser()
   const acc = String(account || '').trim().toLowerCase()
   const pwd = String(password || '')
@@ -285,6 +282,7 @@ export async function loginWarehouse({ account, password }) {
     }
   }
 
+  const { loginLocalWarehouse } = await import('./warehouseAuthLocal')
   const result = loginLocalWarehouse({ account, password })
   if (result.error) throw new Error(result.error)
   clearAccessToken()

@@ -176,6 +176,29 @@ ROOT = Path(__file__).resolve().parents[1]
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
+def _env_int(name: str, default: int, minimum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)) or default)
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, value)
+
+
+def _env_float(name: str, default: float, minimum: float) -> float:
+    try:
+        value = float(os.getenv(name, str(default)) or default)
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, value)
+
+
+PDD_XHR_NAV_TIMEOUT_MS = _env_int("PDD_XHR_NAV_TIMEOUT_MS", 45_000, 15_000)
+PDD_XHR_CAPTURE_TIMEOUT_SECONDS = _env_float("PDD_XHR_CAPTURE_TIMEOUT_SECONDS", 30.0, 8.0)
+PDD_XHR_DIRECT_TIMEOUT_MS = _env_int("PDD_XHR_DIRECT_TIMEOUT_MS", 30_000, 10_000)
+PDD_XHR_REPLAY_TIMEOUT_MS = _env_int("PDD_XHR_REPLAY_TIMEOUT_MS", 35_000, 10_000)
+PDD_SELLER_HOME_TIMEOUT_MS = _env_int("PDD_SELLER_HOME_TIMEOUT_MS", 45_000, 15_000)
+
+
 def _pdd_config_paths() -> list[Path]:
     paths: list[Path] = []
     if getattr(sys, "frozen", False):
@@ -1277,9 +1300,11 @@ def _sanitize_utf8(value: Any) -> Any:
     return value
 
 
-def _capture_xhr(page, page_urls: tuple[str, ...], kind: str, *, timeout: float = 45.0) -> dict[str, Any] | None:
+def _capture_xhr(page, page_urls: tuple[str, ...], kind: str, *, timeout: float | None = None) -> dict[str, Any] | None:
     """Open the list page and capture the first matching JSON list XHR (runtime Day0)."""
+    capture_timeout = PDD_XHR_CAPTURE_TIMEOUT_SECONDS if timeout is None else timeout
     captured: dict[str, Any] = {}
+    started = time.perf_counter()
 
     def on_response(response) -> None:
         if captured:
@@ -1326,7 +1351,7 @@ def _capture_xhr(page, page_urls: tuple[str, ...], kind: str, *, timeout: float 
         last_error: Exception | None = None
         for page_url in page_urls:
             try:
-                page.goto(page_url, wait_until="domcontentloaded", timeout=90_000)
+                page.goto(page_url, wait_until="domcontentloaded", timeout=PDD_XHR_NAV_TIMEOUT_MS)
                 if "/other/404" in (page.url or ""):
                     continue
                 break
@@ -1335,16 +1360,25 @@ def _capture_xhr(page, page_urls: tuple[str, ...], kind: str, *, timeout: float 
                 continue
         else:
             raise RuntimeError(f"无法打开 {page_urls[0]}: {last_error}")
-        deadline = time.time() + timeout
+        deadline = time.time() + capture_timeout
         while time.time() < deadline:
-            page.wait_for_timeout(500)
             if captured:
+                print(
+                    f"[PddPerf] capture_xhr kind={kind} elapsed={time.perf_counter() - started:.2f}s "
+                    f"url={captured.get('url') or '-'}",
+                    flush=True,
+                )
                 return captured
+            page.wait_for_timeout(300)
     finally:
         try:
             page.remove_listener("response", on_response)
         except Exception:
             pass
+    print(
+        f"[PddPerf] capture_xhr kind={kind} miss elapsed={time.perf_counter() - started:.2f}s",
+        flush=True,
+    )
     return None
 
 
@@ -1385,7 +1419,7 @@ def _replay_page(
         method=method_u,
         headers=req_headers,
         data=body,
-        timeout=60_000,
+        timeout=PDD_XHR_REPLAY_TIMEOUT_MS,
     )
     if response.status >= 400:
         raise RuntimeError(f"page {page_no} HTTP {response.status}")
@@ -1586,7 +1620,7 @@ def _try_direct_first_page(
                 api,
                 headers=headers,
                 data=post_data,
-                timeout=60_000,
+                timeout=PDD_XHR_DIRECT_TIMEOUT_MS,
             )
             if resp.status >= 400:
                 continue
@@ -1634,7 +1668,7 @@ def _fetch_paged_rows(
     cached = {} if skip_direct else _load_pdd_xhr_cache(kind)
     captured = None if skip_direct else _try_direct_first_page(page, kind, api_candidates, cached)
     if captured is None:
-        captured = _capture_xhr(page, page_urls, kind, timeout=45.0)
+        captured = _capture_xhr(page, page_urls, kind)
         if captured:
             _save_pdd_xhr_cache(kind, captured)
     elif not cached.get("url"):
@@ -1806,7 +1840,7 @@ def fetch_orders_via_xhr(
     else:
         spec = _try_direct_first_page(page, "orders", PDD_ORDER_LIST_API_CANDIDATES, cached)
         if spec is None:
-            spec = _capture_xhr(page, PDD_ORDER_LIST_PAGE_CANDIDATES, "orders", timeout=45.0)
+            spec = _capture_xhr(page, PDD_ORDER_LIST_PAGE_CANDIDATES, "orders")
             if spec:
                 _save_pdd_xhr_cache("orders", spec)
     if spec is None:
@@ -1832,7 +1866,7 @@ def fetch_orders_via_xhr(
     )
     if meta.get("failed_days"):
         # 接口被拒/频控：重新抓包刷新签名后仅补失败日（规则允许的兜底）。
-        fresh = _capture_xhr(page, PDD_ORDER_LIST_PAGE_CANDIDATES, "orders", timeout=45.0)
+        fresh = _capture_xhr(page, PDD_ORDER_LIST_PAGE_CANDIDATES, "orders")
         if fresh:
             _save_pdd_xhr_cache("orders", fresh)
             fresh_url = str(fresh.get("url") or "")
@@ -1997,7 +2031,7 @@ def fetch_compass_via_xhr(
         last_error: Exception | None = None
         for page_url in PDD_COMPASS_PAGE_CANDIDATES:
             try:
-                page.goto(page_url, wait_until="domcontentloaded", timeout=90_000)
+                page.goto(page_url, wait_until="domcontentloaded", timeout=PDD_XHR_NAV_TIMEOUT_MS)
                 if "/other/404" in (page.url or ""):
                     continue
                 break
@@ -2006,9 +2040,9 @@ def fetch_compass_via_xhr(
                 continue
         else:
             raise RuntimeError(f"无法打开 {PDD_COMPASS_PAGE_CANDIDATES[0]}: {last_error}")
-        deadline = time.time() + 30.0
+        deadline = time.time() + PDD_XHR_CAPTURE_TIMEOUT_SECONDS
         while time.time() < deadline and not captured.get("payload"):
-            page.wait_for_timeout(500)
+            page.wait_for_timeout(300)
     finally:
         try:
             page.remove_listener("response", on_response)
@@ -2328,7 +2362,7 @@ def _open_pdd_session(
             except Exception:  # noqa: BLE001
                 pass
             page = context.new_page()
-            page.goto(PDD_SELLER_HOME, wait_until="domcontentloaded", timeout=90_000)
+            page.goto(PDD_SELLER_HOME, wait_until="domcontentloaded", timeout=PDD_SELLER_HOME_TIMEOUT_MS)
         else:
             # 无头同步使用主 profile 的临时副本，避免平台让无头会话失效时把
             # 主 profile 的登录 cookie 覆盖成登出状态（否则每次同步都要重新登录）。

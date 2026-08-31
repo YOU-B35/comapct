@@ -6,6 +6,7 @@ import com.crosshub.auth.entity.AppUser;
 import com.crosshub.tenant.entity.Tenant;
 import com.crosshub.tenant.entity.TenantFeature;
 import com.crosshub.auth.repository.AppUserRepository;
+import com.crosshub.security.PasswordService;
 import com.crosshub.tenant.repository.SysMenuRepository;
 import com.crosshub.tenant.repository.TenantFeatureRepository;
 import com.crosshub.tenant.repository.TenantRepository;
@@ -29,17 +30,20 @@ public class TenantRegistrationServiceImpl implements TenantRegistrationService 
     private final AppUserRepository userRepository;
     private final SysMenuRepository menuRepository;
     private final TenantFeatureRepository featureRepository;
+    private final PasswordService passwordService;
 
     public TenantRegistrationServiceImpl(
             TenantRepository tenantRepository,
             AppUserRepository userRepository,
             SysMenuRepository menuRepository,
-            TenantFeatureRepository featureRepository
+            TenantFeatureRepository featureRepository,
+            PasswordService passwordService
     ) {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.menuRepository = menuRepository;
         this.featureRepository = featureRepository;
+        this.passwordService = passwordService;
     }
 
     @Transactional
@@ -67,7 +71,7 @@ public class TenantRegistrationServiceImpl implements TenantRegistrationService 
         AppUser admin = new AppUser();
         admin.setTenantId(tenant.getId());
         admin.setUsername(username);
-        admin.setPassword(pwd);
+        admin.setPassword(passwordService.encode(pwd));
         admin.setNickname(company);
         admin.setEnterprise(company);
         admin.setJobTitle("企业管理员");

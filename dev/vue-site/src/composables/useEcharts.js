@@ -2,6 +2,7 @@ import { nextTick, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import * as echarts from 'echarts/core'
 import { BarChart, FunnelChart, LineChart, PieChart } from 'echarts/charts'
 import {
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
   TooltipComponent,
@@ -14,6 +15,7 @@ echarts.use([
   FunnelChart,
   LineChart,
   PieChart,
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
   TooltipComponent,

@@ -178,7 +178,13 @@ watch(
       title="部分 SKU 广告 ACOS 过高，建议下调竞价或优化关键词"
     />
 
-    <el-segmented v-model="filter" :options="filterOptions" size="small" />
+    <div class="toolbar">
+      <el-radio-group v-model="filter" size="small">
+        <el-radio-button v-for="opt in filterOptions" :key="opt.value" :value="opt.value">
+          {{ opt.label }}
+        </el-radio-button>
+      </el-radio-group>
+    </div>
 
     <el-table :data="filteredProducts" stripe size="small" v-loading="loading" class="product-table">
       <el-table-column label="#" width="48" align="center" fixed="left">
@@ -253,6 +259,14 @@ watch(
 .amz-panel {
   display: grid;
   gap: 16px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .mini-stats {

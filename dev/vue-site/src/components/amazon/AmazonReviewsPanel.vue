@@ -82,11 +82,13 @@ defineExpose({ finishHandle })
       </div>
     </div>
 
-    <el-segmented v-model="filter" :options="[
-      { label: summary.pending ? `待处理 (${summary.pending})` : '待处理', value: 'pending' },
-      { label: '已处理', value: 'handled' },
-      { label: '全部', value: 'all' },
-    ]" />
+    <div class="toolbar">
+      <el-radio-group v-model="filter" size="small">
+        <el-radio-button value="pending">{{ summary.pending ? `待处理 (${summary.pending})` : '待处理' }}</el-radio-button>
+        <el-radio-button value="handled">已处理</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
+    </div>
 
     <el-table :data="filtered" stripe size="small" v-loading="loading">
       <el-table-column label="星级" width="80" align="center">
@@ -134,6 +136,7 @@ defineExpose({ finishHandle })
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
 .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .mini-stat {
   display: grid; gap: 4px; padding: 12px 14px;

@@ -2,9 +2,14 @@ server:
   port: 18080
 
 crosshub:
-  jwt-secret: crosshub-dev-secret-change-in-production
+  jwt-secret: crosshub-local-dev-secret-please-change-32b
+  data-secret: ${CROSSHUB_DATA_SECRET:${crosshub.jwt-secret}}
   db-path: ${CROSSHUB_DB_PATH:../data/crosshub.db}
   java-api-url: ${CROSSHUB_JAVA_API_URL:https://www.yoto.work}
+  demo-seed:
+    enabled: ${CROSSHUB_DEMO_SEED_ENABLED:true}
+  cors:
+    allowed-origin-patterns: ${CROSSHUB_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,https://www.yoto.work}
   agent:
     concurrency:
       # 16GB 机器默认：Temu≤3 / AE≤2 / Amazon≤1 / 全局≤5；按 session_key·browser_id 互斥

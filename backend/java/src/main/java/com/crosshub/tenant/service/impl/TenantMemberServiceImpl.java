@@ -14,6 +14,7 @@ import com.crosshub.auth.repository.AppUserRepository;
 import com.crosshub.tenant.repository.SysMenuRepository;
 
 import com.crosshub.security.AuthContext;
+import com.crosshub.security.PasswordService;
 
 import org.springframework.http.HttpStatus;
 
@@ -52,6 +53,7 @@ public class TenantMemberServiceImpl implements TenantMemberService {
     private final MemberScopeService memberScopeService;
 
     private final AuthContext authContext;
+    private final PasswordService passwordService;
 
 
 
@@ -63,7 +65,9 @@ public class TenantMemberServiceImpl implements TenantMemberService {
 
             MemberScopeService memberScopeService,
 
-            AuthContext authContext
+            AuthContext authContext,
+
+            PasswordService passwordService
 
     ) {
 
@@ -74,6 +78,7 @@ public class TenantMemberServiceImpl implements TenantMemberService {
         this.memberScopeService = memberScopeService;
 
         this.authContext = authContext;
+        this.passwordService = passwordService;
 
     }
 
@@ -127,7 +132,7 @@ public class TenantMemberServiceImpl implements TenantMemberService {
 
         user.setUsername(account);
 
-        user.setPassword(requirePassword(payload.password(), true));
+        user.setPassword(passwordService.encode(requirePassword(payload.password(), true)));
 
         user.setNickname(trim(payload.name()));
 
@@ -199,7 +204,7 @@ public class TenantMemberServiceImpl implements TenantMemberService {
 
         if (payload.password() != null && !payload.password().isBlank()) {
 
-            user.setPassword(payload.password());
+            user.setPassword(passwordService.encode(payload.password()));
 
         }
 

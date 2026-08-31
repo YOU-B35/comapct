@@ -1398,7 +1398,9 @@ public class PddOpsService {
                     'pdd_session_probe',
                     'pdd_login_open',
                     'pdd_sync',
-                    'pdd_products_sync'
+                    'pdd_products_sync',
+                    'pdd_issues_sync',
+                    'pdd_monitor_crawl'
                   )
                   AND (agent_id IS NULL OR agent_id = '' OR agent_id <> ?)
                 """,
@@ -1417,7 +1419,9 @@ public class PddOpsService {
                     'pdd_session_probe',
                     'pdd_login_open',
                     'pdd_sync',
-                    'pdd_products_sync'
+                    'pdd_products_sync',
+                    'pdd_issues_sync',
+                    'pdd_monitor_crawl'
                   )
                   AND (
                     (status = 'pending' AND created_at <> '' AND created_at < ?)
@@ -1427,7 +1431,7 @@ public class PddOpsService {
                       AND CASE WHEN started_at IS NULL OR started_at = '' THEN created_at ELSE started_at END < ?
                     )
                     OR (
-                      task_type IN ('pdd_login_open', 'pdd_sync', 'pdd_products_sync')
+                      task_type IN ('pdd_login_open', 'pdd_sync', 'pdd_products_sync', 'pdd_issues_sync', 'pdd_monitor_crawl')
                       AND status = 'running'
                       AND CASE WHEN started_at IS NULL OR started_at = '' THEN created_at ELSE started_at END < ?
                     )
@@ -1457,7 +1461,9 @@ public class PddOpsService {
                     'pdd_session_probe',
                     'pdd_login_open',
                     'pdd_sync',
-                    'pdd_products_sync'
+                    'pdd_products_sync',
+                    'pdd_issues_sync',
+                    'pdd_monitor_crawl'
                   )
                 """,
                 Integer.class,

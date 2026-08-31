@@ -18,7 +18,11 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       CROSSHUB_DB_PATH: /data/crosshub.db
       CROSSHUB_AGENT_PROFILES_ROOT: /data/agent-profiles
-      CROSSHUB_JWT_SECRET: crosshub-prod-jwt-secret-must-be-at-least-32-bytes
+      CROSSHUB_JWT_SECRET: "${CROSSHUB_JWT_SECRET:?Set CROSSHUB_JWT_SECRET to a random 32+ byte value}"
+      CROSSHUB_DATA_SECRET: "${CROSSHUB_DATA_SECRET:?Set CROSSHUB_DATA_SECRET to a random 32+ byte value}"
+      CROSSHUB_SAU_EXCHANGE_SECRET: "${CROSSHUB_SAU_EXCHANGE_SECRET:?Set CROSSHUB_SAU_EXCHANGE_SECRET to the SAU exchange secret}"
+      CROSSHUB_CORS_ALLOWED_ORIGIN_PATTERNS: "${CROSSHUB_CORS_ALLOWED_ORIGIN_PATTERNS:-https://www.yoto.work}"
+      CROSSHUB_DEMO_SEED_ENABLED: "${CROSSHUB_DEMO_SEED_ENABLED:-false}"
       CROSSHUB_CRAWLER_USE_AGENT: "true"
       CROSSHUB_PYTHON: python3
       CROSSHUB_PYTHON_DIR: /opt/crosshub/python

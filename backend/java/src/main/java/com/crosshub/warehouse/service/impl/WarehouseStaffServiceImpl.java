@@ -10,6 +10,7 @@ import com.crosshub.auth.repository.AppUserRepository;
 import com.crosshub.warehouse.repository.UserWarehouseScopeRepository;
 import com.crosshub.warehouse.repository.WarehouseSiteRepository;
 import com.crosshub.security.AuthContext;
+import com.crosshub.security.PasswordService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,17 +34,20 @@ public class WarehouseStaffServiceImpl implements WarehouseStaffService {
     private final UserWarehouseScopeRepository warehouseScopeRepository;
     private final WarehouseSiteRepository warehouseSiteRepository;
     private final AuthContext authContext;
+    private final PasswordService passwordService;
 
     public WarehouseStaffServiceImpl(
             AppUserRepository userRepository,
             UserWarehouseScopeRepository warehouseScopeRepository,
             WarehouseSiteRepository warehouseSiteRepository,
-            AuthContext authContext
+            AuthContext authContext,
+            PasswordService passwordService
     ) {
         this.userRepository = userRepository;
         this.warehouseScopeRepository = warehouseScopeRepository;
         this.warehouseSiteRepository = warehouseSiteRepository;
         this.authContext = authContext;
+        this.passwordService = passwordService;
     }
 
     public List<Map<String, Object>> listStaff() {
@@ -63,7 +67,7 @@ public class WarehouseStaffServiceImpl implements WarehouseStaffService {
         AppUser user = new AppUser();
         user.setTenantId(tenantId);
         user.setUsername(account);
-        user.setPassword(requirePassword(payload.password(), true));
+        user.setPassword(passwordService.encode(requirePassword(payload.password(), true)));
         user.setNickname(trim(payload.name()));
         user.setJobTitle(WAREHOUSE_JOB_TITLE);
         user.setEnterprise(resolveEnterprise());
@@ -91,7 +95,7 @@ public class WarehouseStaffServiceImpl implements WarehouseStaffService {
         user.setJobTitle(WAREHOUSE_JOB_TITLE);
         if (payload.phone() != null) user.setPhone(trim(payload.phone()));
         if (payload.password() != null && !payload.password().isBlank()) {
-            user.setPassword(payload.password());
+            user.setPassword(passwordService.encode(payload.password()));
         }
         if (payload.status() != null) {
             user.setStatus(payload.status() ? "active" : "inactive");

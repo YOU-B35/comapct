@@ -21,12 +21,6 @@ const filter = ref('alert')
 
 const summary = computed(() => summarizeAccountHealth(props.metrics))
 
-const filterOptions = computed(() => [
-  { label: summary.value.critical ? `爆红 (${summary.value.critical})` : '爆红', value: 'critical' },
-  { label: summary.value.warning ? `预警 (${summary.value.warning})` : '预警', value: 'warning' },
-  { label: '全部指标', value: 'all' },
-])
-
 const filtered = computed(() => {
   if (filter.value === 'all') return props.metrics
   if (filter.value === 'alert') {
@@ -75,10 +69,14 @@ function trendIcon(trend) {
       </div>
     </div>
 
-    <el-segmented v-model="filter" :options="[
-      { label: `待关注 (${summary.critical + summary.warning})`, value: 'alert' },
-      ...filterOptions,
-    ]" />
+    <div class="toolbar">
+      <el-radio-group v-model="filter" size="small">
+        <el-radio-button value="alert">待关注 ({{ summary.critical + summary.warning }})</el-radio-button>
+        <el-radio-button value="critical">{{ summary.critical ? `爆红 (${summary.critical})` : '爆红' }}</el-radio-button>
+        <el-radio-button value="warning">{{ summary.warning ? `预警 (${summary.warning})` : '预警' }}</el-radio-button>
+        <el-radio-button value="all">全部指标</el-radio-button>
+      </el-radio-group>
+    </div>
 
     <el-table :data="filtered" stripe size="small" v-loading="loading">
       <el-table-column prop="label" label="指标" min-width="140" />
@@ -110,6 +108,7 @@ function trendIcon(trend) {
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
 .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .mini-stat {
   display: grid; gap: 4px; padding: 12px 14px;

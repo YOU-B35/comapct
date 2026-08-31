@@ -61,11 +61,13 @@ function statusMeta(row) {
       </div>
     </div>
 
-    <el-segmented v-model="filter" :options="[
-      { label: summary.alerts ? `待关注 (${summary.alerts})` : '待关注', value: 'alert' },
-      { label: '生效中', value: 'active' },
-      { label: '全部', value: 'all' },
-    ]" />
+    <div class="toolbar">
+      <el-radio-group v-model="filter" size="small">
+        <el-radio-button value="alert">{{ summary.alerts ? `待关注 (${summary.alerts})` : '待关注' }}</el-radio-button>
+        <el-radio-button value="active">生效中</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
+    </div>
 
     <el-table :data="filtered" stripe size="small" v-loading="loading">
       <el-table-column prop="name" label="优惠券" min-width="160" show-overflow-tooltip />
@@ -97,6 +99,7 @@ function statusMeta(row) {
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
 .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .mini-stat {
   display: grid; gap: 4px; padding: 12px 14px;

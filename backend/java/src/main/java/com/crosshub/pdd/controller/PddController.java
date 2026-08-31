@@ -74,6 +74,29 @@ public class PddController {
         }
     }
 
+    @GetMapping("/monitor/buyer-session")
+    public Map<String, Object> monitorBuyerSession() {
+        return ApiResult.ok(pddOpsService.session("buyer"));
+    }
+
+    @PostMapping("/monitor/buyer-login")
+    public ResponseEntity<Map<String, Object>> monitorBuyerLoginOpen() {
+        try {
+            return ResponseEntity.ok(ApiResult.ok(pddOpsService.enqueueLoginOpen("buyer")));
+        } catch (ResponseStatusException ex) {
+            return mapError(ex);
+        }
+    }
+
+    @PostMapping("/monitor/buyer-session/probe")
+    public ResponseEntity<Map<String, Object>> monitorBuyerSessionProbe() {
+        try {
+            return ResponseEntity.ok(ApiResult.ok(pddOpsService.enqueueSessionProbe("buyer")));
+        } catch (ResponseStatusException ex) {
+            return mapError(ex);
+        }
+    }
+
     /**
      * 触发同步。body: scope(orders/products/compass/all) / force / store_id / date_window(today/d1/d7/d30/d90)
      */

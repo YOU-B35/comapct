@@ -88,7 +88,7 @@ public enum AppErrorCode {
     MONITOR_TARGET_NOT_FOUND("MONITOR_TARGET_NOT_FOUND", "竞店监控目标不存在"),
     MONITOR_TARGET_URL_INVALID(
             "MONITOR_TARGET_URL_INVALID",
-            "请填写 Temu 店铺链接（含 mall_id），商品详情页无法作为竞店抓取"
+            "请填写支持平台的店铺或商品链接，链接参数不完整或不支持"
     ),
     MONITOR_JOB_NOT_FOUND("MONITOR_JOB_NOT_FOUND", "竞店监控任务不存在"),
     MONITOR_JOB_IN_PROGRESS("MONITOR_JOB_IN_PROGRESS", "该竞店已有监控任务进行中"),

@@ -70,17 +70,17 @@ public class MonitorTaskScheduler {
                         """,
                         jobId, tenantId, targetId, scheduleId, platform, now
                 );
-                if ("1688".equalsIgnoreCase(platform)) {
+                if (shouldEnqueueAgentTask(platform)) {
                     Map<String, Object> result = enqueuer.enqueue(tenantId, targetId, jobId);
                     if (!Boolean.TRUE.equals(result.get("queued"))) {
                         jdbc.update(
                                 """
                                 UPDATE monitor_job
-                                SET status = 'failed', finished_at = ?, error_code = 'A1688_AGENT_OFFLINE',
+                                SET status = 'failed', finished_at = ?, error_code = ?,
                                     error_message = ?
                                 WHERE id = ? AND status = 'pending'
                                 """,
-                                now(), String.valueOf(result.get("message")), jobId
+                                now(), agentOfflineCode(platform), String.valueOf(result.get("message")), jobId
                         );
                     }
                 }
@@ -117,6 +117,14 @@ public class MonitorTaskScheduler {
         } catch (Exception ex) {
             return 1440;
         }
+    }
+
+    private boolean shouldEnqueueAgentTask(String platform) {
+        return "1688".equalsIgnoreCase(platform) || "pdd".equalsIgnoreCase(platform);
+    }
+
+    private String agentOfflineCode(String platform) {
+        return "pdd".equalsIgnoreCase(platform) ? "PDD_AGENT_OFFLINE" : "A1688_AGENT_OFFLINE";
     }
 
     private String now() {

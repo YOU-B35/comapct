@@ -5,6 +5,7 @@ import com.crosshub.auth.entity.AppUser;
 import com.crosshub.auth.repository.AppUserRepository;
 import com.crosshub.security.AuthContext;
 import com.crosshub.security.JwtService;
+import com.crosshub.security.PasswordService;
 import com.crosshub.tenant.service.DataScopeService;
 import com.crosshub.tenant.service.MenuService;
 import com.crosshub.tenant.service.TenantRegistrationService;
@@ -28,6 +29,7 @@ public class AuthController {
     private final DataScopeService dataScopeService;
     private final TenantRegistrationService tenantRegistrationService;
     private final AuthContext authContext;
+    private final PasswordService passwordService;
 
     public AuthController(
             AppUserRepository userRepository,
@@ -35,7 +37,8 @@ public class AuthController {
             MenuService menuService,
             DataScopeService dataScopeService,
             TenantRegistrationService tenantRegistrationService,
-            AuthContext authContext
+            AuthContext authContext,
+            PasswordService passwordService
     ) {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
@@ -43,6 +46,7 @@ public class AuthController {
         this.dataScopeService = dataScopeService;
         this.tenantRegistrationService = tenantRegistrationService;
         this.authContext = authContext;
+        this.passwordService = passwordService;
     }
 
     @PostMapping("/register")
@@ -70,6 +74,7 @@ public class AuthController {
         }
 
         AppUser user = userOpt.get();
+        passwordService.upgradeIfLegacy(user, password, userRepository);
         if (user.getTenantId() == null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "账号未绑定租户");
         }
@@ -168,7 +173,7 @@ public class AuthController {
 
     private Optional<AppUser> resolveLoginUser(String account, String password) {
         List<AppUser> candidates = userRepository.findAllByUsernameIgnoreCase(account).stream()
-                .filter(user -> password.equals(user.getPassword()))
+                .filter(user -> passwordService.matches(password, user.getPassword()))
                 .toList();
         if (candidates.isEmpty()) {
             return Optional.empty();

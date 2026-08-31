@@ -4,6 +4,7 @@ import com.crosshub.agent.service.AgentBindCodeService;
 import com.crosshub.auth.entity.AppUser;
 import com.crosshub.auth.repository.AppUserRepository;
 import com.crosshub.security.AuthContext;
+import com.crosshub.security.PasswordService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,17 +31,20 @@ public class AgentMeController {
     private final AuthContext authContext;
     private final AppUserRepository userRepository;
     private final String javaApiUrl;
+    private final PasswordService passwordService;
 
     public AgentMeController(
             AgentBindCodeService bindCodeService,
             AuthContext authContext,
             AppUserRepository userRepository,
-            @Value("${crosshub.java-api-url:https://www.yoto.work}") String javaApiUrl
+            @Value("${crosshub.java-api-url:https://www.yoto.work}") String javaApiUrl,
+            PasswordService passwordService
     ) {
         this.bindCodeService = bindCodeService;
         this.authContext = authContext;
         this.userRepository = userRepository;
         this.javaApiUrl = javaApiUrl;
+        this.passwordService = passwordService;
     }
 
     @GetMapping("/me/status")
@@ -96,6 +100,7 @@ public class AgentMeController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
         }
         AppUser user = userOpt.get();
+        passwordService.upgradeIfLegacy(user, password, userRepository);
         if (user.getTenantId() == null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "账号未绑定租户");
         }
@@ -115,7 +120,7 @@ public class AgentMeController {
 
     private Optional<AppUser> resolveLoginUser(String account, String password) {
         List<AppUser> candidates = userRepository.findAllByUsernameIgnoreCase(account).stream()
-                .filter(u -> password.equals(u.getPassword()))
+                .filter(u -> passwordService.matches(password, u.getPassword()))
                 .toList();
         if (candidates.isEmpty()) {
             return Optional.empty();

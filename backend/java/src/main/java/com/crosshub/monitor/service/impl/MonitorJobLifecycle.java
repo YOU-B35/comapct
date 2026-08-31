@@ -2,6 +2,7 @@ package com.crosshub.monitor.service.impl;
 
 import com.crosshub.agent.entity.AgentTask;
 import com.crosshub.alibaba1688.service.Alibaba1688AgentTasks;
+import com.crosshub.pdd.service.PddAgentTasks;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,7 +26,7 @@ public class MonitorJobLifecycle {
     }
 
     public void onAgentTaskCompleted(AgentTask task, String status, String errorMessage) {
-        if (task == null || !Alibaba1688AgentTasks.MONITOR_CRAWL.equals(task.getTaskType())) {
+        if (task == null || !isMonitorCrawlTask(task.getTaskType())) {
             return;
         }
         String jobId = jobIdFromPayload(task.getPayloadJson());
@@ -46,6 +47,11 @@ public class MonitorJobLifecycle {
                 """,
                 now, errorMessage == null ? "agent task failed" : errorMessage, jobId
         );
+    }
+
+    private boolean isMonitorCrawlTask(String taskType) {
+        return Alibaba1688AgentTasks.MONITOR_CRAWL.equals(taskType)
+                || PddAgentTasks.MONITOR_CRAWL.equals(taskType);
     }
 
     private String jobIdFromPayload(String payloadJson) {

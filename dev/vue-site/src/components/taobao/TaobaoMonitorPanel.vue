@@ -1,8 +1,8 @@
 <script setup>
 import { formatUtc8 } from '@/utils/time'
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as echarts from 'echarts'
+import { echarts } from '@/composables/useEcharts'
 import {
   createTaobaoMonitorTarget,
   deleteTaobaoMonitorTarget,
@@ -173,6 +173,11 @@ function renderTrend() {
     })),
   })
 }
+
+onBeforeUnmount(() => {
+  trendChart?.dispose()
+  trendChart = null
+})
 
 async function trigger(targetId) {
   try {

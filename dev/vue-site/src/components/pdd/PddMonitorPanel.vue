@@ -1,16 +1,19 @@
 <script setup>
 import { formatUtc8 } from '@/utils/time'
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as echarts from 'echarts'
+import { echarts } from '@/composables/useEcharts'
 import {
   createPddMonitorTarget,
   deletePddMonitorTarget,
+  fetchPddMonitorBuyerSession,
   fetchPddMonitorLatest,
   fetchPddMonitorJob,
   fetchPddMonitorSignals,
   fetchPddMonitorTrend,
   listPddMonitorTargets,
+  openPddMonitorBuyerLogin,
+  probePddMonitorBuyerSession,
   triggerPddMonitorTarget,
   updatePddMonitorSchedule,
 } from '@/api/pddMonitorApi'
@@ -28,6 +31,9 @@ const trend = ref([])
 const trendProductId = ref('')
 let trendChart = null
 const loading = ref(false)
+const buyerSession = ref(null)
+const buyerLoginLoading = ref(false)
+const buyerProbeLoading = ref(false)
 const showAdd = ref(false)
 const form = ref({
   label: '',
@@ -79,6 +85,61 @@ function formatSignalValue(type, raw) {
       return obj.text || '出现缺货/低库存信号'
     default:
       return String(raw || '')
+  }
+}
+
+function buyerSessionReady(session) {
+  return Boolean(session?.ready || session?.logged_in || session?.loggedIn)
+}
+
+function buyerSessionText(session) {
+  if (!props.backendReady) return '后端未连接'
+  if (!session) return '未检测'
+  if (buyerSessionReady(session)) return '买家态已登录'
+  if (session.profile_busy || session.profileBusy) return '浏览器任务中'
+  if (session.agent_online === false || session.agentOnline === false) return '助手未在线'
+  return '买家态未登录'
+}
+
+function buyerSessionTagType(session) {
+  if (!props.backendReady) return 'info'
+  if (buyerSessionReady(session)) return 'success'
+  if (session?.profile_busy || session?.profileBusy) return 'warning'
+  return 'danger'
+}
+
+async function loadBuyerSession() {
+  if (!props.backendReady) return
+  try {
+    buyerSession.value = await fetchPddMonitorBuyerSession()
+  } catch (error) {
+    buyerSession.value = null
+  }
+}
+
+async function openBuyerLogin() {
+  buyerLoginLoading.value = true
+  try {
+    const data = await openPddMonitorBuyerLogin()
+    buyerSession.value = { ...(buyerSession.value || {}), ...(data || {}), profile_busy: true }
+    ElMessage.success(data?.message || '已打开拼多多买家登录窗口')
+  } catch (error) {
+    ElMessage.error(error?.message || '打开买家登录失败')
+  } finally {
+    buyerLoginLoading.value = false
+  }
+}
+
+async function probeBuyerSession() {
+  buyerProbeLoading.value = true
+  try {
+    const data = await probePddMonitorBuyerSession()
+    buyerSession.value = { ...(buyerSession.value || {}), ...(data || {}), profile_busy: true }
+    ElMessage.info(data?.message || '已开始检测拼多多买家登录状态')
+  } catch (error) {
+    ElMessage.error(error?.message || '检测买家登录状态失败')
+  } finally {
+    buyerProbeLoading.value = false
   }
 }
 
@@ -174,6 +235,11 @@ function renderTrend() {
   })
 }
 
+onBeforeUnmount(() => {
+  trendChart?.dispose()
+  trendChart = null
+})
+
 async function trigger(targetId) {
   try {
     const data = await triggerPddMonitorTarget(targetId, { force: true, bypass_cooldown: true, reason: 'manual refresh' })
@@ -259,7 +325,10 @@ function productInitial(row) {
   return String(row?.product_name || row?.product_id || '?').slice(0, 1)
 }
 
-onMounted(() => void loadTargets())
+onMounted(() => {
+  void loadTargets()
+  void loadBuyerSession()
+})
 defineExpose({ loadTargets })
 </script>
 
@@ -268,6 +337,11 @@ defineExpose({ loadTargets })
     <div class="toolbar">
       <el-button type="primary" :disabled="!backendReady" @click="showAdd = true">添加店铺监控</el-button>
       <el-button :disabled="!selectedTargetId" :loading="loading" @click="loadLatest">刷新快照</el-button>
+      <div class="buyer-session">
+        <el-tag :type="buyerSessionTagType(buyerSession)" effect="plain">{{ buyerSessionText(buyerSession) }}</el-tag>
+        <el-button :disabled="!backendReady" :loading="buyerLoginLoading" @click="openBuyerLogin">买家登录</el-button>
+        <el-button :disabled="!backendReady" :loading="buyerProbeLoading" @click="probeBuyerSession">检测登录</el-button>
+      </div>
     </div>
 
     <el-dialog v-model="showAdd" title="添加拼多多店铺监控" width="560px">
@@ -397,3 +471,28 @@ defineExpose({ loadTargets })
     </el-card>
   </div>
 </template>
+
+<style scoped>
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.buyer-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .buyer-session {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+</style>

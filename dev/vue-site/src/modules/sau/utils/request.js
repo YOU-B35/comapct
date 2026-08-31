@@ -1,8 +1,6 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
 import { API_BASE_URL } from '@sau/utils/apiBase'
 import { clearSauAuth, getSauToken } from '@sau/utils/authStorage'
-import { ensureSauSession } from '@sau/utils/ensureSession'
 
 const request = axios.create({
   baseURL: API_BASE_URL,
@@ -17,11 +15,21 @@ const isAuthRoute = (url = '') => /\/auth\/(login|register|crosshub-exchange)(?:
 
 let refreshInflight = null
 
+function notifyError(message) {
+  import('element-plus')
+    .then(({ ElMessage }) => ElMessage.error(message))
+    .catch(() => {
+      if (import.meta.env.DEV) console.error(message)
+    })
+}
+
 async function refreshSauAuthOnce() {
   if (!refreshInflight) {
-    refreshInflight = ensureSauSession({ force: true }).finally(() => {
-      refreshInflight = null
-    })
+    refreshInflight = import('@sau/utils/ensureSession')
+      .then(({ ensureSauSession }) => ensureSauSession({ force: true }))
+      .finally(() => {
+        refreshInflight = null
+      })
   }
   return refreshInflight
 }
@@ -46,7 +54,7 @@ request.interceptors.response.use(
     }
 
     const message = data.msg || data.message || '请求失败'
-    ElMessage.error(message)
+    notifyError(message)
     return Promise.reject(new Error(message))
   },
   async (error) => {
@@ -87,28 +95,28 @@ request.interceptors.response.use(
         : null)
 
     if (message) {
-      ElMessage.error(message)
+      notifyError(message)
     } else if (!error.response) {
-      ElMessage.error('网络连接失败，请确认可访问线上自媒体服务')
+      notifyError('网络连接失败，请确认可访问线上自媒体服务')
     } else {
       switch (status) {
         case 401:
-          ElMessage.error('自媒体会话已失效，请刷新页面后重试')
+          notifyError('自媒体会话已失效，请刷新页面后重试')
           break
         case 403:
-          ElMessage.error('拒绝访问')
+          notifyError('拒绝访问')
           break
         case 404:
-          ElMessage.error('请求地址不存在')
+          notifyError('请求地址不存在')
           break
         case 413:
-          ElMessage.error('文件过大，超过服务器上传上限，请压缩后再试')
+          notifyError('文件过大，超过服务器上传上限，请压缩后再试')
           break
         case 500:
-          ElMessage.error('服务器内部错误')
+          notifyError('服务器内部错误')
           break
         default:
-          ElMessage.error('网络错误')
+          notifyError('网络错误')
       }
     }
 

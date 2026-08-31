@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Set;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -17,11 +18,24 @@ import java.util.Map;
 
 @Service
 public class JwtService {
+    private static final Set<String> FORBIDDEN_SECRETS = Set.of(
+            "crosshub-dev-secret-change-in-production",
+            "crosshub-prod-secret-change-me",
+            "crosshub-prod-jwt-secret-must-be-at-least-32-bytes"
+    );
+
     private final SecretKey key;
     private final long ttlSeconds = 86400;
 
     public JwtService(@Value("${crosshub.jwt-secret}") String secret) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        String value = secret == null ? "" : secret.trim();
+        if (value.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException("crosshub.jwt-secret must be at least 32 bytes");
+        }
+        if (FORBIDDEN_SECRETS.contains(value)) {
+            throw new IllegalStateException("crosshub.jwt-secret is a public placeholder and must be replaced");
+        }
+        this.key = Keys.hmacShaKeyFor(value.getBytes(StandardCharsets.UTF_8));
     }
 
     public String createToken(

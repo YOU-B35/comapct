@@ -32,8 +32,9 @@ class TokenBucket:
 
     def consume(self, tokens: float = 1.0) -> None:
         tokens = max(float(tokens), 0.0)
-        with self._lock:
-            while True:
+        while True:
+            wait_seconds = 0.0
+            with self._lock:
                 now = self._now()
                 elapsed = max(0.0, now - self._last)
                 self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)
@@ -41,7 +42,8 @@ class TokenBucket:
                 if self._tokens >= tokens:
                     self._tokens -= tokens
                     return
-                self._sleep((tokens - self._tokens) / self.rate)
+                wait_seconds = (tokens - self._tokens) / self.rate
+            self._sleep(wait_seconds)
 
 
 def retry_with_backoff(

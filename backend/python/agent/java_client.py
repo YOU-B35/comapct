@@ -144,6 +144,17 @@ class AgentApiClient:
             body = resp.json()
             return body.get("data") if isinstance(body, dict) else {}
 
+    def ingest_pdd_monitor(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=180.0) as client:
+            resp = client.post(
+                f"{self.base_url}/api/agent/pdd/monitor/ingest",
+                headers=self._headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("data") if isinstance(body, dict) else {}
+
     def ingest_douyin_compass(self, payload: dict[str, Any]) -> dict[str, Any]:
         with httpx.Client(timeout=120.0) as client:
             resp = client.post(

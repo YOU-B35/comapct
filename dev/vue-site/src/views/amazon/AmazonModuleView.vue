@@ -29,6 +29,7 @@ import { resolveAmazonProductEmptyHint } from '@/utils/amazonProductHint'
 import { isPlatformOperationalDemoOnly, platformOperationalHint } from '@/utils/platformOperationalMode'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageScroll from '@/components/common/PageScroll.vue'
+import PageSection from '@/components/common/PageSection.vue'
 import SyncSummaryLine from '@/components/common/SyncSummaryLine.vue'
 import SyncHistoryDrawer from '@/components/common/SyncHistoryDrawer.vue'
 import AmazonDailyOverview from '@/components/amazon/AmazonDailyOverview.vue'
@@ -51,7 +52,7 @@ const syncStore = usePlatformSyncStore()
 const { assigneeMap, loadAssignees, enrichItems } = useStoreAssignees()
 const router = useRouter()
 
-const activeTab = ref(auth.isBoss ? 'products' : 'dashboard')
+const activeTab = ref(auth.isBoss ? 'products' : 'outbound')
 const selectedStoreId = ref('all')
 const amazonStores = ref([])
 const workflow = ref(emptyWorkflow())
@@ -160,7 +161,6 @@ const tabBadges = computed(() => {
   return {
     products: bossProductSummary.value.highAcosCount,
     outbound: outboundSummary.value.actionRequired,
-    dashboard: 0,
     messages: map.messages || 0,
     account: map.account || 0,
     reviews: map.reviews || 0,
@@ -462,6 +462,10 @@ function handleNavigate(target) {
     outboundFilter.value = target === 'outbound:packed' ? 'packed' : 'pending'
     return
   }
+  if (target === 'dashboard') {
+    activeTab.value = 'outbound'
+    return
+  }
   activeTab.value = target
 }
 
@@ -534,81 +538,74 @@ onActivated(loadModule)
 
 <template>
   <PageScroll>
-    <template #header>
-      <div v-if="amazonStores.length" class="page-toolbar">
+    <PageHeader
+      title="Amazon 运营中心"
+      description="销售、广告、账户健康与买家沟通的一站式运营数据"
+    />
+
+    <HelperStatusBar
+      platform="amazon"
+      :store-id="selectedStoreId"
+      @update:online="onHelperOnline"
+    />
+
+    <AmazonIntegrationGuide v-if="showIntegrationGuide" />
+
+    <el-alert
+      v-if="operationalDemoOnly && operationalHint"
+      :title="operationalHint"
+      type="info"
+      show-icon
+      :closable="false"
+      class="operational-hint"
+    />
+
+    <PageSection v-if="amazonStores.length" title="店铺" tone="toolbar">
+      <div class="toolbar-row">
         <el-radio-group v-model="selectedStoreId" size="small">
           <el-radio-button value="all">全部店铺</el-radio-button>
           <el-radio-button v-for="store in amazonStores" :key="store.id" :value="store.id">
             {{ store.storeName }}
           </el-radio-button>
         </el-radio-group>
+        <div class="toolbar-actions">
+          <el-button
+            v-if="showManualSyncControls"
+            type="primary"
+            :loading="loadingAll"
+            :disabled="!helperOnline"
+            @click="syncAllAmazon"
+          >
+            一键刷新全部数据
+          </el-button>
+          <el-button size="small" @click="syncHistoryOpen = true">同步日志</el-button>
+        </div>
       </div>
+    </PageSection>
 
-      <PageHeader
-        v-else-if="!amazonStores.length && !auth.isBoss"
-        title="Amazon 运营"
-        :description="`${auth.employee.name} · 一日运营工作流`"
-      />
-    </template>
-
-    <SyncHistoryDrawer
-      v-model="syncHistoryOpen"
-      platform="amazon"
-      :fetcher="() => fetchAmazonSyncJobs({ limit: 20 })"
-    />
-
-    <HelperStatusBar
-      v-if="showManualSyncControls"
-      platform="amazon"
-      @update:online="onHelperOnline"
-    />
-
-    <el-empty
-      v-if="!loadingStores && !amazonStores.length"
-      description="暂无可见的 Amazon 店铺"
-      :image-size="96"
-    >
-      <el-text type="info" size="small">
-        {{
-          auth.isBoss
-            ? '请先在「账户绑定」中绑定 Amazon 店铺；本机可先下载并绑定 Sync Helper'
-            : '请联系企业管理员分配负责店铺；本机可先下载并绑定 Sync Helper'
-        }}
-      </el-text>
-      <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
-        前往账户绑定
-      </el-button>
-    </el-empty>
-
-    <template v-else-if="amazonStores.length">
-      <AmazonIntegrationGuide v-if="showIntegrationGuide" />
-
-      <div v-if="showManualSyncControls" class="amazon-sync-bar">
-        <el-button
-          type="primary"
-          :loading="loadingAll"
-          :disabled="!helperOnline"
-          @click="syncAllAmazon"
-        >
-          一键刷新全部数据
+    <PageSection v-if="!loadingStores && !amazonStores.length" flush>
+      <el-empty description="暂无可看的 Amazon 店铺" :image-size="96">
+        <el-text type="info" size="small">
+          {{
+            auth.isBoss
+              ? '请先在「账号绑定」中绑定 Amazon 店铺；本机可先下载并绑定 Sync Helper'
+              : '请联系企业管理员分配负责店铺；本机可先下载并绑定 Sync Helper'
+          }}
+        </el-text>
+        <el-button v-if="auth.isBoss" type="primary" style="margin-top: 16px" @click="goToAccountBinding">
+          前往账号绑定
         </el-button>
+      </el-empty>
+    </PageSection>
+
+    <PageSection v-else-if="amazonStores.length" title="店铺经营驾驶舱">
+      <template #actions>
         <SyncSummaryLine
+          v-if="syncSummaryText"
           :summary-text="syncSummaryText"
           @open-history="syncHistoryOpen = true"
         />
-        <el-text size="small" type="info">
-          依次同步今日运营、Business Report 产品与广告（约 3–8 分钟，需本机 Sync Helper 与紫鸟在线）
-        </el-text>
-      </div>
-
-      <el-alert
-        v-if="operationalDemoOnly && operationalHint"
-        :title="operationalHint"
-        type="info"
-        show-icon
-        :closable="false"
-        class="operational-hint"
-      />
+      </template>
 
       <AmazonBossOverview
         v-if="auth.isBoss"
@@ -621,6 +618,17 @@ onActivated(loadModule)
         @navigate="handleNavigate"
       />
 
+      <AmazonDailyOverview
+        v-else
+        :workflow="filtered"
+        :stores="overviewStores"
+        :assignee-map="assigneeMap"
+        :show-store-list="showStoreList"
+        @navigate="handleNavigate"
+      />
+    </PageSection>
+
+    <PageSection v-if="!loadingStores && amazonStores.length" title="运营管理">
       <el-tabs v-model="activeTab" class="module-tabs">
         <el-tab-pane v-if="auth.isBoss" name="products">
           <template #label>
@@ -665,21 +673,6 @@ onActivated(loadModule)
               @refresh="syncBossInsights(true)"
               @ship="onShipOutbound"
               @open-history="syncHistoryOpen = true"
-            />
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane name="dashboard">
-          <template #label>
-            <span>今日工作台</span>
-          </template>
-          <div class="tab-panel">
-            <AmazonDailyOverview
-              :workflow="filtered"
-              :stores="overviewStores"
-              :assignee-map="assigneeMap"
-              :show-store-list="showStoreList"
-              @navigate="handleNavigate"
             />
           </div>
         </el-tab-pane>
@@ -819,25 +812,33 @@ onActivated(loadModule)
           </div>
         </el-tab-pane>
       </el-tabs>
-    </template>
+    </PageSection>
+
+    <SyncHistoryDrawer
+      v-model="syncHistoryOpen"
+      platform="amazon"
+      :fetcher="() => fetchAmazonSyncJobs({ limit: 20 })"
+    />
   </PageScroll>
 </template>
 
 <style scoped>
-.page-toolbar {
+.toolbar-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
-.amazon-sync-bar {
+.toolbar-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+
+.operational-hint {
   margin-bottom: 12px;
 }
 

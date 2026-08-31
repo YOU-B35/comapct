@@ -26,19 +26,6 @@ const trackingNo = ref('')
 
 const summary = computed(() => summarizeOutboundOrders(props.orders))
 
-const filterOptions = computed(() => [
-  {
-    label: summary.value.pending ? `待发货 (${summary.value.pending})` : '待发货',
-    value: 'pending',
-  },
-  {
-    label: summary.value.packed ? `待揽收 (${summary.value.packed})` : '待揽收',
-    value: 'packed',
-  },
-  { label: '已发货', value: 'shipped' },
-  { label: '全部', value: 'all' },
-])
-
 const filteredOrders = computed(() => {
   if (filter.value === 'all') return props.orders
   if (filter.value === 'pending') {
@@ -123,7 +110,14 @@ defineExpose({ finishShip })
       </div>
     </div>
 
-    <el-segmented v-model="filter" :options="filterOptions" size="small" />
+    <div class="toolbar">
+      <el-radio-group v-model="filter" size="small">
+        <el-radio-button value="pending">{{ summary.pending ? `待发货 (${summary.pending})` : '待发货' }}</el-radio-button>
+        <el-radio-button value="packed">{{ summary.packed ? `待揽收 (${summary.packed})` : '待揽收' }}</el-radio-button>
+        <el-radio-button value="shipped">已发货</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
+    </div>
 
     <el-table :data="filteredOrders" stripe size="small" v-loading="loading">
       <el-table-column prop="orderNo" label="订单号" min-width="150" />
@@ -187,6 +181,14 @@ defineExpose({ finishShip })
 .amz-panel {
   display: grid;
   gap: 16px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .mini-stats {

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { isSauTokenUsable } from '../src/modules/sau/utils/sauToken.js'
 
 function makeJwt(expSeconds) {
@@ -15,21 +16,21 @@ function makeJwt(expSeconds) {
 
 describe('isSauTokenUsable', () => {
   it('rejects empty token', () => {
-    expect(isSauTokenUsable('')).toBe(false)
-    expect(isSauTokenUsable(null)).toBe(false)
+    assert.equal(isSauTokenUsable(''), false)
+    assert.equal(isSauTokenUsable(null), false)
   })
 
   it('treats opaque tokens as usable', () => {
-    expect(isSauTokenUsable('opaque-token-value')).toBe(true)
+    assert.equal(isSauTokenUsable('opaque-token-value'), true)
   })
 
   it('rejects expired jwt', () => {
     const token = makeJwt(Math.floor(Date.now() / 1000) - 120)
-    expect(isSauTokenUsable(token)).toBe(false)
+    assert.equal(isSauTokenUsable(token), false)
   })
 
   it('accepts fresh jwt', () => {
     const token = makeJwt(Math.floor(Date.now() / 1000) + 3600)
-    expect(isSauTokenUsable(token)).toBe(true)
+    assert.equal(isSauTokenUsable(token), true)
   })
 })

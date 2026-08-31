@@ -26,12 +26,6 @@ const replying = ref(false)
 
 const summary = computed(() => summarizeBuyerMessages(props.messages))
 
-const filterOptions = computed(() => [
-  { label: summary.value.pending ? `待回复 (${summary.value.pending})` : '待回复', value: 'pending' },
-  { label: '已回复', value: 'replied' },
-  { label: '全部', value: 'all' },
-])
-
 const filtered = computed(() => {
   if (filter.value === 'all') return props.messages
   if (filter.value === 'pending') {
@@ -116,7 +110,13 @@ defineExpose({ finishReply })
       </div>
     </div>
 
-    <el-segmented v-model="filter" :options="filterOptions" />
+    <div class="toolbar">
+      <el-radio-group v-model="filter" size="small">
+        <el-radio-button value="pending">{{ summary.pending ? `待回复 (${summary.pending})` : '待回复' }}</el-radio-button>
+        <el-radio-button value="replied">已回复</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
+    </div>
 
     <el-table :data="filtered" stripe size="small" v-loading="loading">
       <el-table-column prop="buyerName" label="买家" width="100" />
@@ -183,6 +183,7 @@ defineExpose({ finishReply })
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
 .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .mini-stat {
   display: grid; gap: 4px; padding: 12px 14px;

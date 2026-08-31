@@ -51,3 +51,18 @@ export async function fetchPddMonitorJob(jobId) {
   const res = await service.get(`/api/monitor/jobs/${jobId}`, { skipGlobalErrorToast: true })
   return res?.data ?? res
 }
+
+export async function fetchPddMonitorBuyerSession() {
+  const res = await service.get('/api/pdd/monitor/buyer-session', { skipGlobalErrorToast: true })
+  return res?.data ?? res
+}
+
+export async function openPddMonitorBuyerLogin() {
+  const res = await service.post('/api/pdd/monitor/buyer-login')
+  return res?.data ?? res
+}
+
+export async function probePddMonitorBuyerSession() {
+  const res = await service.post('/api/pdd/monitor/buyer-session/probe')
+  return res?.data ?? res
+}

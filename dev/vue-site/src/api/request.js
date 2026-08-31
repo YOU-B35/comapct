@@ -4,6 +4,7 @@
 import axios from 'axios'
 import { getActivePinia } from 'pinia'
 import router from '@/router'
+import { useAuthStore } from '@/stores/auth'
 import { TEMU_API_BASE_URL } from './config'
 
 export const service = axios.create({
@@ -29,9 +30,7 @@ function clearSession() {
   localStorage.removeItem('crosshub_logged_in')
   try {
     if (getActivePinia()) {
-      import('@/stores/auth').then(({ useAuthStore }) => {
-        useAuthStore().logout()
-      })
+      useAuthStore().logout()
     }
   } catch (_) {
     /* ignore */

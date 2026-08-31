@@ -2,8 +2,16 @@ server:
   port: 18080
 
 crosshub:
-  jwt-secret: ${CROSSHUB_JWT_SECRET:crosshub-prod-secret-change-me}
+  jwt-secret: ${CROSSHUB_JWT_SECRET}
+  data-secret: ${CROSSHUB_DATA_SECRET:${crosshub.jwt-secret}}
   db-path: ${CROSSHUB_DB_PATH:/data/crosshub/data/crosshub.db}
+  demo-seed:
+    enabled: ${CROSSHUB_DEMO_SEED_ENABLED:false}
+  cors:
+    allowed-origin-patterns: ${CROSSHUB_CORS_ALLOWED_ORIGIN_PATTERNS:https://www.yoto.work}
+  sau:
+    exchange-secret: ${CROSSHUB_SAU_EXCHANGE_SECRET}
+    link-username: ${CROSSHUB_SAU_LINK_USERNAME:}
   crawler:
     python-executable: ${CROSSHUB_PYTHON:python3}
     script-dir: ${CROSSHUB_PYTHON_DIR:/opt/crosshub/python}

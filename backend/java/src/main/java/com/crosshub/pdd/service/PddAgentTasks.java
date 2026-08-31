@@ -12,10 +12,14 @@ public final class PddAgentTasks {
     public static final String SYNC = "pdd_sync";
     public static final String PRODUCTS_SYNC = "pdd_products_sync";
     public static final String ISSUES_SYNC = "pdd_issues_sync";
+    public static final String BUYER_SESSION_PROBE = "pdd_buyer_session_probe";
+    public static final String BUYER_LOGIN_OPEN = "pdd_buyer_login_open";
+    public static final String MONITOR_CRAWL = "pdd_monitor_crawl";
 
     /** 占用浏览器 profile 的任务类型集合（用于互斥与 busy 判定） */
     public static final Set<String> BROWSER_BUSY_TYPES = Set.of(
-            SESSION_PROBE, LOGIN_OPEN, SYNC, PRODUCTS_SYNC, ISSUES_SYNC
+            SESSION_PROBE, LOGIN_OPEN, SYNC, PRODUCTS_SYNC, ISSUES_SYNC,
+            BUYER_SESSION_PROBE, BUYER_LOGIN_OPEN, MONITOR_CRAWL
     );
 
     private PddAgentTasks() {

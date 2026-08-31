@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createApp, defineComponent, h, nextTick, ref } from 'vue'
 
 /**
  * SearchableTable 传入 () => props.data 时，旧实现 unref(fn) 得到函数本身，

@@ -7,6 +7,7 @@ import com.crosshub.monitor.service.MonitorJobConflictException;
 import com.crosshub.monitor.service.MonitorService;
 import com.crosshub.monitor.service.impl.MonitorAgentTaskEnqueuer;
 import com.crosshub.monitor.util.Alibaba1688MonitorUrlValidator;
+import com.crosshub.monitor.util.PddMonitorUrlValidator;
 import com.crosshub.monitor.util.TemuMonitorUrlValidator;
 import com.crosshub.security.AuthContext;
 import com.crosshub.tenant.service.DataScopeService;
@@ -128,7 +129,7 @@ public class MonitorServiceImpl implements MonitorService {
         }
         String status = text(payload, "status", "active");
         String crawlStrategy = text(payload, "crawl_strategy", text(payload, "crawlStrategy", "store_listing"));
-        targetUrl = validateAndMaybeCanonicalizeTemuShopUrl(platform, targetType, crawlStrategy, targetUrl);
+        targetUrl = validateAndMaybeCanonicalizeTargetUrl(platform, targetType, crawlStrategy, targetUrl);
         String host = text(payload, "host", parseHost(targetUrl));
         int freshnessMinutes = intValue(payload.get("freshness_minutes"), intValue(payload.get("freshnessMinutes"), 1440));
 
@@ -161,7 +162,7 @@ public class MonitorServiceImpl implements MonitorService {
         String targetUrl = text(payload, "target_url", text(payload, "targetUrl", String.valueOf(existing.get("target_url"))));
         String status = text(payload, "status", String.valueOf(existing.get("status")));
         String crawlStrategy = text(payload, "crawl_strategy", text(payload, "crawlStrategy", String.valueOf(existing.get("crawl_strategy"))));
-        targetUrl = validateAndMaybeCanonicalizeTemuShopUrl(platform, targetType, crawlStrategy, targetUrl);
+        targetUrl = validateAndMaybeCanonicalizeTargetUrl(platform, targetType, crawlStrategy, targetUrl);
         String host = text(payload, "host", parseHost(targetUrl));
         int freshnessMinutes = intValue(payload.get("freshness_minutes"), intValue(payload.get("freshnessMinutes"), intValue(existing.get("freshness_minutes"), 1440)));
 
@@ -280,12 +281,13 @@ public class MonitorServiceImpl implements MonitorService {
                 userId,
                 reason
         );
-        if ("1688".equalsIgnoreCase(String.valueOf(target.get("platform")))) {
+        String platform = String.valueOf(target.get("platform"));
+        if (shouldEnqueueAgentTask(platform)) {
             Map<String, Object> enqueued = monitorAgentTaskEnqueuer.enqueue(tenantId, targetId, jobId);
             if (!Boolean.TRUE.equals(enqueued.get("queued"))) {
                 throw new ResponseStatusException(
                         HttpStatus.SERVICE_UNAVAILABLE,
-                        AppErrorCode.A1688_AGENT_OFFLINE.getUserMessage()
+                        agentOfflineError(platform).getUserMessage()
                 );
             }
         }
@@ -652,7 +654,7 @@ public class MonitorServiceImpl implements MonitorService {
         );
     }
 
-    private String validateAndMaybeCanonicalizeTemuShopUrl(
+    private String validateAndMaybeCanonicalizeTargetUrl(
             String platform,
             String targetType,
             String crawlStrategy,
@@ -662,6 +664,10 @@ public class MonitorServiceImpl implements MonitorService {
             Alibaba1688MonitorUrlValidator.requireValidForCreate(targetUrl, crawlStrategy);
             return Alibaba1688MonitorUrlValidator.canonicalize(targetUrl);
         }
+        if ("pdd".equalsIgnoreCase(platform) && "shop".equalsIgnoreCase(targetType)) {
+            PddMonitorUrlValidator.requireValidForCreate(targetUrl);
+            return PddMonitorUrlValidator.canonicalize(targetUrl);
+        }
         boolean temuShopListing = "temu".equalsIgnoreCase(platform)
                 && "shop".equalsIgnoreCase(targetType)
                 && "store_listing".equalsIgnoreCase(crawlStrategy);
@@ -670,6 +676,17 @@ public class MonitorServiceImpl implements MonitorService {
         }
         TemuMonitorUrlValidator.requireValidForCreate(targetUrl);
         return TemuMonitorUrlValidator.canonicalize(targetUrl);
+    }
+
+    private boolean shouldEnqueueAgentTask(String platform) {
+        return "1688".equalsIgnoreCase(platform) || "pdd".equalsIgnoreCase(platform);
+    }
+
+    private AppErrorCode agentOfflineError(String platform) {
+        if ("pdd".equalsIgnoreCase(platform)) {
+            return AppErrorCode.PDD_AGENT_OFFLINE;
+        }
+        return AppErrorCode.A1688_AGENT_OFFLINE;
     }
 
     private Map<String, Object> requireTarget(String id, Long tenantId) {

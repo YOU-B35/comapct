@@ -3,11 +3,13 @@ package com.crosshub.config.migration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.crosshub.security.PasswordService;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -21,10 +23,19 @@ public class TenantSchemaMigration {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final PasswordService passwordService;
+    private final boolean demoSeedEnabled;
 
-    public TenantSchemaMigration(JdbcTemplate jdbc, ObjectMapper objectMapper) {
+    public TenantSchemaMigration(
+            JdbcTemplate jdbc,
+            ObjectMapper objectMapper,
+            PasswordService passwordService,
+            @Value("${crosshub.demo-seed.enabled:true}") boolean demoSeedEnabled
+    ) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.passwordService = passwordService;
+        this.demoSeedEnabled = demoSeedEnabled;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -41,17 +52,24 @@ public class TenantSchemaMigration {
         addColumnIfMissing("warehouse_order", "warehouse_id", "TEXT NOT NULL DEFAULT ''");
         addColumnIfMissing("warehouse_order", "warehouse_name", "TEXT NOT NULL DEFAULT ''");
         ensureWarehouseOrderIndexes();
-        seedTenant();
+        if (demoSeedEnabled) {
+            seedTenant();
+        }
         backfillTenantIds();
-        seedWarehouseSites();
-        seedWarehouseUsers();
-        seedUserWarehouseScopes();
+        upgradeLegacyUserPasswords();
+        if (demoSeedEnabled) {
+            seedWarehouseSites();
+            seedWarehouseUsers();
+            seedUserWarehouseScopes();
+        }
         backfillDtcPlatformScope();
         backfillOrderWarehouses();
         seedMenus();
         seedTenantFeatures();
-        seedUserScopes();
-        seedWarehouseOrders();
+        if (demoSeedEnabled) {
+            seedUserScopes();
+            seedWarehouseOrders();
+        }
         log.info("Tenant schema migration completed");
     }
 
@@ -280,9 +298,6 @@ public class TenantSchemaMigration {
     private void seedTenantFeatures() {
         List<String> codes = jdbc.query("SELECT code FROM sys_menu", (rs, i) -> rs.getString(1));
         List<Long> tenantIds = jdbc.query("SELECT id FROM tenant", (rs, i) -> rs.getLong(1));
-        if (tenantIds.isEmpty()) {
-            tenantIds = List.of(1L);
-        }
         for (Long tenantId : tenantIds) {
             for (String code : codes) {
                 jdbc.update("""
@@ -414,7 +429,18 @@ public class TenantSchemaMigration {
         jdbc.update("""
                 INSERT INTO app_user (username, password, nickname, enterprise, role, tenant_id, job_title, status, created_at)
                 VALUES (?, ?, ?, (SELECT name FROM tenant WHERE id = 1), ?, 1, ?, 'active', datetime('now', 'localtime'))
-                """, username, password, nickname, role, jobTitle);
+                """, username, passwordService.encode(password), nickname, role, jobTitle);
+    }
+
+    private void upgradeLegacyUserPasswords() {
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT id, password FROM app_user");
+        for (Map<String, Object> row : rows) {
+            Object id = row.get("id");
+            String password = row.get("password") == null ? "" : String.valueOf(row.get("password"));
+            if (!password.isBlank() && !passwordService.isHashed(password)) {
+                jdbc.update("UPDATE app_user SET password = ? WHERE id = ?", passwordService.encode(password), id);
+            }
+        }
     }
 
     private void seedWarehouseOrders() {

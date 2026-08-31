@@ -1,8 +1,8 @@
 <script setup>
 import { formatUtc8, toUtc8Date } from '@/utils/time'
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as echarts from 'echarts'
+import { echarts } from '@/composables/useEcharts'
 import {
   create1688MonitorTarget,
   delete1688MonitorTarget,
@@ -201,6 +201,11 @@ function renderTrend() {
     })),
   })
 }
+
+onBeforeUnmount(() => {
+  trendChart?.dispose()
+  trendChart = null
+})
 
 async function trigger(targetId) {
   try {

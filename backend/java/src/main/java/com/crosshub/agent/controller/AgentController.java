@@ -223,6 +223,7 @@ public class AgentController {
     public Map<String, Object> temuSellerSessions(
             @RequestParam(value = "tenant_id", required = false) Long tenantId) {
         Long tid = tenantId != null ? tenantId : agentContext.tenantId();
+        requireAgentTenant(tid);
         return Map.of("success", true, "data", sellerSessionService.listSellerSessions(tid));
     }
 
@@ -279,6 +280,7 @@ public class AgentController {
         if (resolvedTenantId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少 tenant_id");
         }
+        requireAgentTenant(resolvedTenantId);
         return Map.of("success", true, "data", amazonSyncService.listRecentJobsForTenant(resolvedTenantId, limit));
     }
 

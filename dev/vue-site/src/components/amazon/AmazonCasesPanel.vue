@@ -74,11 +74,13 @@ defineExpose({ finishAcknowledge })
       </div>
     </div>
 
-    <el-segmented v-model="filter" :options="[
-      { label: summary.newReplies ? `新回复 (${summary.newReplies})` : '新回复', value: 'new' },
-      { label: '待回复', value: 'pending' },
-      { label: '全部', value: 'all' },
-    ]" />
+    <div class="toolbar">
+      <el-radio-group v-model="filter" size="small">
+        <el-radio-button value="new">{{ summary.newReplies ? `新回复 (${summary.newReplies})` : '新回复' }}</el-radio-button>
+        <el-radio-button value="pending">待回复</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
+    </div>
 
     <el-table :data="filtered" stripe size="small" v-loading="loading">
       <el-table-column prop="caseId" label="Case ID" width="130" />
@@ -123,6 +125,7 @@ defineExpose({ finishAcknowledge })
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
 .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .mini-stat {
   display: grid; gap: 4px; padding: 12px 14px;

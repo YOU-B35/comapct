@@ -59,6 +59,7 @@ _PDD_BROWSER_TASK_TYPES = frozenset(
         "pdd_sync",
         "pdd_products_sync",
         "pdd_issues_sync",
+        "pdd_monitor_crawl",
     }
 )
 
@@ -606,6 +607,56 @@ def handle_1688_monitor_crawl(client: AgentApiClient, task: dict[str, Any]) -> N
         )
 
 
+def handle_pdd_monitor_crawl(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    payload = task.get("payload") or {}
+    try:
+        from app.platforms.pdd_monitor_adapter import PddMonitorAdapter
+
+        tenant_id = int(payload.get("tenant_id") or 0)
+        target = {
+            "target_url": str(payload.get("target_url") or ""),
+            "crawl_strategy": str(payload.get("crawl_strategy") or "pdd_shop_topn"),
+            "config_json": str(payload.get("config_json") or "{}"),
+            "store_id": str(payload.get("store_id") or "buyer"),
+        }
+        max_products = max(1, int(payload.get("top_n") or 20))
+        result = PddMonitorAdapter().crawl_target(
+            tenant_id=tenant_id,
+            target=target,
+            max_products=max_products,
+        )
+        ingested = client.ingest_pdd_monitor(
+            {
+                "tenant_id": tenant_id,
+                "target_id": str(payload.get("target_id") or ""),
+                "job_id": str(payload.get("job_id") or ""),
+                "snapshot_at": result["snapshot_at"],
+                "products": result["products"],
+            }
+        )
+        client.complete_task_with_retry(
+            task_id,
+            status="success",
+            result={
+                "snapshot_id": str(ingested.get("snapshot_id") or ""),
+                "product_count": int(ingested.get("product_count") or len(result["products"])),
+                "signal_count": int(ingested.get("signal_count") or 0),
+                "crawled_at": result["snapshot_at"],
+            },
+        )
+    except Exception as exc:
+        message = str(exc)
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code=_pdd_error_code(message),
+            error_message=message,
+        )
+
+
 def handle_1688_products_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
     task_id = str(task.get("task_id") or task.get("id") or "")
     if not task_id:
@@ -1078,102 +1129,114 @@ def handle_taobao_products_sync(client: AgentApiClient, task: dict[str, Any]) ->
 
 def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
     task_type = str(task.get("task_type") or "")
-    if task_type in {"ziniao_discover", "amazon_ziniao_discover"}:
-        handle_ziniao_discover(client, task)
-        return
-    if task_type == "amazon_sync":
-        handle_amazon_sync(client, task)
-        return
-    if task_type == "amazon_write":
-        handle_amazon_write(client, task)
-        return
-    if task_type in _TEMU_BROWSER_TASK_TYPES:
-        # Wait for panel login outside the browser lock so we don't stall the queue.
-        if task_type in ("temu_crawl", "temu_session_probe"):
-            payload = task.get("payload") or {}
-            key = str(payload.get("session_key") or "").strip() or None
-            if _temu_panel_logging_in(key):
-                print(f"[Agent] {task_type} waiting for panel login idle key={key}", flush=True)
-                if not _wait_out_panel_logging_in(key, timeout_seconds=120):
-                    # Prefer waiting over killing a live login Chrome mid-close.
-                    task_id = str(task.get("task_id") or task.get("id") or "")
-                    if task_id:
-                        client.complete_task_with_retry(
-                            task_id,
-                            status="failed",
-                            error_code="TEMU_PROFILE_BUSY",
-                            error_message="Temu 登录窗口仍在使用中，请完成登录后再刷新数据",
-                        )
-                    return
-                # Give login thread a moment to finish context.close / cookie flush.
-                time.sleep(2.0)
-        with BROWSER_LOCK_POOL.guard("temu", *task_browser_keys("temu", task)):
-            if task_type == "temu_crawl":
-                handle_temu_crawl(client, task)
-            elif task_type == "temu_login_open":
-                handle_temu_login_open(client, task)
-            elif task_type == "temu_frontend_login_open":
-                handle_temu_frontend_login_open(client, task)
-            elif task_type == "temu_session_probe":
-                handle_temu_session_probe(client, task)
-            elif task_type == "temu_competitor_discover":
-                handle_temu_competitor_discover(client, task)
-        return
-    if task_type in _DOUYIN_BROWSER_TASK_TYPES:
-        with BROWSER_LOCK_POOL.guard("douyin", *task_browser_keys("douyin", task)):
-            if task_type == "douyin_session_probe":
-                handle_douyin_session_probe(client, task)
-            elif task_type == "douyin_login_open":
-                handle_douyin_login_open(client, task)
-            elif task_type == "douyin_sync":
-                handle_douyin_sync(client, task)
-            elif task_type == "douyin_products_sync":
-                handle_douyin_products_sync(client, task)
-        return
-    if task_type in _1688_BROWSER_TASK_TYPES:
-        with BROWSER_LOCK_POOL.guard("1688", *task_browser_keys("1688", task)):
-            if task_type == "1688_session_probe":
-                handle_1688_session_probe(client, task)
-            elif task_type == "1688_login_open":
-                handle_1688_login_open(client, task)
-            elif task_type == "1688_monitor_crawl":
-                handle_1688_monitor_crawl(client, task)
-            elif task_type == "1688_products_sync":
-                handle_1688_products_sync(client, task)
-            elif task_type == "1688_orders_sync":
-                handle_1688_orders_sync(client, task)
-            elif task_type == "1688_peer_bestsellers_sync":
-                handle_1688_peer_bestsellers_sync(client, task)
-        return
-    if task_type in _PDD_BROWSER_TASK_TYPES:
-        with BROWSER_LOCK_POOL.guard("pdd", *task_browser_keys("pdd", task)):
-            if task_type == "pdd_session_probe":
-                handle_pdd_session_probe(client, task)
-            elif task_type == "pdd_login_open":
-                handle_pdd_login_open(client, task)
-            elif task_type == "pdd_sync":
-                handle_pdd_sync(client, task)
-            elif task_type == "pdd_issues_sync":
-                handle_pdd_issues_sync(client, task)
-            elif task_type == "pdd_products_sync":
-                handle_pdd_products_sync(client, task)
-        return
-    if task_type in _TAOBAO_BROWSER_TASK_TYPES:
-        with BROWSER_LOCK_POOL.guard("taobao", *task_browser_keys("taobao", task)):
-            if task_type == "taobao_session_probe":
-                handle_taobao_session_probe(client, task)
-            elif task_type == "taobao_login_open":
-                handle_taobao_login_open(client, task)
-            elif task_type == "taobao_sync":
-                handle_taobao_sync(client, task)
-            elif task_type == "taobao_products_sync":
-                handle_taobao_products_sync(client, task)
-        return
-    task_id = str(task.get("task_id") or "")
-    if task_id:
-        client.complete_task(
-            task_id,
-            status="failed",
-            error_code="UNSUPPORTED_TASK",
-            error_message=f"未支持的任务类型: {task_type}",
+    task_id_for_log = str(task.get("task_id") or task.get("id") or "")
+    started = time.perf_counter()
+    try:
+        if task_type in {"ziniao_discover", "amazon_ziniao_discover"}:
+            handle_ziniao_discover(client, task)
+            return
+        if task_type == "amazon_sync":
+            handle_amazon_sync(client, task)
+            return
+        if task_type == "amazon_write":
+            handle_amazon_write(client, task)
+            return
+        if task_type in _TEMU_BROWSER_TASK_TYPES:
+            # Wait for panel login outside the browser lock so we don't stall the queue.
+            if task_type in ("temu_crawl", "temu_session_probe"):
+                payload = task.get("payload") or {}
+                key = str(payload.get("session_key") or "").strip() or None
+                if _temu_panel_logging_in(key):
+                    print(f"[Agent] {task_type} waiting for panel login idle key={key}", flush=True)
+                    if not _wait_out_panel_logging_in(key, timeout_seconds=120):
+                        # Prefer waiting over killing a live login Chrome mid-close.
+                        task_id = str(task.get("task_id") or task.get("id") or "")
+                        if task_id:
+                            client.complete_task_with_retry(
+                                task_id,
+                                status="failed",
+                                error_code="TEMU_PROFILE_BUSY",
+                                error_message="Temu 登录窗口仍在使用中，请完成登录后再刷新数据",
+                            )
+                        return
+                    # Give login thread a moment to finish context.close / cookie flush.
+                    time.sleep(2.0)
+            with BROWSER_LOCK_POOL.guard("temu", *task_browser_keys("temu", task)):
+                if task_type == "temu_crawl":
+                    handle_temu_crawl(client, task)
+                elif task_type == "temu_login_open":
+                    handle_temu_login_open(client, task)
+                elif task_type == "temu_frontend_login_open":
+                    handle_temu_frontend_login_open(client, task)
+                elif task_type == "temu_session_probe":
+                    handle_temu_session_probe(client, task)
+                elif task_type == "temu_competitor_discover":
+                    handle_temu_competitor_discover(client, task)
+            return
+        if task_type in _DOUYIN_BROWSER_TASK_TYPES:
+            with BROWSER_LOCK_POOL.guard("douyin", *task_browser_keys("douyin", task)):
+                if task_type == "douyin_session_probe":
+                    handle_douyin_session_probe(client, task)
+                elif task_type == "douyin_login_open":
+                    handle_douyin_login_open(client, task)
+                elif task_type == "douyin_sync":
+                    handle_douyin_sync(client, task)
+                elif task_type == "douyin_products_sync":
+                    handle_douyin_products_sync(client, task)
+            return
+        if task_type in _1688_BROWSER_TASK_TYPES:
+            with BROWSER_LOCK_POOL.guard("1688", *task_browser_keys("1688", task)):
+                if task_type == "1688_session_probe":
+                    handle_1688_session_probe(client, task)
+                elif task_type == "1688_login_open":
+                    handle_1688_login_open(client, task)
+                elif task_type == "1688_monitor_crawl":
+                    handle_1688_monitor_crawl(client, task)
+                elif task_type == "1688_products_sync":
+                    handle_1688_products_sync(client, task)
+                elif task_type == "1688_orders_sync":
+                    handle_1688_orders_sync(client, task)
+                elif task_type == "1688_peer_bestsellers_sync":
+                    handle_1688_peer_bestsellers_sync(client, task)
+            return
+        if task_type in _PDD_BROWSER_TASK_TYPES:
+            with BROWSER_LOCK_POOL.guard("pdd", *task_browser_keys("pdd", task)):
+                if task_type == "pdd_session_probe":
+                    handle_pdd_session_probe(client, task)
+                elif task_type == "pdd_login_open":
+                    handle_pdd_login_open(client, task)
+                elif task_type == "pdd_sync":
+                    handle_pdd_sync(client, task)
+                elif task_type == "pdd_issues_sync":
+                    handle_pdd_issues_sync(client, task)
+                elif task_type == "pdd_products_sync":
+                    handle_pdd_products_sync(client, task)
+                elif task_type == "pdd_monitor_crawl":
+                    handle_pdd_monitor_crawl(client, task)
+            return
+        if task_type in _TAOBAO_BROWSER_TASK_TYPES:
+            with BROWSER_LOCK_POOL.guard("taobao", *task_browser_keys("taobao", task)):
+                if task_type == "taobao_session_probe":
+                    handle_taobao_session_probe(client, task)
+                elif task_type == "taobao_login_open":
+                    handle_taobao_login_open(client, task)
+                elif task_type == "taobao_sync":
+                    handle_taobao_sync(client, task)
+                elif task_type == "taobao_products_sync":
+                    handle_taobao_products_sync(client, task)
+            return
+        task_id = str(task.get("task_id") or "")
+        if task_id:
+            client.complete_task(
+                task_id,
+                status="failed",
+                error_code="UNSUPPORTED_TASK",
+                error_message=f"未支持的任务类型: {task_type}",
+            )
+    finally:
+        elapsed = time.perf_counter() - started
+        print(
+            f"[AgentPerf] task_type={task_type or '-'} task_id={task_id_for_log or '-'} "
+            f"elapsed={elapsed:.2f}s",
+            flush=True,
         )

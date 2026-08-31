@@ -62,11 +62,13 @@ function statusMeta(row) {
       </div>
     </div>
 
-    <el-segmented v-model="filter" :options="[
-      { label: summary.alerts ? `预警 (${summary.alerts})` : '预警', value: 'alert' },
-      { label: '运输中', value: 'in_transit' },
-      { label: '全部', value: 'all' },
-    ]" />
+    <div class="toolbar">
+      <el-radio-group v-model="filter" size="small">
+        <el-radio-button value="alert">{{ summary.alerts ? `预警 (${summary.alerts})` : '预警' }}</el-radio-button>
+        <el-radio-button value="in_transit">运输中</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
+    </div>
 
     <el-table :data="filtered" stripe size="small" v-loading="loading">
       <el-table-column prop="shipmentId" label="货件号" min-width="130" />
@@ -100,6 +102,7 @@ function statusMeta(row) {
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
 .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .mini-stat {
   display: grid; gap: 4px; padding: 12px 14px;

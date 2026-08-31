@@ -11,6 +11,7 @@ import com.crosshub.temu.entity.TemuShop;
 import com.crosshub.platform.repository.PlatformAccountRepository;
 import com.crosshub.temu.repository.TemuShopRepository;
 import com.crosshub.security.AuthContext;
+import com.crosshub.security.SecretValueService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,19 +39,22 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
     private final TemuMapper temuMapper;
     private final TemuShopRepository temuShopRepository;
     private final AmazonAccountDedupeService amazonAccountDedupeService;
+    private final SecretValueService secretValueService;
 
     public PlatformAccountServiceImpl(
             PlatformAccountRepository repository,
             AuthContext authContext,
             TemuMapper temuMapper,
             TemuShopRepository temuShopRepository,
-            AmazonAccountDedupeService amazonAccountDedupeService
+            AmazonAccountDedupeService amazonAccountDedupeService,
+            SecretValueService secretValueService
     ) {
         this.repository = repository;
         this.authContext = authContext;
         this.temuMapper = temuMapper;
         this.temuShopRepository = temuShopRepository;
         this.amazonAccountDedupeService = amazonAccountDedupeService;
+        this.secretValueService = secretValueService;
     }
 
     public List<Map<String, Object>> list(String platform) {
@@ -112,7 +116,7 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
             row.setStoreName(storeName);
             row.setAccount(account);
             if (!password.isBlank()) {
-                row.setPassword(password);
+                row.setPassword(secretValueService.encrypt(password));
             }
         } else {
             if (repository.existsByTenantIdAndPlatformIgnoreCaseAndStoreNameIgnoreCase(tenantId, platform, storeName)) {
@@ -124,7 +128,7 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
             row.setPlatform(platform);
             row.setStoreName(storeName);
             row.setAccount(account);
-            row.setPassword(password.isBlank() ? "" : password);
+            row.setPassword(password.isBlank() ? "" : secretValueService.encrypt(password));
         }
 
         row.setCompanyName(trim(payload.companyName()));
