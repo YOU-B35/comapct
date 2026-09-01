@@ -1,0 +1,29 @@
+{
+  "sheetName": "Sheet1",
+  "headerRow": 1,
+  "columns": {
+    "groupKey": "链接指向",
+    "rowType": "状态",
+    "parentValue": "父体",
+    "variantValue": "子体",
+    "mainSkuImage": "SKU 图片",
+    "collections": ["产品系列", "产品系列_2"],
+    "productType": "类别",
+    "price": "价格",
+    "variantTitle": "SKU（给客户看的）",
+    "internalSku": "产品编码（给自己看的）",
+    "title": "产品标题",
+    "description": "描述",
+    "productImages": ["产品图片1", "产品图片2", "产品图片3", "产品图片4", "产品图片5", "产品图片6"],
+    "detailDescriptions": ["详情页描述1", "详情页描述2", "详情页描述3", "详情页描述4", "详情页描述5"],
+    "detailImages": ["详情页图片1", "详情页图片2", "详情页图片3", "详情页图片4", "详情页图片5"],
+    "reviews": [
+      { "text": "评论1", "image": "评论1图片" },
+      { "text": "评论2", "image": "评论2图片" },
+      { "text": "评论3", "image": "评论3图片" },
+      { "text": "评论4", "image": "评论4图片" },
+      { "text": "评论5", "image": "评论5图片" },
+      { "text": "评论6", "image": "评论6图片" }
+    ]
+  }
+}

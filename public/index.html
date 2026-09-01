@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Shopify 批量上货工具</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="toolbar">
+        <div>
+          <h1>Shopify 批量上货</h1>
+          <p id="configStatus">读取配置中...</p>
+        </div>
+        <div class="actions">
+          <label class="file-button">
+            <input id="fileInput" type="file" accept=".xlsx,.xls">
+            选择 Excel
+          </label>
+          <button id="uploadBtn">解析模板</button>
+          <button id="checkShopifyBtn">测试 Shopify</button>
+          <button id="dryRunBtn" disabled>Dry Run</button>
+          <button id="generateBtn" disabled>生成 AI 图片</button>
+          <button id="publishBtn" disabled>上架为草稿</button>
+        </div>
+      </section>
+
+      <section class="summary" id="summary"></section>
+
+      <section class="layout">
+        <aside>
+          <h2>商品列表</h2>
+          <div id="productList" class="product-list"></div>
+        </aside>
+        <section class="detail" id="detail">
+          <div class="empty">上传模板后会在这里预览商品、变体和图片状态。</div>
+        </section>
+      </section>
+
+      <section class="log">
+        <h2>运行日志</h2>
+        <pre id="log"></pre>
+      </section>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
