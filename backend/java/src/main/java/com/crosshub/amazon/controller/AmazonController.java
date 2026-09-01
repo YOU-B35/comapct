@@ -22,6 +22,7 @@ public class AmazonController {
     private final AmazonOperationalService operationalService;
     private final AmazonWriteService writeService;
     private final AmazonZiniaoService ziniaoService;
+    private final AmazonChatService chatService;
     private final DataScopeService dataScopeService;
     private final ObjectMapper objectMapper;
 
@@ -30,6 +31,7 @@ public class AmazonController {
             AmazonOperationalService operationalService,
             AmazonWriteService writeService,
             AmazonZiniaoService ziniaoService,
+            AmazonChatService chatService,
             DataScopeService dataScopeService,
             ObjectMapper objectMapper
     ) {
@@ -37,6 +39,7 @@ public class AmazonController {
         this.operationalService = operationalService;
         this.writeService = writeService;
         this.ziniaoService = ziniaoService;
+        this.chatService = chatService;
         this.dataScopeService = dataScopeService;
         this.objectMapper = objectMapper;
     }
@@ -100,6 +103,39 @@ public class AmazonController {
     @GetMapping("/integration/status")
     public Map<String, Object> integrationStatus() {
         return ApiResult.ok(operationalService.integrationStatus());
+    }
+
+    @PostMapping("/chat")
+    public ResponseEntity<Map<String, Object>> submitChat(@RequestBody(required = false) Map<String, Object> request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResult.ok(chatService.submit(request)));
+    }
+
+    @GetMapping("/chat/jobs/{jobId}")
+    public Map<String, Object> getChatJob(@PathVariable String jobId) {
+        return ApiResult.ok(chatService.getJob(jobId));
+    }
+
+    @GetMapping("/chat/sessions")
+    public Map<String, Object> listChatSessions(
+            @RequestParam(value = "store_id", required = false) String storeId,
+            @RequestParam(value = "limit", defaultValue = "20") int limit
+    ) {
+        return ApiResult.ok(chatService.listSessions(storeId, limit));
+    }
+
+    @GetMapping("/chat/sessions/{sessionId}/messages")
+    public Map<String, Object> listChatMessages(@PathVariable String sessionId) {
+        return ApiResult.ok(chatService.listMessages(sessionId));
+    }
+
+    @GetMapping("/chat/memory/{storeId}")
+    public Map<String, Object> listChatMemory(@PathVariable String storeId) {
+        return ApiResult.ok(chatService.listMemory(storeId));
+    }
+
+    @DeleteMapping("/chat/memory/{storeId}")
+    public Map<String, Object> clearChatMemory(@PathVariable String storeId) {
+        return ApiResult.ok(chatService.clearMemory(storeId));
     }
 
     @PatchMapping("/daily/messages/{id}")

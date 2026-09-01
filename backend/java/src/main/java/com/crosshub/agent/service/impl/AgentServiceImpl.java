@@ -7,6 +7,7 @@ import com.crosshub.agent.repository.IntegrationAgentRepository;
 import com.crosshub.agent.service.AgentService;
 import com.crosshub.agent.service.AgentTaskConcurrency;
 import com.crosshub.alibaba1688.service.Alibaba1688AgentTasks;
+import com.crosshub.amazon.service.AmazonChatService;
 import com.crosshub.common.AppErrorCode;
 import com.crosshub.config.AgentProperties;
 import com.crosshub.security.AgentContext;
@@ -479,6 +480,8 @@ public class AgentServiceImpl implements AgentService {
         long ttl;
         if (TASK_TYPE.equals(task.getTaskType())) {
             ttl = AMAZON_TASK_RUNNING_TTL_SECONDS;
+        } else if (AmazonChatService.TASK_TYPE.equals(task.getTaskType())) {
+            ttl = AGENT_TASK_DEFAULT_TTL_SECONDS;
         } else if (TemuAgentTasks.CRAWL.equals(task.getTaskType())) {
             ttl = AGENT_TASK_RUNNING_TTL_SECONDS;
         } else if (Alibaba1688AgentTasks.PRODUCTS_SYNC.equals(task.getTaskType())) {

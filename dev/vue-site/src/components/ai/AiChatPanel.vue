@@ -11,6 +11,12 @@ const props = defineProps({
   scope: { type: String, default: 'employee' },
   userName: { type: String, default: '运营专员' },
   platforms: { type: String, default: '' },
+  welcome: { type: String, default: '' },
+  suggestions: { type: Array, default: null },
+  composerHint: { type: String, default: '' },
+  placeholder: { type: String, default: '描述你的问题，或从左侧选择 AI 技能…' },
+  disabled: { type: Boolean, default: false },
+  sendHandler: { type: Function, default: null },
 })
 
 const input = ref('')
@@ -18,16 +24,24 @@ const loading = ref(false)
 const scrollRef = ref(null)
 
 const platformLabel = computed(() => props.platforms || '运营')
+const welcomeText = computed(
+  () => props.welcome || AI_EMPLOYEE_WELCOME(props.userName, platformLabel.value),
+)
 
 const messages = ref([
   {
     role: 'assistant',
-    content: AI_EMPLOYEE_WELCOME(props.userName, platformLabel.value),
+    content: welcomeText.value,
     time: formatTime(new Date()),
   },
 ])
 
-const suggestedPrompts = computed(() => AI_SUGGESTED_PROMPTS)
+const suggestedPrompts = computed(
+  () => (Array.isArray(props.suggestions) && props.suggestions.length ? props.suggestions : AI_SUGGESTED_PROMPTS),
+)
+const hintText = computed(
+  () => props.composerHint || 'Demo 模式 · 基于样本数据模拟回复，Enter 发送',
+)
 
 const showWelcomeCards = computed(
   () => messages.value.length === 1 && messages.value[0].role === 'assistant',
@@ -64,31 +78,46 @@ async function scrollToBottom() {
 
 async function sendMessage(text) {
   const content = (text || input.value).trim()
-  if (!content || loading.value) return
+  if (!content || loading.value || props.disabled) return
 
   messages.value.push({ role: 'user', content, time: formatTime(new Date()) })
   input.value = ''
   loading.value = true
   await scrollToBottom()
 
-  await new Promise((r) => setTimeout(r, 900))
-
-  messages.value.push({
-    role: 'assistant',
-    content: pickReply(content),
-    time: formatTime(new Date()),
-  })
-  loading.value = false
-  await scrollToBottom()
+  try {
+    let reply
+    if (props.sendHandler) {
+      reply = await props.sendHandler(content)
+    } else {
+      await new Promise((r) => setTimeout(r, 900))
+      reply = pickReply(content)
+    }
+    const replyContent = typeof reply === 'string' ? reply : (reply?.content || reply?.answer || '')
+    messages.value.push({
+      role: 'assistant',
+      content: replyContent || '这次没有收到可展示的回复。',
+      time: formatTime(new Date()),
+    })
+  } catch (error) {
+    messages.value.push({
+      role: 'assistant',
+      content: error?.message || '请求失败，请稍后重试。',
+      time: formatTime(new Date()),
+    })
+  } finally {
+    loading.value = false
+    await scrollToBottom()
+  }
 }
 
 watch(
-  () => [props.userName, props.platforms],
+  () => [props.userName, props.platforms, props.welcome],
   () => {
     messages.value = [
       {
         role: 'assistant',
-        content: AI_EMPLOYEE_WELCOME(props.userName, platformLabel.value),
+        content: welcomeText.value,
         time: formatTime(new Date()),
       },
     ]
@@ -141,6 +170,7 @@ defineExpose({ sendMessage })
             :key="item.title"
             type="button"
             class="welcome-card"
+            :disabled="disabled"
             @click="sendMessage(item.prompt)"
           >
             <strong>{{ item.title }}</strong>
@@ -156,8 +186,9 @@ defineExpose({ sendMessage })
           v-model="input"
           type="textarea"
           :autosize="{ minRows: 1, maxRows: 4 }"
-          placeholder="描述你的问题，或从左侧选择 AI 技能…"
+          :placeholder="placeholder"
           resize="none"
+          :disabled="disabled"
           @keydown.enter.exact.prevent="sendMessage()"
         />
         <el-button
@@ -165,13 +196,13 @@ defineExpose({ sendMessage })
           class="composer-send"
           :icon="Promotion"
           :loading="loading"
-          :disabled="!input.trim()"
+          :disabled="disabled || !input.trim()"
           @click="sendMessage()"
         >
           发送
         </el-button>
       </div>
-      <p class="composer-hint">Demo 模式 · 基于样本数据模拟回复，Enter 发送</p>
+      <p class="composer-hint">{{ hintText }}</p>
     </div>
   </div>
 </template>

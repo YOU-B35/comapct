@@ -1,6 +1,7 @@
 package com.crosshub.agent.service;
 
 import com.crosshub.alibaba1688.service.Alibaba1688AgentTasks;
+import com.crosshub.amazon.service.AmazonChatService;
 import com.crosshub.amazon.service.AmazonWriteService;
 import com.crosshub.douyin.service.DouyinAgentTasks;
 import com.crosshub.temu.service.TemuAgentTasks;
@@ -155,7 +156,9 @@ public final class AgentTaskConcurrency {
         if (Alibaba1688AgentTasks.BROWSER_BUSY_TYPES.contains(type) || type.startsWith("1688_")) {
             return alibaba1688Requirement(body, tid);
         }
-        if (AgentService.TASK_TYPE.equals(type) || AmazonWriteService.WRITE_TASK_TYPE.equals(type)) {
+        if (AgentService.TASK_TYPE.equals(type)
+                || AmazonWriteService.WRITE_TASK_TYPE.equals(type)
+                || AmazonChatService.TASK_TYPE.equals(type)) {
             return amazonRequirement(body, tid);
         }
         if (type.startsWith("aliexpress_") || type.startsWith("ae_")) {
