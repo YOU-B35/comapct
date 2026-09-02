@@ -31,9 +31,15 @@ from app.browser.session_state import cache_payload_from_status, session_ready
 from app.config import is_headless
 from app.crawler.mapper import map_sales_batches
 from app.crawler.temu_api import TemuApiClient
+from app.observability.task_timing import timed_stage
 from app.temu.session_aggregate import parse_seller_sessions_payload
 from app.temu.session_scope import DEFAULT_SESSION_KEY, normalize_session_key
 from app.temu.shop_scope import filter_malls_by_shop_ids
+
+
+def _reclaim_profile_browsers(tenant_id: int, session_key: str | None) -> int:
+    with timed_stage("browser_profile_reclaim.temu"):
+        return close_tenant_profile_browsers(tenant_id, session_key=session_key)
 
 
 def ensure_profile_available(
@@ -66,9 +72,8 @@ def ensure_profile_available(
 
     cached = read_ready_session_cache(tenant_id, session_key=session_key)
     if cached and session_ready(cached):
-        close_tenant_profile_browsers(tenant_id, session_key=session_key)
+        _reclaim_profile_browsers(tenant_id, session_key)
         clear_profile_lock(tenant_id, session_key)
-        time.sleep(1.5)
         return
 
     deadline = time.monotonic() + max(0, timeout_seconds)
@@ -77,9 +82,8 @@ def ensure_profile_available(
             close_temu_runtime(tenant_id, session_key=session_key)
         except Exception:
             pass
-        close_tenant_profile_browsers(tenant_id, session_key=session_key)
+        _reclaim_profile_browsers(tenant_id, session_key)
         clear_profile_lock(tenant_id, session_key)
-        time.sleep(2)
 
     if is_profile_locked(tenant_id, session_key):
         cached = read_session_cache(
@@ -88,17 +92,15 @@ def ensure_profile_available(
             session_key=session_key,
         )
         if cached and session_ready(cached):
-            close_tenant_profile_browsers(tenant_id, session_key=session_key)
+            _reclaim_profile_browsers(tenant_id, session_key)
             clear_profile_lock(tenant_id, session_key)
-            time.sleep(1.5)
             return
         raise RuntimeError(
             "Temu 登录窗口仍在使用中。请关闭 CrossHub 弹出的登录浏览器，再点击「刷新数据」。"
         )
 
     # Even without a lock file, kill leftover Chrome holding this profile.
-    close_tenant_profile_browsers(tenant_id, session_key=session_key)
-    time.sleep(0.8)
+    _reclaim_profile_browsers(tenant_id, session_key)
 
 
 def _resolve_malls(page, fallback_mall_id: str) -> list[dict]:
@@ -212,9 +214,15 @@ def crawl_temu_sales_live(
                     if not current_mall_id:
                         continue
                     client.switch_mall(current_mall_id)
-                    shop_name, shop_id = client.get_shop_info()
+                    # `_resolve_malls` already comes from Temu's mall-list API.
+                    # Avoid a second user-info API roundtrip (and its human pause)
+                    # for the normal case; keep the older lookup as a fallback
+                    # when Temu did not return a display name.
+                    shop_id = current_mall_id
+                    shop_name = str(mall.get("mallName") or "").strip()
                     if not shop_name:
-                        shop_name = str(mall.get("mallName") or shop_id)
+                        shop_name, shop_id = client.get_shop_info()
+                        shop_name = shop_name or current_mall_id
                     batches = client.fetch_all_sales()
                     all_rows.extend(
                         map_sales_batches(
@@ -301,6 +309,7 @@ def crawl_temu_sales_all_sessions(
 ) -> dict:
     """并行爬取租户下各 Temu 卖家账号 Profile（默认最多 3 路），每个会话内 switch_mall 拉全店。"""
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    from contextvars import copy_context
     import os
 
     sessions = parse_seller_sessions_payload(seller_sessions)
@@ -330,7 +339,12 @@ def crawl_temu_sales_all_sessions(
         return label, payload
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(_one, meta): meta for meta in sessions}
+        # ContextVars do not cross threads automatically.  Preserve task timing
+        # so one multi-store task emits all browser/API timings in its summary.
+        futures = {
+            pool.submit(copy_context().run, _one, meta): meta
+            for meta in sessions
+        }
         for fut in as_completed(futures):
             meta = futures[fut]
             key = normalize_session_key(str(meta.get("session_key") or DEFAULT_SESSION_KEY))

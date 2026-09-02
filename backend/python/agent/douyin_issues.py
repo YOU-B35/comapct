@@ -7,9 +7,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlencode
-from zoneinfo import ZoneInfo
+from app.timezone import SHANGHAI
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 # Day0 READY sources
 VIOLATION_PAGE = "https://fxg.jinritemai.com/ffa/grs/penalty"

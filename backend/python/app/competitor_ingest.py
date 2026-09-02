@@ -3,12 +3,11 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from .crawler.competitor_crawler import crawl_competitor_products
 from .db import connect, init_schema, seed_users
+from .timezone import SHANGHAI
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def init_competitor_schema(conn: sqlite3.Connection) -> None:

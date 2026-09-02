@@ -18,6 +18,7 @@ from agent.alibaba1688_order_constants import (
     assert_orders_xhr_ready,
 )
 from agent.alibaba1688_tasks import _close, _launch, _looks_logged_in
+from app.observability.task_timing import timed_stage
 from app.rate_limit import retry_with_backoff
 
 _CN = timezone(timedelta(hours=8), name="Asia/Shanghai")
@@ -177,6 +178,10 @@ def _default_window(days: int = 7) -> tuple[str, str]:
 APP_KEY = "12574478"
 
 
+class A1688MtopTransientError(RuntimeError):
+    """Temporary mtop transport or platform-load failure eligible for retry."""
+
+
 def _m_h5_tk(context) -> str:
     try:
         cookies = context.cookies()
@@ -188,6 +193,42 @@ def _m_h5_tk(context) -> str:
     return ""
 
 
+def _mtop_url(*, token: str, api_name: str, data_json: str) -> str:
+    timestamp = str(int(time.time() * 1000))
+    sign = hashlib.md5(f"{token}&{timestamp}&{APP_KEY}&{data_json}".encode()).hexdigest()
+    return (
+        f"https://h5api.m.1688.com/h5/mtop.{api_name}/1.0/"
+        f"?jsv=2.7.0&appKey={APP_KEY}&t={timestamp}&sign={sign}"
+        f"&api=mtop.{api_name}&v=1.0&ecode=1"
+        "&type=originaljson&dataType=json&data=" + quote(data_json, safe="")
+    )
+
+
+def _transient_mtop_ret(ret: object) -> bool:
+    text = str(ret or "").upper()
+    return any(
+        marker in text
+        for marker in (
+            "FAIL::",
+            "TIMEOUT",
+            "NETWORK",
+            "SYSTEM_BUSY",
+            "REQUEST_OVER_LIMIT",
+            "SERVICE_FAULT",
+        )
+    )
+
+
+def _retryable_mtop_error(exc: Exception) -> bool:
+    if isinstance(exc, A1688MtopTransientError):
+        return True
+    text = str(exc).lower()
+    return any(
+        marker in text
+        for marker in ("timeout", "network", "connection", "temporar", "browser closed")
+    )
+
+
 def _mtop(page, api: str, data: dict[str, Any], timeout_ms: int = 30000) -> dict[str, Any]:
     """Call mtop with standard token signing via an in-page fetch."""
     token = _m_h5_tk(page.context)
@@ -195,17 +236,13 @@ def _mtop(page, api: str, data: dict[str, Any], timeout_ms: int = 30000) -> dict
         raise RuntimeError("A1688_ORDERS_SOURCE_UNAVAILABLE: 缺少 mtop token")
     api_name = api[5:] if api.startswith("mtop.") else api
     data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-    t = str(int(time.time() * 1000))
-    sign = hashlib.md5(f"{token}&{t}&{APP_KEY}&{data_json}".encode()).hexdigest()
-    url = (
-        f"https://h5api.m.1688.com/h5/mtop.{api_name}/1.0/"
-        f"?jsv=2.7.0&appKey={APP_KEY}&t={t}&sign={sign}"
-        f"&api=mtop.{api_name}&v=1.0&ecode=1"
-        "&type=originaljson&dataType=json&data=" + quote(data_json, safe="")
-    )
-    result = retry_with_backoff(
-        lambda: page.evaluate(
-            """async ({ url, timeoutMs }) => {
+
+    def _request() -> dict[str, Any]:
+        current_token = _m_h5_tk(page.context) or token
+        url = _mtop_url(token=current_token, api_name=api_name, data_json=data_json)
+        with timed_stage("a1688_mtop.request"):
+            result = page.evaluate(
+                """async ({ url, timeoutMs }) => {
                 const ctrl = new AbortController();
                 const timer = setTimeout(() => ctrl.abort(), timeoutMs);
                 try {
@@ -220,11 +257,21 @@ def _mtop(page, api: str, data: dict[str, Any], timeout_ms: int = 30000) -> dict
                 } finally {
                     clearTimeout(timer);
                 }
-            }""",
-            {"url": url, "timeoutMs": timeout_ms},
-        ),
+                }""",
+                {"url": url, "timeoutMs": timeout_ms},
+            )
+        if not isinstance(result, dict):
+            raise A1688MtopTransientError("mtop returned a non-object response")
+        ret = result.get("ret") or []
+        if ret and _transient_mtop_ret(ret[0]):
+            raise A1688MtopTransientError(str(ret[0]))
+        return result
+
+    result = retry_with_backoff(
+        _request,
         retries=1,
         base_delay=1.5,
+        should_retry=_retryable_mtop_error,
     )
     if not isinstance(result, dict):
         raise RuntimeError("A1688_ORDERS_SOURCE_UNAVAILABLE: 订单接口无响应")

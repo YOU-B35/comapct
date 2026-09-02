@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
-from zoneinfo import ZoneInfo
 
 from app.browser.douyin_context import (
     DOUYIN_SELLER_HOME,
@@ -18,7 +17,9 @@ from app.browser.douyin_context import (
     launch_douyin_persistent_context,
     sanitize_profile_startup_for_douyin,
 )
+from app.timezone import SHANGHAI
 from app.config import sync_headless_enabled
+from app.observability.task_timing import timed_stage
 from app.session_scope import normalize_session_key, resolve_platform_profile_dir
 
 # Frozen from Day0 probe (2026-08-13).
@@ -109,7 +110,6 @@ _LOGIN_CTA_MARKERS = (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def profile_dir(tenant_id: int, store_id: str | None = None) -> Path:
@@ -695,7 +695,8 @@ def _build_product_list_url(page_no: int, page_size: int, *, tab: str = "onSale"
 def _fetch_product_list_page(page, *, page_no: int, page_size: int, tab: str = "onSale") -> tuple[list[dict[str, Any]], int, str]:
     url = _build_product_list_url(page_no, page_size, tab=tab)
     print(f"[DouyinProducts] GET tab={tab} page={page_no} size={page_size}", flush=True)
-    response = page.request.get(url, timeout=60_000)
+    with timed_stage("douyin_products.request"):
+        response = page.request.get(url, timeout=60_000)
     if response.status >= 400:
         raise RuntimeError(f"product list HTTP {response.status} tab={tab} page={page_no}")
     try:
@@ -1051,7 +1052,8 @@ def _fetch_order_list_page(
         "appid": "1",
     }
     url = f"{DOUYIN_ORDER_LIST_API}?{urlencode(params)}"
-    resp = page.request.get(url, timeout=60_000)
+    with timed_stage("douyin_orders.request"):
+        resp = page.request.get(url, timeout=60_000)
     if resp.status >= 400:
         raise RuntimeError(f"searchlist HTTP {resp.status}")
     data = resp.json()

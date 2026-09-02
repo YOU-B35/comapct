@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from threading import Lock, RLock
+import time
 from typing import Any, Iterable
+
+from app.observability.task_timing import record_duration
 
 
 def _clean(value: Any, default: str = "default") -> str:
@@ -122,11 +125,13 @@ class BrowserLockPool:
         @contextmanager
         def _cm():
             acquired: list[RLock] = []
+            wait_started = time.perf_counter()
             try:
                 for key in ordered:
                     lock = self._rlock(key)
                     lock.acquire()
                     acquired.append(lock)
+                record_duration(f"browser_lock_wait.{platform}", time.perf_counter() - wait_started)
             except BaseException:
                 for lock in reversed(acquired):
                     lock.release()

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 BLOCKED_URL_RE = re.compile(
     r"sellermobileapp|/ap/signin|sellercentral\.amazon\.com/gp/help",
@@ -33,6 +34,34 @@ MAIN_SCOPE_SELECTORS = (
     "kat-side-nav",
     "#left-nav",
 )
+
+
+def wait_for_page_patterns(
+    page,
+    patterns: tuple[str, ...],
+    *,
+    timeout_seconds: float,
+    poll_seconds: float = 0.25,
+) -> str:
+    """Wait until a target report is rendered, without a fixed post-goto sleep."""
+    compiled = tuple(re.compile(pattern, re.I) for pattern in patterns)
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    latest = ""
+    while True:
+        try:
+            latest = str(page.inner_text("body") or "")
+        except Exception:
+            latest = ""
+        if any(pattern.search(f"{page.url}\n{latest}") for pattern in compiled):
+            return latest
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return latest
+        delay = min(max(0.05, poll_seconds), remaining)
+        try:
+            page.wait_for_timeout(max(1, int(delay * 1000)))
+        except Exception:
+            time.sleep(delay)
 
 
 def is_blocked_url(url: str) -> bool:
@@ -115,26 +144,50 @@ def navigate_to_br_child_asin(page, *, home_url: str) -> str:
     from app.amazon.page_urls import BR_CHILD_REPORT_URL, BR_DASHBOARD_URL, REPORT_URLS
 
     page.goto(BR_CHILD_REPORT_URL, wait_until="domcontentloaded")
-    page.wait_for_timeout(6000)
+    body = wait_for_page_patterns(
+        page,
+        (r"DetailSalesTrafficByChild", r"按子商品", r"child.?asin"),
+        timeout_seconds=6,
+    )
     assert_allowed_url(page.url, context="br_child_direct")
     if is_blocked_url(page.url):
         raise RuntimeError(f"BR 直连落入禁止页: {page.url}")
 
-    if not re.search(r"DetailSalesTrafficByChild|按子商品", f"{page.url}{page.inner_text('body')[:800]}", re.I):
+    if not re.search(r"DetailSalesTrafficByChild|按子商品", f"{page.url}{body[:800]}", re.I):
         navigate_br_child_asin_via_sidebar(page)
-        page.wait_for_timeout(5000)
+        body = wait_for_page_patterns(
+            page,
+            (r"DetailSalesTrafficByChild", r"按子商品", r"child.?asin"),
+            timeout_seconds=5,
+        )
 
     if "#/dashboard" in (page.url or "") and not re.search(r"DetailSalesTrafficByChild", page.url, re.I):
         page.goto(REPORT_URLS[1], wait_until="domcontentloaded")
-        page.wait_for_timeout(4000)
+        wait_for_page_patterns(
+            page,
+            (r"业务报告", r"business reports", r"DetailSalesTrafficByChild"),
+            timeout_seconds=4,
+        )
         navigate_br_child_asin_via_sidebar(page)
-        page.wait_for_timeout(5000)
+        body = wait_for_page_patterns(
+            page,
+            (r"DetailSalesTrafficByChild", r"按子商品", r"child.?asin"),
+            timeout_seconds=5,
+        )
 
     if "#/dashboard" in (page.url or ""):
         page.goto(BR_DASHBOARD_URL, wait_until="domcontentloaded")
-        page.wait_for_timeout(3000)
+        wait_for_page_patterns(
+            page,
+            (r"业务报告", r"business reports", r"DetailSalesTrafficByChild"),
+            timeout_seconds=3,
+        )
         navigate_br_child_asin_via_sidebar(page)
-        page.wait_for_timeout(5000)
+        wait_for_page_patterns(
+            page,
+            (r"DetailSalesTrafficByChild", r"按子商品", r"child.?asin"),
+            timeout_seconds=5,
+        )
 
     assert_allowed_url(page.url, context="br_nav_child_asin")
     return page.url

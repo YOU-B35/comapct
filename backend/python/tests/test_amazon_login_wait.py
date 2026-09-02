@@ -7,10 +7,31 @@ from unittest.mock import MagicMock, patch
 from app.amazon.session_context import (
     AmazonLoginRequiredError,
     ensure_seller_logged_in_with_wait,
+    wait_for_seller_page_state,
 )
 
 
 class AmazonLoginWaitTests(unittest.TestCase):
+    def test_page_state_returns_without_wait_when_seller_home_is_ready(self):
+        page = MagicMock()
+        page.url = "https://sellercentral.amazon.com/home"
+        page.evaluate.return_value = "Global Snapshot Seller Central"
+
+        text = wait_for_seller_page_state(page, timeout_seconds=5)
+
+        self.assertIn("Seller Central", text)
+        page.wait_for_timeout.assert_not_called()
+
+    def test_page_state_polls_until_recognizable_content(self):
+        page = MagicMock()
+        page.url = "https://sellercentral.amazon.com/home"
+        page.evaluate.side_effect = ["Loading", "Account Health"]
+
+        text = wait_for_seller_page_state(page, timeout_seconds=1, poll_seconds=0.1)
+
+        self.assertEqual(text, "Account Health")
+        page.wait_for_timeout.assert_called_once_with(100)
+
     def test_returns_immediately_when_already_logged_in(self):
         page = MagicMock()
         page.url = "https://sellercentral.amazon.com/home"

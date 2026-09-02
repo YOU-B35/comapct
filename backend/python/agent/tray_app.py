@@ -1130,11 +1130,12 @@ def note_agent_loop_thread(thread: threading.Thread | None, *, ops_started: bool
 
 # ─── Agent 包装（带状态上报）─────────────────────────────────────────────────
 def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
-    from concurrent.futures import ThreadPoolExecutor, Future
+    from concurrent.futures import Future
 
     from agent.config import AGENT_DISPATCH_WORKERS, HEARTBEAT_INTERVAL_SECONDS, POLL_INTERVAL_SECONDS
     from agent.handlers import dispatch_task
     from agent.main import create_ziniao_client, detect_ziniao_online
+    from agent.task_executor import BrowserAffinityTaskExecutor
 
     def _client() -> Any:
         # Prefer latest client after re-bind without restarting the whole panel.
@@ -1164,7 +1165,10 @@ def run_agent_loop(java_client: Any, stop_event: threading.Event) -> None:
 
     threading.Thread(target=_heartbeat_loop, daemon=True, name="agent-heartbeat").start()
 
-    with ThreadPoolExecutor(max_workers=AGENT_DISPATCH_WORKERS, thread_name_prefix="agent-task") as pool:
+    with BrowserAffinityTaskExecutor(
+        max_workers=AGENT_DISPATCH_WORKERS,
+        thread_name_prefix="agent-task",
+    ) as pool:
         while not stop_event.is_set():
             try:
                 done = {f for f in inflight if f.done()}

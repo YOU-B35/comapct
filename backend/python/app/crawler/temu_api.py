@@ -2,33 +2,72 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from playwright.sync_api import Page
 
 from app.browser.context import ensure_logged_in, human_pause, set_mall_id
-from app.config import MALL_STORAGE_KEY, TEMU_SALES_API, TEMU_SALES_PAGE, TEMU_USER_INFO_API
+from app.config import (
+    MALL_STORAGE_KEY,
+    TEMU_API_MAX_RETRIES,
+    TEMU_API_REQUEST_TIMEOUT_MS,
+    TEMU_API_RETRY_BASE_SECONDS,
+    TEMU_SALES_API,
+    TEMU_SALES_PAGE,
+    TEMU_USER_INFO_API,
+)
 from app.crawler.temu_nav import dismiss_temu_ui_blockers, ensure_fully_managed_sales_page
+from app.observability.task_timing import timed_stage
 
 _FETCH_JS = """
-async ({ url, body, mallId }) => {
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'mallid': mallId,
-    },
-    body: JSON.stringify(body),
-    credentials: 'include',
-  });
-  const text = await resp.text();
-  return { status: resp.status, text };
+async ({ url, body, mallId, timeoutMs }) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 45000);
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'mallid': mallId,
+      },
+      body: JSON.stringify(body),
+      credentials: 'include',
+      signal: controller.signal,
+    });
+    const text = await resp.text();
+    return { status: resp.status, text };
+  } catch (error) {
+    return {
+      error: error && error.message ? error.message : String(error),
+      timedOut: controller.signal.aborted,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 """
 
 
 class TemuMappingError(RuntimeError):
     """Temu 平台货品映射异常（errorCode=2000000）。"""
+
+
+class TemuTransientApiError(RuntimeError):
+    """A read request can be retried without changing Temu seller state."""
+
+    def __init__(self, message: str, *, recover_page: bool = False) -> None:
+        super().__init__(message)
+        self.recover_page = recover_page
+
+
+def _retryable_status(status: int) -> bool:
+    return status in {408, 425, 429} or 500 <= status <= 599
+
+
+def _retry_delay_seconds(attempt: int) -> float:
+    # 1s, 2s by default; cap avoids a failing store monopolizing a worker.
+    return min(8.0, TEMU_API_RETRY_BASE_SECONDS * (2 ** max(0, attempt)))
 
 
 def _raise_business_error(data: dict[str, Any]) -> None:
@@ -80,24 +119,53 @@ class TemuApiClient:
             dismiss_temu_ui_blockers(self.page)
 
     def _post(self, url: str, body: dict[str, Any]) -> dict[str, Any]:
+        payload = {
+            "url": url,
+            "body": body,
+            "mallId": self.mall_id,
+            "timeoutMs": TEMU_API_REQUEST_TIMEOUT_MS,
+        }
+        for attempt in range(TEMU_API_MAX_RETRIES + 1):
+            try:
+                return self._post_once(payload)
+            except TemuTransientApiError as exc:
+                if attempt >= TEMU_API_MAX_RETRIES:
+                    raise RuntimeError(f"Temu API transient failure after retries: {exc}") from exc
+                delay = _retry_delay_seconds(attempt)
+                print(
+                    f"[TemuApi] transient request failure; retry {attempt + 1}/"
+                    f"{TEMU_API_MAX_RETRIES} in {delay:.1f}s: {exc}",
+                    flush=True,
+                )
+                if exc.recover_page:
+                    dismiss_temu_ui_blockers(self.page, rounds=3)
+                    ensure_fully_managed_sales_page(self.page, sales_page=TEMU_SALES_PAGE)
+                with timed_stage("temu_api.retry_wait"):
+                    time.sleep(delay)
+        raise RuntimeError("Temu API retry loop exited unexpectedly")
+
+    def _post_once(self, payload: dict[str, Any]) -> dict[str, Any]:
         human_pause()
         dismiss_temu_ui_blockers(self.page, rounds=1)
-        payload = {"url": url, "body": body, "mallId": self.mall_id}
-
         try:
-            result = self.page.evaluate(_FETCH_JS, payload)
+            with timed_stage("temu_api.request"):
+                result = self.page.evaluate(_FETCH_JS, payload)
         except Exception as exc:
-            # 弹窗/错误页常导致 Failed to fetch：清弹窗并回到销售页后重试一次
-            msg = str(exc)
-            if "Failed to fetch" not in msg and "fetch" not in msg.lower():
-                raise
-            dismiss_temu_ui_blockers(self.page, rounds=3)
-            ensure_fully_managed_sales_page(self.page, sales_page=TEMU_SALES_PAGE)
-            human_pause()
-            result = self.page.evaluate(_FETCH_JS, payload)
+            message = str(exc)
+            if "fetch" in message.lower() or "timeout" in message.lower():
+                raise TemuTransientApiError(message, recover_page=True) from exc
+            raise
+
+        error = str(result.get("error") or "").strip()
+        if error:
+            timed_out = bool(result.get("timedOut"))
+            label = "request timed out" if timed_out else error
+            raise TemuTransientApiError(label, recover_page=True)
 
         status = int(result.get("status") or 0)
         text = str(result.get("text") or "")
+        if _retryable_status(status):
+            raise TemuTransientApiError(f"Temu API HTTP {status}: {text[:500]}")
         if status < 200 or status >= 300:
             raise RuntimeError(f"Temu API HTTP {status}: {text[:500]}")
         data = json.loads(text) if text else {}
@@ -117,6 +185,8 @@ class TemuApiClient:
         mall_id = str(mall_id or "").strip()
         if not mall_id:
             raise RuntimeError("店铺 ID 为空，无法切换")
+        if mall_id == self.mall_id:
+            return
         set_mall_id(self.page, mall_id)
         self.mall_id = mall_id
         self.ensure_sales_context()

@@ -1,11 +1,10 @@
 """Mock data generators for PDD testing (本地开发用)."""
 from datetime import datetime, timedelta, time
 from typing import Any
-from zoneinfo import ZoneInfo
 import random
 import uuid
+from app.timezone import SHANGHAI
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def generate_mock_orders(

@@ -4,9 +4,8 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from typing import Any
-from zoneinfo import ZoneInfo
+from app.timezone import SHANGHAI
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 JIT_STATUS_MAP = {
     "wait_seller_send_goods": "待发货",

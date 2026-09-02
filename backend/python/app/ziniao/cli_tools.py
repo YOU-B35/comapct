@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from app.observability.task_timing import record_duration
+
 CAPTCHA_MARKERS = (
     "not a robot",
     "not robot",
@@ -163,6 +165,15 @@ def _resolve_cli_launch(executable: str) -> list[str]:
 
 
 def _run_cli(args: list[str], timeout: float) -> dict[str, Any]:
+    started_at = time.perf_counter()
+    command = "_".join(str(part) for part in args[:2]) or "unknown"
+    try:
+        return _run_cli_impl(args, timeout)
+    finally:
+        record_duration(f"ziniao_cli.{command}", time.perf_counter() - started_at)
+
+
+def _run_cli_impl(args: list[str], timeout: float) -> dict[str, Any]:
     cli = (os.environ.get("ZINIAO_CLI_BIN") or "ziniao-cli").strip() or "ziniao-cli"
     executable = shutil.which(cli)
     if not executable:

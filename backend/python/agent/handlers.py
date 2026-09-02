@@ -9,6 +9,7 @@ from typing import Any
 from agent.browser_lock_pool import BROWSER_LOCK_POOL, task_browser_keys
 from agent.amazon_chat_agent import answer_amazon_chat
 from agent.java_client import AgentApiClient
+from app.observability.task_timing import finish_task_timing, start_task_timing
 from agent.temu_tasks import (
     crawl_and_ingest,
     discover_competitors,
@@ -133,6 +134,8 @@ def handle_ziniao_discover(client: AgentApiClient, task: dict[str, Any]) -> None
 
 
 def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
+    from contextvars import copy_context
+
     task_id = str(task.get("task_id") or task.get("id") or "")
     if not task_id:
         return
@@ -153,7 +156,9 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
 
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
+            task_context = copy_context()
             future = executor.submit(
+                task_context.run,
                 crawl_amazon,
                 scope=scope,
                 browser_id=browser_id,
@@ -208,6 +213,8 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
 
 
 def handle_amazon_write(client: AgentApiClient, task: dict[str, Any]) -> None:
+    from contextvars import copy_context
+
     task_id = str(task.get("task_id") or task.get("id") or "")
     if not task_id:
         return
@@ -222,7 +229,9 @@ def handle_amazon_write(client: AgentApiClient, task: dict[str, Any]) -> None:
 
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
+            task_context = copy_context()
             future = executor.submit(
+                task_context.run,
                 execute_amazon_write,
                 action=action,
                 browser_id=browser_id,
@@ -1148,15 +1157,19 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
     task_type = str(task.get("task_type") or "")
     task_id_for_log = str(task.get("task_id") or task.get("id") or "")
     started = time.perf_counter()
+    timing, timing_token = start_task_timing(task_type, task_id_for_log)
+    outcome = "handled"
     try:
         if task_type in {"ziniao_discover", "amazon_ziniao_discover"}:
             handle_ziniao_discover(client, task)
             return
         if task_type == "amazon_sync":
-            handle_amazon_sync(client, task)
+            with BROWSER_LOCK_POOL.guard("amazon", *task_browser_keys("amazon", task)):
+                handle_amazon_sync(client, task)
             return
         if task_type == "amazon_write":
-            handle_amazon_write(client, task)
+            with BROWSER_LOCK_POOL.guard("amazon", *task_browser_keys("amazon", task)):
+                handle_amazon_write(client, task)
             return
         if task_type == "amazon_chat":
             with BROWSER_LOCK_POOL.guard("amazon", *task_browser_keys("amazon", task)):
@@ -1254,7 +1267,12 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
                 error_code="UNSUPPORTED_TASK",
                 error_message=f"未支持的任务类型: {task_type}",
             )
+            outcome = "unsupported"
+    except BaseException:
+        outcome = "dispatch_error"
+        raise
     finally:
+        finish_task_timing(timing, timing_token, outcome=outcome)
         elapsed = time.perf_counter() - started
         print(
             f"[AgentPerf] task_type={task_type or '-'} task_id={task_id_for_log or '-'} "

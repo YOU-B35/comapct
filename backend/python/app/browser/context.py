@@ -15,6 +15,8 @@ from typing import Callable, Generator
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
 from app.browser import runtime as browser_runtime
+from app.browser.resource_filter import install_heavy_resource_filter
+from app.observability.task_timing import timed_stage
 from app.browser.stealth import BROWSER_ARGS, IGNORE_DEFAULT_ARGS, STEALTH_INIT_SCRIPT
 from app.config import (
     BROWSER_CHANNEL,
@@ -241,7 +243,10 @@ Write-Output $count
     except Exception:
         killed = 0
     _clear_chrome_profile_locks(profile_dir)
-    sleeper(1.0 if killed else 0.3)
+    # The process scan above already observed no matching process.  Waiting
+    # after a no-op reclaim only delays every healthy crawl.
+    if killed:
+        sleeper(1.0)
     return killed
 
 
@@ -258,11 +263,13 @@ def _launch_persistent_context(
     last_error: Exception | None = None
     for attempt in range(max(1, attempts)):
         try:
-            context = playwright.chromium.launch_persistent_context(
-                user_data_dir=str(profile_dir),
-                **launch_kwargs,
-            )
+            with timed_stage("browser_launch.temu"):
+                context = playwright.chromium.launch_persistent_context(
+                    user_data_dir=str(profile_dir),
+                    **launch_kwargs,
+                )
             context.add_init_script(STEALTH_INIT_SCRIPT)
+            install_heavy_resource_filter(context, headless=bool(launch_kwargs.get("headless")))
             return context
         except Exception as exc:  # noqa: BLE001
             last_error = exc

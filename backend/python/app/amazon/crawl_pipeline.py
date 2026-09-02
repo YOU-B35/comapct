@@ -52,7 +52,9 @@ from app.amazon.session_context import (
     extract_debug_port,
     looks_logged_in,
     save_capture,
+    wait_for_seller_page_state,
 )
+from app.observability.task_timing import timed_stage
 from app.ziniao.client import ZiniaoClient, ZiniaoConfig
 
 PRODUCT_SYNC_SCOPES = frozenset({"daily", "insights", "reports"})
@@ -237,11 +239,13 @@ def run_crawl(
         file=sys.stderr,
     )
     ziniao = ZiniaoClient(ZiniaoConfig.from_env())
-    ziniao.ensure_webdriver_client(wait_seconds=20)
-    start_result = ziniao.start_browser(
-        browser_id=browser_id or None,
-        browser_oauth=browser_oauth or None,
-    )
+    with timed_stage("amazon_ziniao.webdriver_ready"):
+        ziniao.ensure_webdriver_client(wait_seconds=20)
+    with timed_stage("amazon_ziniao.start_browser"):
+        start_result = ziniao.start_browser(
+            browser_id=browser_id or None,
+            browser_oauth=browser_oauth or None,
+        )
     debug_port = extract_debug_port(start_result)
     print(f"[AmazonPipeline] CDP ready port={debug_port}", file=sys.stderr)
 
@@ -255,7 +259,8 @@ def run_crawl(
     _login_required = False
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{debug_port}")
+        with timed_stage("amazon_browser.connect_cdp"):
+            browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{debug_port}")
         try:
             context = browser.contexts[0] if browser.contexts else browser.new_context()
             page = context.pages[0] if context.pages else context.new_page()
@@ -264,8 +269,12 @@ def run_crawl(
 
             started = time.time()
             print(f"[AmazonPipeline] goto home: {HOME_URL}", file=sys.stderr)
-            page.goto(HOME_URL, wait_until="domcontentloaded")
-            page.wait_for_timeout(3000 if normalized_scope == "reports" else 5000)
+            with timed_stage("amazon_home.open"):
+                page.goto(HOME_URL, wait_until="domcontentloaded")
+                wait_for_seller_page_state(
+                    page,
+                    timeout_seconds=3.0 if normalized_scope == "reports" else 5.0,
+                )
             try:
                 home_text = page.evaluate(EXTRACT_DEEP_BODY_TEXT_JS) or page.inner_text("body")
             except Exception:

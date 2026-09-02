@@ -20,7 +20,6 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from app.browser.pdd_context import (
     PDD_SELLER_HOME,
@@ -32,6 +31,9 @@ from app.browser.pdd_context import (
     pdd_home_url,
     sanitize_profile_startup_for_pdd,
 )
+from app.timezone import SHANGHAI
+from app.browser.resource_filter import install_heavy_resource_filter
+from app.observability.task_timing import timed_stage
 from app.session_scope import normalize_session_key, resolve_platform_profile_dir
 from app.rate_limit import TokenBucket
 # ============================================================================
@@ -192,7 +194,6 @@ _BUYER_LOGGED_IN_MARKERS = (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def _env_int(name: str, default: int, minimum: int) -> int:
@@ -402,16 +403,18 @@ def _launch(
         )
 
     try:
-        context = launch_pdd_persistent_context(
-            playwright=None,
-            profile_dir=user_dir,
-            launch_kwargs=launch_kwargs,
-            launch_fn=launch_fn,
-            reclaim_fn=lambda: close_pdd_profile_browsers(user_dir),
-        )
+        with timed_stage("browser_launch.pdd"):
+            context = launch_pdd_persistent_context(
+                playwright=None,
+                profile_dir=user_dir,
+                launch_kwargs=launch_kwargs,
+                launch_fn=launch_fn,
+                reclaim_fn=lambda: close_pdd_profile_browsers(user_dir),
+            )
     except Exception:
         _close_pw(state["pw"], None)
         raise
+    install_heavy_resource_filter(context, headless=headless)
     install_pdd_only_tab_guard(context)
     page = ensure_pdd_home_page(context, force_navigate=force_navigate, home_url=home_url)
     return state["pw"], context, page
@@ -1476,13 +1479,14 @@ def _replay_page(
         else:
             target_url = _set_page_in_url(url, page_no, page_size)
     print(f"[PddXhr] fetch page={page_no} {method_u} {target_url}", flush=True)
-    response = page.request.fetch(
-        target_url,
-        method=method_u,
-        headers=req_headers,
-        data=body,
-        timeout=PDD_XHR_REPLAY_TIMEOUT_MS,
-    )
+    with timed_stage("pdd_xhr.request"):
+        response = page.request.fetch(
+            target_url,
+            method=method_u,
+            headers=req_headers,
+            data=body,
+            timeout=PDD_XHR_REPLAY_TIMEOUT_MS,
+        )
     if response.status >= 400:
         raise RuntimeError(f"page {page_no} HTTP {response.status}")
     try:
@@ -1504,6 +1508,13 @@ def _is_rate_limit_error(exc: Exception) -> bool:
     return "频控" in text or "频繁" in text or "稍后再试" in text
 
 
+def _is_transient_transport_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    if any(marker in text for marker in ("timeout", "network", "connection", "temporar")):
+        return True
+    return bool(re.search(r"\bhttp\s+(?:408|5\d\d)\b", text))
+
+
 def _replay_with_retry(
     page,
     *,
@@ -1517,7 +1528,7 @@ def _replay_with_retry(
     retries: int = 2,
     base_delay: float = 10.0,
 ) -> dict[str, Any]:
-    """Replay one page, backing off when the platform rate-limits the account."""
+    """Replay one page with long rate-limit and short transport recovery paths."""
     last_exc: Exception | None = None
     for attempt in range(max(1, retries)):
         try:
@@ -1539,7 +1550,17 @@ def _replay_with_retry(
                     f"[PddXhr] page={page_no} 频控，{int(delay)}s 后重试",
                     flush=True,
                 )
-                time.sleep(delay)
+                with timed_stage("pdd_xhr.retry_wait"):
+                    time.sleep(delay)
+                continue
+            if attempt + 1 < retries and _is_transient_transport_error(exc):
+                delay = min(3.0, 1.0 * (2 ** attempt))
+                print(
+                    f"[PddXhr] page={page_no} network failure; retry in {delay:.1f}s: {exc}",
+                    flush=True,
+                )
+                with timed_stage("pdd_xhr.retry_wait"):
+                    time.sleep(delay)
                 continue
             raise
     if last_exc is not None:
@@ -2285,12 +2306,13 @@ def _fetch_orders_by_day(
         last_exc: Exception | None = None
         for attempt in range(2):
             try:
-                resp = page.request.post(
-                    url,
-                    headers=req_headers,
-                    data=body,
-                    timeout=request_timeout * 1000,
-                )
+                with timed_stage("pdd_orders_day.request"):
+                    resp = page.request.post(
+                        url,
+                        headers=req_headers,
+                        data=body,
+                        timeout=request_timeout * 1000,
+                    )
                 if resp.status >= 400:
                     raise RuntimeError(f"HTTP {resp.status}")
                 data = resp.json()

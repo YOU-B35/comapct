@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import Future
 
 from agent.config import (
     AGENT_DISPATCH_WORKERS,
@@ -19,6 +19,7 @@ from agent.config import (
 from agent.handlers import dispatch_task
 from agent.health_server import start_health_server
 from agent.java_client import AgentApiClient
+from agent.task_executor import BrowserAffinityTaskExecutor
 from app.ziniao.client import ZiniaoClient, ZiniaoConfig
 
 
@@ -101,7 +102,10 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             print(f"Agent 任务执行失败: {exc}", file=sys.stderr)
 
-    with ThreadPoolExecutor(max_workers=AGENT_DISPATCH_WORKERS, thread_name_prefix="agent-task") as pool:
+    with BrowserAffinityTaskExecutor(
+        max_workers=AGENT_DISPATCH_WORKERS,
+        thread_name_prefix="agent-task",
+    ) as pool:
         while True:
             try:
                 # 清理已完成 future，避免集合膨胀

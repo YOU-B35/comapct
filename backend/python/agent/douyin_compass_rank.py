@@ -26,9 +26,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
-from zoneinfo import ZoneInfo
+from app.timezone import SHANGHAI
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 ROOT = Path(__file__).resolve().parents[1]
 
 _DEFAULT_CATEGORY_CACHE_NAME = ".douyin-compass-rank-cache.json"

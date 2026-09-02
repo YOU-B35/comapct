@@ -15,7 +15,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from app.browser.taobao_context import (
     TAOBAO_SELLER_HOME,
@@ -25,6 +24,7 @@ from app.browser.taobao_context import (
     launch_taobao_persistent_context,
     sanitize_profile_startup_for_taobao,
 )
+from app.timezone import SHANGHAI
 from app.session_scope import normalize_session_key, resolve_platform_profile_dir
 
 # ============================================================================
@@ -79,7 +79,6 @@ _LOGIN_CTA_MARKERS = (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def profile_dir(tenant_id: int, store_id: str | None = None) -> Path:

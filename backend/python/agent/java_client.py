@@ -5,6 +5,7 @@ import json
 import os
 import time
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 import httpx
@@ -35,6 +36,8 @@ class AgentApiClient:
         self.base_url = _resolve_java_api_url(base_url)
         env_token = (os.environ.get("AGENT_TOKEN") or "").strip()
         self.token = (token or env_token or AGENT_TOKEN).strip()
+        self._control_http: httpx.Client | None = None
+        self._control_http_lock = Lock()
         if not self.token:
             raise ValueError(
                 "同步助手尚未配置。请到 CrossHub 下载并双击「CrossHub-Sync-Helper.bat」启动文件（Temu/Amazon 共用）。"
@@ -46,26 +49,42 @@ class AgentApiClient:
             "Content-Type": "application/json",
         }
 
+    def _control_client(self) -> httpx.Client:
+        """Reuse the Helper's frequent control-plane connection across polling threads."""
+        with self._control_http_lock:
+            if self._control_http is None:
+                self._control_http = httpx.Client(
+                    timeout=30.0,
+                    limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+                )
+            return self._control_http
+
+    def close(self) -> None:
+        with self._control_http_lock:
+            client, self._control_http = self._control_http, None
+        if client is not None:
+            client.close()
+
     def heartbeat(self, *, ziniao_online: bool) -> dict[str, Any]:
-        with httpx.Client(timeout=15.0) as client:
-            resp = client.post(
-                f"{self.base_url}/api/agent/heartbeat",
-                headers=self._headers(),
-                json={"ziniao_online": ziniao_online},
-            )
-            resp.raise_for_status()
-            return resp.json()
+        resp = self._control_client().post(
+            f"{self.base_url}/api/agent/heartbeat",
+            headers=self._headers(),
+            json={"ziniao_online": ziniao_online},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     def poll_tasks(self) -> list[dict[str, Any]]:
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.get(
-                f"{self.base_url}/api/agent/tasks",
-                headers=self._headers(),
-            )
-            resp.raise_for_status()
-            payload = resp.json()
-            data = payload.get("data")
-            return data if isinstance(data, list) else []
+        resp = self._control_client().get(
+            f"{self.base_url}/api/agent/tasks",
+            headers=self._headers(),
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        data = payload.get("data")
+        return data if isinstance(data, list) else []
 
     def ingest_temu(self, payload: dict[str, Any]) -> dict[str, Any]:
         with httpx.Client(timeout=120.0) as client:
@@ -303,14 +322,14 @@ class AgentApiClient:
             "error_code": error_code,
             "error_message": error_message,
         }
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(
-                f"{self.base_url}/api/agent/tasks/{task_id}/complete",
-                headers=self._headers(),
-                json=body,
-            )
-            resp.raise_for_status()
-            return resp.json()
+        resp = self._control_client().post(
+            f"{self.base_url}/api/agent/tasks/{task_id}/complete",
+            headers=self._headers(),
+            json=body,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     def complete_task_with_retry(
         self,

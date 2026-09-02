@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from agent import pdd_tasks as mod
+from app.timezone import SHANGHAI
 
 
 def _order_row(sn: str) -> dict:
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    now = datetime.now(SHANGHAI)
     ts = int(
-        datetime(now.year, now.month, now.day, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp()
+        datetime(now.year, now.month, now.day, 10, 0, tzinfo=SHANGHAI).timestamp()
     ) + 3600
     return {
         "order_sn": sn,
@@ -233,9 +233,9 @@ def test_fetch_paged_rows_page2_replay_failure_raises_for_orders(monkeypatch, tm
 
 
 def _today_order_row(sn: str, offset_hours: int = 10) -> dict:
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    now = datetime.now(SHANGHAI)
     ts = int(
-        datetime(now.year, now.month, now.day, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp()
+        datetime(now.year, now.month, now.day, 10, 0, tzinfo=SHANGHAI).timestamp()
     ) + offset_hours * 3600
     return {**_order_row(sn), "create_time": ts}
 

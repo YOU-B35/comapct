@@ -8,9 +8,8 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from xml.sax.saxutils import escape
-from zoneinfo import ZoneInfo
+from app.timezone import SHANGHAI
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def process_next_pending_job(

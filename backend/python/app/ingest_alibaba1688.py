@@ -4,11 +4,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from app.db import connect
+from app.timezone import SHANGHAI
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def _now() -> str:

@@ -91,6 +91,35 @@ def _read_body_text(page) -> str:
         return ""
 
 
+def wait_for_seller_page_state(
+    page,
+    *,
+    timeout_seconds: float = 5.0,
+    poll_seconds: float = 0.25,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> str:
+    """Wait only until Amazon has a recognizable seller or login page state.
+
+    This replaces unconditional post-navigation sleeps while preserving their
+    former upper bound for slow client-side rendering.
+    """
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    latest = ""
+    while True:
+        latest = _read_body_text(page)
+        url = getattr(page, "url", "") or ""
+        if _session_ready(latest, url) or looks_login_page(latest, url):
+            return latest
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return latest
+        delay = min(max(0.05, poll_seconds), remaining)
+        try:
+            page.wait_for_timeout(max(1, int(delay * 1000)))
+        except Exception:
+            sleeper(delay)
+
+
 def require_seller_logged_in(page, body_text: str, *, store_name: str = "") -> None:
     if looks_login_page(body_text, page.url):
         capture = save_capture(page, store_name=store_name, suffix="login")
@@ -144,12 +173,11 @@ def ensure_seller_logged_in_with_wait(
             page.goto(home_url, wait_until="domcontentloaded")
         except Exception as exc:
             print(f"Amazon 打开首页失败（第 {attempt} 次）: {exc}", flush=True)
-        try:
-            page.wait_for_timeout(3000)
-        except Exception:
-            sleeper(3)
-
-        current = _read_body_text(page)
+        current = wait_for_seller_page_state(
+            page,
+            timeout_seconds=3,
+            sleeper=sleeper,
+        )
         if _session_ready(current, getattr(page, "url", "") or ""):
             print("Amazon 卖家后台登录已就绪，继续同步。", flush=True)
             return current

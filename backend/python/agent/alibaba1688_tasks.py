@@ -11,6 +11,8 @@ from app.browser.alibaba1688_session import (
     persist_1688_session,
     session_ready,
 )
+from app.browser.resource_filter import install_heavy_resource_filter
+from app.observability.task_timing import timed_stage
 
 # 采购工作台；未登录时会落到登录页，登录后回到 work.1688.com
 HOME_URL = "https://work.1688.com/"
@@ -94,10 +96,12 @@ def _launch(
         args.append("--start-maximized")
     launch_kwargs = _a1688_launch_kwargs(headless=headless, args=args)
     pw = sync_playwright().start()
-    context = pw.chromium.launch_persistent_context(
-        user_data,
-        **launch_kwargs,
-    )
+    with timed_stage("browser_launch.1688"):
+        context = pw.chromium.launch_persistent_context(
+            user_data,
+            **launch_kwargs,
+        )
+    install_heavy_resource_filter(context, headless=headless)
     page = context.pages[0] if context.pages else context.new_page()
     if not headless:
         try:

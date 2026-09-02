@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import date, timedelta
 from typing import Any
 from urllib.parse import urlencode
@@ -17,7 +18,10 @@ from app.config import (
     AE_VIOLATION_PAGE,
     AE_WAREHOUSE_ORDER_API,
     AE_WAREHOUSE_ORDER_PAGE,
+    AE_API_MAX_RETRIES,
+    AE_API_RETRY_BASE_SECONDS,
 )
+from app.observability.task_timing import timed_stage
 
 
 class AliExpressApiClient:
@@ -87,11 +91,14 @@ class AliExpressApiClient:
     def _post_form(self, url: str, fields: dict[str, Any], *, referer: str) -> dict[str, Any]:
         human_pause()
         body = urlencode(fields, doseq=True)
-        response: APIResponse = self.page.request.post(
-            url,
-            data=body,
-            headers=self._headers(referer),
-            timeout=60_000,
+        response = self._request_with_retry(
+            lambda: self.page.request.post(
+                url,
+                data=body,
+                headers=self._headers(referer),
+                timeout=60_000,
+            ),
+            label="form",
         )
         if not response.ok:
             text = response.text()[:500]
@@ -100,6 +107,37 @@ class AliExpressApiClient:
             return response.json()
         except Exception as exc:
             raise RuntimeError(f"AliExpress SCM 响应非 JSON: {exc}") from exc
+
+    def _request_with_retry(self, request, *, label: str) -> APIResponse:
+        """Retry only transient failures for read-only seller data requests."""
+        last_response: APIResponse | None = None
+        for attempt in range(AE_API_MAX_RETRIES + 1):
+            try:
+                with timed_stage("aliexpress_api.request"):
+                    response: APIResponse = request()
+            except Exception as exc:  # noqa: BLE001
+                if not _retryable_request_error(exc) or attempt >= AE_API_MAX_RETRIES:
+                    raise
+                self._wait_before_retry(attempt, label, str(exc))
+                continue
+
+            last_response = response
+            if response.ok or not _retryable_status(response.status) or attempt >= AE_API_MAX_RETRIES:
+                return response
+            self._wait_before_retry(attempt, label, f"HTTP {response.status}")
+
+        assert last_response is not None
+        return last_response
+
+    def _wait_before_retry(self, attempt: int, label: str, reason: str) -> None:
+        delay = min(8.0, AE_API_RETRY_BASE_SECONDS * (2 ** attempt))
+        print(
+            f"[AliExpress] {label} transient failure; retry {attempt + 1}/"
+            f"{AE_API_MAX_RETRIES} in {delay:.1f}s: {reason}",
+            flush=True,
+        )
+        with timed_stage("aliexpress_api.retry_wait"):
+            time.sleep(delay)
 
     def _fetch_range(self, report_day: str, *, lookback_days: int = 14) -> tuple[str, str]:
         end_day = date.fromisoformat(report_day)
@@ -157,13 +195,16 @@ class AliExpressApiClient:
                 doseq=True,
             )
             human_pause()
-            response: APIResponse = self.page.request.get(
-                f"{AE_WAREHOUSE_ORDER_API}?{query}",
-                headers={
-                    "Accept": "application/json, text/plain, */*",
-                    "Referer": AE_WAREHOUSE_ORDER_PAGE,
-                },
-                timeout=60_000,
+            response = self._request_with_retry(
+                lambda: self.page.request.get(
+                    f"{AE_WAREHOUSE_ORDER_API}?{query}",
+                    headers={
+                        "Accept": "application/json, text/plain, */*",
+                        "Referer": AE_WAREHOUSE_ORDER_PAGE,
+                    },
+                    timeout=60_000,
+                ),
+                label="warehouse",
             )
             if not response.ok:
                 text = response.text()[:500]
@@ -276,3 +317,12 @@ class AliExpressApiClient:
         start = max(page_no - 1, 0) * page_size
         end = start + page_size
         return {"data": rows[start:end], "totalCount": len(rows)}
+
+
+def _retryable_status(status: int) -> bool:
+    return status in {408, 425, 429} or 500 <= int(status) <= 599
+
+
+def _retryable_request_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(token in text for token in ("timeout", "network", "connection", "temporar"))

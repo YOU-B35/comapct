@@ -10,7 +10,9 @@ from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwrigh
 
 from app.browser.ae_session import ae_session_ready, is_login_page, persist_ae_session
 from app.browser.context import human_pause
+from app.browser.resource_filter import install_heavy_resource_filter
 from app.browser.stealth import BROWSER_ARGS, IGNORE_DEFAULT_ARGS, STEALTH_INIT_SCRIPT
+from app.observability.task_timing import timed_stage
 from app.config import (
     AE_CSP_HOME,
     AE_LOGIN_POLL_SECONDS,
@@ -100,11 +102,13 @@ def open_aliexpress_context(
     resolved_headless = is_ae_headless() if headless is None else headless
 
     with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            str(profile_dir),
-            **(_ae_launch_kwargs(resolved_headless)),
-        )
+        with timed_stage("browser_launch.aliexpress"):
+            context = playwright.chromium.launch_persistent_context(
+                str(profile_dir),
+                **(_ae_launch_kwargs(resolved_headless)),
+            )
         context.add_init_script(STEALTH_INIT_SCRIPT)
+        install_heavy_resource_filter(context, headless=resolved_headless)
         try:
             yield playwright, context
         finally:

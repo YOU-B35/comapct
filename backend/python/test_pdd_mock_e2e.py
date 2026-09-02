@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """End-to-end test for PDD mock data flow."""
 from datetime import datetime
-from zoneinfo import ZoneInfo
 import sys
 import os
 from pathlib import Path
@@ -16,7 +15,7 @@ if sys.platform == "win32":
 BACKEND_PYTHON = Path(__file__).parent
 sys.path.insert(0, str(BACKEND_PYTHON))
 
-SHANGHAI = ZoneInfo("Asia/Shanghai")
+from app.timezone import SHANGHAI
 
 
 def test_mock_generators():

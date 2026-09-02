@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.browser import context
 
@@ -46,6 +46,20 @@ class LoginWaitTests(unittest.TestCase):
         self.assertIn("account-", script)
         self.assertIn("Stop-Process", script)
         self.assertIn("CommandLine", script)
+
+    def test_close_tenant_profile_browsers_does_not_wait_when_nothing_matches(self):
+        with patch("app.browser.context.sys.platform", "win32"), \
+                patch("app.browser.context.resolve_profile_dir", return_value=context.Path("C:/temp/profile")), \
+                patch("app.browser.context.subprocess.run", return_value=MagicMock(stdout="0\n")), \
+                patch("app.browser.context._clear_chrome_profile_locks"):
+            sleeps: list[float] = []
+            closed = context.close_tenant_profile_browsers(
+                tenant_id=5,
+                sleeper=sleeps.append,
+            )
+
+        self.assertEqual(closed, 0)
+        self.assertEqual(sleeps, [])
 
     def test_wait_for_login_and_mall_keeps_browser_open_until_session_ready(self):
         page = FakePage([
