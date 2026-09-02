@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from agent.browser_lock_pool import BROWSER_LOCK_POOL, task_browser_keys
+from agent.amazon_chat_agent import answer_amazon_chat
 from agent.java_client import AgentApiClient
 from agent.temu_tasks import (
     crawl_and_ingest,
@@ -251,6 +252,22 @@ def handle_amazon_write(client: AgentApiClient, task: dict[str, Any]) -> None:
             status="failed",
             error_code=error_code,
             error_message=message,
+        )
+
+
+def handle_amazon_chat(client: AgentApiClient, task: dict[str, Any]) -> None:
+    task_id = str(task.get("task_id") or task.get("id") or "")
+    if not task_id:
+        return
+    try:
+        result = answer_amazon_chat(task)
+        client.complete_task_with_retry(task_id, status="success", result=result)
+    except Exception as exc:
+        client.complete_task_with_retry(
+            task_id,
+            status="failed",
+            error_code="AMAZON_CHAT_FAILED",
+            error_message=str(exc),
         )
 
 
@@ -1140,6 +1157,10 @@ def dispatch_task(client: AgentApiClient, task: dict[str, Any]) -> None:
             return
         if task_type == "amazon_write":
             handle_amazon_write(client, task)
+            return
+        if task_type == "amazon_chat":
+            with BROWSER_LOCK_POOL.guard("amazon", *task_browser_keys("amazon", task)):
+                handle_amazon_chat(client, task)
             return
         if task_type in _TEMU_BROWSER_TASK_TYPES:
             # Wait for panel login outside the browser lock so we don't stall the queue.

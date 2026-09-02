@@ -1,0 +1,100 @@
+from __future__ import annotations
+
+import unittest
+from unittest.mock import patch
+
+from agent.amazon_chat_agent import answer_amazon_chat, validate_boundary
+
+
+def _task(message: str) -> dict:
+    return {
+        "task_id": "amz_chat_task_test",
+        "payload": {
+            "message": message,
+            "store_name": "US Test Store",
+            "platform_account_id": "amz_store_1",
+            "session_id": "amz_chat_sess_test",
+        },
+    }
+
+
+class AmazonChatAgentTest(unittest.TestCase):
+    def test_rejects_cross_platform_question(self) -> None:
+        decision = validate_boundary("帮我查一下拼多多的订单情况")
+
+        self.assertFalse(decision.allowed)
+        self.assertEqual("AMAZON_CHAT_CROSS_PLATFORM_REFUSED", decision.error_code)
+
+    def test_rejects_write_action(self) -> None:
+        decision = validate_boundary("帮我回复买家并发送消息")
+
+        self.assertFalse(decision.allowed)
+        self.assertEqual("AMAZON_CHAT_WRITE_REFUSED", decision.error_code)
+
+    def test_no_tool_returns_no_live_data(self) -> None:
+        with patch.dict("os.environ", {"ZINIAO_CLI_BIN": "__missing_ziniao_cli__"}):
+            result = answer_amazon_chat(_task("帮我看一下当前店铺的账户健康"))
+
+        self.assertEqual("no_live_data", result["status"])
+        self.assertFalse(result["refused"])
+        self.assertIn("不会生成经营结论", result["answer"])
+        self.assertEqual("missing", result["source"]["status"])
+        self.assertTrue(result["captured_at"])
+        self.assertGreaterEqual(result["duration_ms"], 0)
+
+    def test_read_only_shipping_question_is_allowed(self) -> None:
+        decision = validate_boundary("当前店铺有哪些订单或发货事项需要今天优先跟进？")
+
+        self.assertTrue(decision.allowed)
+
+    def test_snapshot_data_returns_database_source(self) -> None:
+        task = _task("帮我看一下当前店铺的账户健康")
+        task["payload"]["data_snapshot"] = {
+            "captured_at": "2026-09-01 10:00:00",
+            "account_metrics": [
+                {
+                    "metric_key": "late_shipment_rate",
+                    "metric_label": "迟发率",
+                    "status": "warning",
+                    "value_text": "3.1%",
+                }
+            ],
+            "operational_items": [],
+            "top_products": [],
+        }
+
+        result = answer_amazon_chat(task)
+
+        self.assertEqual("success", result["status"])
+        self.assertIn("迟发率", result["answer"])
+        self.assertEqual("crosshub_local_amazon_tables", result["source"]["name"])
+
+    def test_ziniao_binding_uses_live_crawl_before_snapshot(self) -> None:
+        task = _task("帮我看一下当前店铺的账户健康")
+        task["payload"]["browser_id"] = "browser-1"
+        task["payload"]["data_snapshot"] = {
+            "captured_at": "2026-09-01 10:00:00",
+            "account_metrics": [
+                {"metric_key": "cached", "metric_label": "缓存指标", "status": "warning", "value_text": "1"}
+            ],
+            "operational_items": [],
+            "top_products": [],
+        }
+
+        with patch(
+            "agent.amazon_chat_agent.crawl_amazon",
+            return_value={
+                "metrics": [{"metric_key": "live", "label": "实时指标", "status": "normal", "value": "0"}],
+                "result_summary": {"products_count": 0, "orders_count": 0},
+            },
+        ):
+            result = answer_amazon_chat(task)
+
+        self.assertEqual("success", result["status"])
+        self.assertIn("实时指标", result["answer"])
+        self.assertNotIn("缓存指标", result["answer"])
+        self.assertEqual("ziniao_browser:account_health", result["source"]["name"])
+
+
+if __name__ == "__main__":
+    unittest.main()

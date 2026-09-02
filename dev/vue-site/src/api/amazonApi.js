@@ -529,6 +529,45 @@ export async function shipAmazonOutboundBackend(id, payload = {}) {
   }, mapOutbound)
 }
 
+export async function submitAmazonChat({ storeId, sessionId = '', message }) {
+  const res = await service.post('/api/amazon/chat', {
+    store_id: storeId,
+    session_id: sessionId,
+    message,
+  })
+  return unwrapData(res)
+}
+
+export async function fetchAmazonChatJob(jobId) {
+  const res = await service.get(`/api/amazon/chat/jobs/${jobId}`, { skipGlobalErrorToast: true })
+  return unwrapData(res)
+}
+
+export async function fetchAmazonChatSessions({ storeId = '', limit = 20 } = {}) {
+  const res = await service.get('/api/amazon/chat/sessions', {
+    params: { store_id: storeId, limit },
+    skipGlobalErrorToast: true,
+  })
+  return unwrapData(res)
+}
+
+export async function fetchAmazonChatMessages(sessionId) {
+  const res = await service.get(`/api/amazon/chat/sessions/${sessionId}/messages`, {
+    skipGlobalErrorToast: true,
+  })
+  return unwrapData(res)
+}
+
+export async function fetchAmazonChatMemory(storeId) {
+  const res = await service.get(`/api/amazon/chat/memory/${storeId}`, { skipGlobalErrorToast: true })
+  return unwrapData(res)
+}
+
+export async function clearAmazonChatMemory(storeId) {
+  const res = await service.delete(`/api/amazon/chat/memory/${storeId}`)
+  return unwrapData(res)
+}
+
 export function canUseAmazonBackend() {
   return isBackendLinked() && isTemuBackendEnabled()
 }

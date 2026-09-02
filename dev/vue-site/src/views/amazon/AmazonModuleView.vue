@@ -21,7 +21,12 @@ import { fetchAmazonStores } from '@/api/platformAccounts'
 import { scopeStores } from '@/utils/scope'
 import { buildSyncSummaryText } from '@/utils/syncHistory'
 import { fetchPlatformSyncStatus } from '@/api/temuApi'
-import { fetchAmazonSyncJobs } from '@/api/amazonApi'
+import {
+  clearAmazonChatMemory,
+  fetchAmazonChatJob,
+  fetchAmazonSyncJobs,
+  submitAmazonChat,
+} from '@/api/amazonApi'
 import { useStoreAssignees } from '@/composables/useStoreAssignees'
 import { buildAmazonDailyChecklist } from '@/utils/amazon'
 import { summarizeTopProducts, summarizeOutboundOrders, isValidAmazonProduct } from '@/utils/amazonBoss'
@@ -45,7 +50,11 @@ import AmazonShipmentsPanel from '@/components/amazon/AmazonShipmentsPanel.vue'
 import AmazonCasesPanel from '@/components/amazon/AmazonCasesPanel.vue'
 import AmazonIntegrationGuide from '@/components/amazon/AmazonIntegrationGuide.vue'
 import HelperStatusBar from '@/components/helper/HelperStatusBar.vue'
+import AiChatPanel from '@/components/ai/AiChatPanel.vue'
 import { canUsePlatformUserHelper } from '@/utils/opsSyncPolicy'
+
+const AMAZON_CHAT_POLL_MS = 2000
+const AMAZON_CHAT_MAX_WAIT_MS = 600000
 
 const auth = useAuthStore()
 const syncStore = usePlatformSyncStore()
@@ -85,10 +94,15 @@ const showIntegrationGuide = computed(
 const helperOnline = ref(false)
 const syncHistoryOpen = ref(false)
 const lastSyncJob = ref(null)
+const amazonChatSessionId = ref('')
 const syncSummaryText = computed(() => buildSyncSummaryText(lastSyncJob.value, 'amazon'))
 
 function onHelperOnline(online) {
   helperOnline.value = Boolean(online)
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 const storeNameMap = computed(() =>
@@ -104,6 +118,91 @@ const overviewStores = computed(() => {
   if (selectedStoreId.value === 'all') return amazonStores.value
   return amazonStores.value.filter((s) => s.id === selectedStoreId.value)
 })
+
+const selectedAmazonChatStore = computed(
+  () => amazonStores.value.find((store) => store.id === selectedStoreId.value) || null,
+)
+const amazonChatDisabled = computed(
+  () => selectedStoreId.value === 'all' || !selectedAmazonChatStore.value,
+)
+const amazonChatWelcome = computed(() => {
+  const store = selectedAmazonChatStore.value
+  if (!store) return '请选择一个具体 Amazon 店铺后，我可以基于真实工具通道回答经营问题。'
+  return `当前店铺：${store.storeName}。我会优先核验数据来源和采集时间，只回答 Amazon 只读经营问题。`
+})
+const amazonChatHint = computed(() =>
+  amazonChatDisabled.value
+    ? '请选择单个 Amazon 店铺后再提问'
+    : '真实通道 · 只读问答 · Enter 发送',
+)
+const amazonChatSuggestions = [
+  {
+    title: '账户健康',
+    desc: '查看绩效和风险项',
+    prompt: '帮我看一下当前店铺的账户健康和需要优先处理的风险项',
+  },
+  {
+    title: '订单发货',
+    desc: '排查待处理订单',
+    prompt: '当前店铺有哪些订单或发货事项需要今天优先跟进？',
+  },
+  {
+    title: '评价消息',
+    desc: '汇总买家反馈',
+    prompt: '帮我汇总当前店铺最近的买家消息、评价和 Case 风险',
+  },
+]
+
+function formatAmazonChatReply(job) {
+  const answer = job?.answer || job?.error_message || '本次 Amazon AI 问答没有返回可展示内容。'
+  const details = []
+  if (job?.source?.name) details.push(`来源：${job.source.name}`)
+  if (job?.captured_at) details.push(`采集时间：${job.captured_at}`)
+  if (Number(job?.duration_ms || 0) > 0) details.push(`耗时：${job.duration_ms}ms`)
+  const tokens = job?.token_usage || {}
+  const totalTokens = tokens.total_tokens || tokens.total || 0
+  if (Number(totalTokens) > 0) details.push(`Token：${totalTokens}`)
+  return details.length ? `${answer}\n\n${details.join(' · ')}` : answer
+}
+
+async function askAmazonAgent(message) {
+  if (amazonChatDisabled.value) {
+    throw new Error('请先选择一个具体 Amazon 店铺后再提问')
+  }
+  const submitted = await submitAmazonChat({
+    storeId: selectedStoreId.value,
+    sessionId: amazonChatSessionId.value,
+    message,
+  })
+  amazonChatSessionId.value = submitted.session_id || submitted.sessionId || amazonChatSessionId.value
+  const jobId = submitted.job_id || submitted.jobId
+  if (!jobId) {
+    throw new Error('Amazon AI 问答任务创建失败')
+  }
+
+  const deadline = Date.now() + AMAZON_CHAT_MAX_WAIT_MS
+  while (Date.now() < deadline) {
+    const job = await fetchAmazonChatJob(jobId)
+    amazonChatSessionId.value = job.session_id || job.sessionId || amazonChatSessionId.value
+    if (job.status === 'success') {
+      return formatAmazonChatReply(job)
+    }
+    if (job.status === 'failed') {
+      throw new Error(job.error_message || 'Amazon AI 问答失败')
+    }
+    await sleep(AMAZON_CHAT_POLL_MS)
+  }
+  throw new Error('Amazon AI 问答超时，请稍后在聊天记录或同步日志中确认')
+}
+
+async function clearSelectedAmazonChatMemory() {
+  if (amazonChatDisabled.value) {
+    ElMessage.warning('请先选择一个具体 Amazon 店铺')
+    return
+  }
+  await clearAmazonChatMemory(selectedStoreId.value)
+  ElMessage.success('已清空当前店铺 AI 记忆')
+}
 
 function emptyWorkflow() {
   return {
@@ -528,6 +627,10 @@ watch(amazonStores, (stores) => {
   }
 })
 
+watch(selectedStoreId, () => {
+  amazonChatSessionId.value = ''
+})
+
 onMounted(async () => {
   await loadAssignees()
   await loadModule()
@@ -627,6 +730,27 @@ onActivated(loadModule)
         :show-store-list="showStoreList"
         @navigate="handleNavigate"
       />
+    </PageSection>
+
+    <PageSection v-if="!loadingStores && amazonStores.length" title="AI 助手">
+      <template #actions>
+        <el-button size="small" :disabled="amazonChatDisabled" @click="clearSelectedAmazonChatMemory">
+          清空记忆
+        </el-button>
+      </template>
+      <div class="amazon-chat-shell">
+        <AiChatPanel
+          scope="amazon"
+          user-name="Amazon 运营"
+          platforms="Amazon"
+          :welcome="amazonChatWelcome"
+          :suggestions="amazonChatSuggestions"
+          :composer-hint="amazonChatHint"
+          :disabled="amazonChatDisabled"
+          placeholder="问 Amazon 账户健康、订单、库存、广告、消息、评价或 Case…"
+          :send-handler="askAmazonAgent"
+        />
+      </div>
     </PageSection>
 
     <PageSection v-if="!loadingStores && amazonStores.length" title="运营管理">
@@ -841,6 +965,11 @@ onActivated(loadModule)
 
 .operational-hint {
   margin-bottom: 12px;
+}
+
+.amazon-chat-shell {
+  height: min(560px, calc(100vh - 260px));
+  min-height: 420px;
 }
 
 .module-tabs :deep(.el-tabs__header) {

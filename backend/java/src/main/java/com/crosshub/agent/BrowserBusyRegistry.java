@@ -28,7 +28,7 @@ public final class BrowserBusyRegistry {
                     "aliexpress_session_probe",
                     "aliexpress_violations_sync"
             ),
-            PLATFORM_AMAZON, Set.of("amazon_sync", "amazon_write", "ziniao_discover", "amazon_ziniao_discover"),
+            PLATFORM_AMAZON, Set.of("amazon_sync", "amazon_write", "amazon_chat", "ziniao_discover", "amazon_ziniao_discover"),
             PLATFORM_1688, Alibaba1688AgentTasks.BROWSER_BUSY_TYPES
     );
 
