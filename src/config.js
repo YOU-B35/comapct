@@ -38,6 +38,10 @@ export function appConfig() {
       defaultInventoryPolicy: process.env.DEFAULT_INVENTORY_POLICY || "DENY",
       defaultOptionName: process.env.DEFAULT_OPTION_NAME || "Style"
     },
+    oauth: {
+      clientId: process.env.TOKEN_CLIENT_ID || "",
+      clientSecret: process.env.TOKEN_CLIENT_SECRET || ""
+    },
     openai: {
       apiKey: process.env.OPENAI_API_KEY || "",
       imageModel: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",

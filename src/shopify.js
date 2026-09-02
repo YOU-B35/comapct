@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import mime from "mime-types";
+import { withTokenRefresh } from "./tokenRefresh.js";
 
 function assertShopifyConfig(cfg) {
   if (!cfg.shopify.storeDomain) throw new Error("缺少 SHOPIFY_STORE_DOMAIN。");
@@ -10,14 +11,16 @@ function assertShopifyConfig(cfg) {
 async function graphql(cfg, query, variables = {}) {
   assertShopifyConfig(cfg);
   const url = `https://${cfg.shopify.storeDomain}/admin/api/${cfg.shopify.apiVersion}/graphql.json`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": cfg.shopify.accessToken
-    },
-    body: JSON.stringify({ query, variables })
-  });
+  const response = await withTokenRefresh(cfg, (token) =>
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token
+      },
+      body: JSON.stringify({ query, variables })
+    })
+  );
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.errors) {
