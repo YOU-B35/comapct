@@ -183,6 +183,8 @@ def load_config() -> dict:
             or str(py_root / ".1688-browser-profile")
         )
         os.environ["A1688_PROFILE_ROOT"] = str(Path(a1688_profile))
+        # 脚本所在项目的 backend/python/.env 优先（LLM / ZINIAO_CLI_BIN 等新配置）
+        env_candidates.insert(0, Path(__file__).resolve().parents[1] / ".env")
         env_candidates.append(py_root / ".env")
         print(f"==> project_root: {project_root}")
         print(f"==> temu_profile: {os.environ['TEMU_PROFILE_ROOT']}")
