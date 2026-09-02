@@ -6,6 +6,7 @@ from unittest.mock import patch
 from agent.amazon_chat_agent import (
     amazon_tool_executor,
     answer_amazon_chat,
+    build_amazon_system_prompt,
     llm_enabled,
     validate_boundary,
     validate_llm_answer,
@@ -39,7 +40,10 @@ class AmazonChatAgentTest(unittest.TestCase):
         self.assertEqual("AMAZON_CHAT_WRITE_REFUSED", decision.error_code)
 
     def test_no_tool_returns_no_live_data(self) -> None:
-        with patch.dict("os.environ", {"ZINIAO_CLI_BIN": "__missing_ziniao_cli__"}):
+        with patch.dict(
+            "os.environ",
+            {"ZINIAO_CLI_BIN": "__missing_ziniao_cli__", "AMAZON_CHAT_LLM_ENABLED": "0"},
+        ):
             result = answer_amazon_chat(_task("帮我看一下当前店铺的账户健康"))
 
         self.assertEqual("no_live_data", result["status"])
@@ -70,7 +74,8 @@ class AmazonChatAgentTest(unittest.TestCase):
             "top_products": [],
         }
 
-        result = answer_amazon_chat(task)
+        with patch.dict("os.environ", {"AMAZON_CHAT_LLM_ENABLED": "0"}, clear=False):
+            result = answer_amazon_chat(task)
 
         self.assertEqual("success", result["status"])
         self.assertIn("迟发率", result["answer"])
@@ -95,7 +100,8 @@ class AmazonChatAgentTest(unittest.TestCase):
                 "result_summary": {"products_count": 0, "orders_count": 0},
             },
         ):
-            result = answer_amazon_chat(task)
+            with patch.dict("os.environ", {"AMAZON_CHAT_LLM_ENABLED": "0"}, clear=False):
+                result = answer_amazon_chat(task)
 
         self.assertEqual("success", result["status"])
         self.assertIn("实时指标", result["answer"])
@@ -168,6 +174,13 @@ class AmazonChatAgentTest(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual("amazon_chat_store_mismatch", result["error"])
         self.assertEqual([], calls)
+
+    def test_system_prompt_guides_using_bound_store(self) -> None:
+        prompt = build_amazon_system_prompt("YOTO美国账号")
+        self.assertIn("YOTO美国账号", prompt)
+        self.assertIn("绑定", prompt)
+        self.assertIn("storeId", prompt)
+        self.assertIn("ziniao_store_list", prompt)
 
 
 if __name__ == "__main__":

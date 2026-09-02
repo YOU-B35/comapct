@@ -585,6 +585,8 @@ def build_amazon_system_prompt(store_name: str) -> str:
         "4. 只回答 Amazon 账户健康、订单/发货、商品/库存/广告、买家消息、评价、Case 等经营问题；写操作、跨平台、闲聊一律拒绝。\n"
         "5. 一次只做一件事：先打开店铺，再访问页面，避免重复打开同一店铺。\n"
         "6. 长页面优先用 page content / csv_read 的结构化数据，不要贴原始 HTML。\n"
+        "7. 当前会话绑定店铺的 storeId 见店铺记忆（紫鸟店铺ID），所有 store open / page 命令直接使用它；"
+        "只有记忆缺失时才用 ziniao_store_list 按店铺名解析，禁止臆造 storeId。\n"
     )
 
 

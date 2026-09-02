@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
+import re
 import shutil
 import subprocess
+from pathlib import Path
 from typing import Any
 
 
@@ -19,6 +22,39 @@ def _trim(text: str, limit: int = 2000) -> str:
     return text[:limit] + ("..." if len(text) > limit else "")
 
 
+def _npm_shim_js_entry(cmd_path: str | os.PathLike[str]) -> Path | None:
+    """Resolve the JS entry referenced by an npm .cmd shim (node_modules/.bin/x.cmd)."""
+    cmd = Path(cmd_path)
+    try:
+        text = cmd.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    matches = re.findall(r'"([^"]+\.js)"', text)
+    if not matches:
+        return None
+    raw = matches[-1]
+    if "%dp0%" in raw:
+        raw = raw.replace("%dp0%", str(cmd.parent))
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        return candidate
+    return (cmd.parent / candidate).resolve()
+
+
+def _resolve_cli_launch(executable: str) -> list[str]:
+    """Return the argv prefix that actually runs the CLI on this OS."""
+    if os.name == "nt":
+        low = executable.lower()
+        if low.endswith(".js"):
+            return ["node", executable]
+        if low.endswith((".cmd", ".bat")):
+            entry = _npm_shim_js_entry(executable)
+            if entry is not None:
+                return ["node", str(entry)]
+            return []
+    return [executable]
+
+
 def _run_cli(args: list[str], timeout: float) -> dict[str, Any]:
     cli = (os.environ.get("ZINIAO_CLI_BIN") or "ziniao-cli").strip() or "ziniao-cli"
     executable = shutil.which(cli)
@@ -29,12 +65,22 @@ def _run_cli(args: list[str], timeout: float) -> dict[str, Any]:
             "summary": f"未检测到紫鸟 CLI: {cli}",
             "error": "ziniao_cli_missing",
         }
+    launch = _resolve_cli_launch(executable)
+    if not launch:
+        return {
+            "ok": False,
+            "data": None,
+            "summary": f"无法解析紫鸟 CLI 入口: {executable}",
+            "error": "ziniao_cli_entry_unresolved",
+        }
     try:
         completed = subprocess.run(
-            [executable, *args],
+            [*launch, *args],
             check=False,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
@@ -56,11 +102,36 @@ def ziniao_doctor(timeout: float = 20) -> dict[str, Any]:
 
 
 def ziniao_store_list(timeout: float = 30) -> dict[str, Any]:
-    return _run_cli(["store", "list"], _tool_timeout(timeout))
+    result = _run_cli(["store", "list"], _tool_timeout(timeout))
+    if not result["ok"]:
+        return result
+    raw = result["data"] or ""
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return result
+    items = None
+    total = None
+    if isinstance(parsed, dict):
+        if isinstance(parsed.get("items"), list):
+            items = parsed["items"]
+            total = parsed.get("total")
+        elif isinstance(parsed.get("data"), dict):
+            inner = parsed["data"]
+            if isinstance(inner.get("items"), list):
+                items = inner["items"]
+                total = inner.get("total")
+    if not isinstance(items, list):
+        return result
+    return {
+        **result,
+        "data": items,
+        "summary": f"共 {total or len(items)} 个店铺",
+    }
 
 
 def ziniao_store_open(store_id: str, url: str = "", timeout: float = 60) -> dict[str, Any]:
-    args = ["store", "open", "--store-id", store_id]
+    args = ["store", "open", "--id", store_id]
     if url:
         args += ["--url", url]
     return _run_cli(args, _tool_timeout(timeout))
@@ -90,7 +161,7 @@ def ziniao_page_content(
 
 
 def ziniao_page_exec(store_id: str, js: str, timeout: float = 60) -> dict[str, Any]:
-    return _run_cli(["page", "exec", "--store-id", store_id, "--js", js], _tool_timeout(timeout))
+    return _run_cli(["page", "exec", "--store-id", store_id, "--script", js], _tool_timeout(timeout))
 
 
 def ziniao_automation_run(steps_json: str, timeout: float = 120) -> dict[str, Any]:
