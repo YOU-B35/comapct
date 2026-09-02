@@ -20,6 +20,7 @@ from typing import Any
 from agent.agent_tools import TOOL_SCHEMAS, dispatch_tool
 from agent.chat_kernel import run_agent_loop
 from app.amazon.report_crawler import crawl_amazon
+from app.amazon.zclaw_crawler import crawl_zclaw_amazon
 from app.llm.client import chat_completion
 
 
@@ -284,6 +285,23 @@ def read_live_amazon_data(*, question: str, store_name: str, payload: dict[str, 
         }
 
     scope = infer_amazon_scope(question)
+    zclaw_error = ""
+    zclaw_enabled = os.environ.get("AMAZON_ZCLAW_FALLBACK_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+    if browser_id and zclaw_enabled:
+        try:
+            data = crawl_zclaw_amazon(browser_id=browser_id, store_name=store_name, scope=scope)
+            summary = data.get("result_summary") if isinstance(data, dict) else {}
+            return {
+                "tool_name": "amazon_ziniao_live_crawl", "ok": True, "scope": scope,
+                "data": data if isinstance(data, dict) else {},
+                "args": {"scope": scope, "store_name": store_name, "platform_account_id": payload.get("platform_account_id", ""), "question_length": len(question)},
+                "summary": _trim(json.dumps(summary, ensure_ascii=False), 800),
+                "duration_ms": _elapsed_ms(started),
+                "source": {"type": "ziniao_zclaw", "name": f"ziniao_zclaw:{scope}", "status": "ok", "captured_at": _now()},
+            }
+        except Exception as exc:
+            zclaw_error = str(exc)
+
     try:
         timeout_seconds = float(os.environ.get("AMAZON_CHAT_CRAWL_TIMEOUT_SECONDS", "600"))
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -348,7 +366,7 @@ def read_live_amazon_data(*, question: str, store_name: str, payload: dict[str, 
                 "platform_account_id": payload.get("platform_account_id", ""),
                 "question_length": len(question),
             },
-            "summary": str(exc),
+            "summary": (f"ZClaw 读取失败：{zclaw_error}；旧 WebDriver 读取失败：{exc}" if zclaw_error else str(exc)),
             "duration_ms": _elapsed_ms(started),
             "source": {
                 "type": "ziniao_webdriver",
