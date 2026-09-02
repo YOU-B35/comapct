@@ -7,6 +7,7 @@ from agent.amazon_chat_agent import (
     amazon_tool_executor,
     answer_amazon_chat,
     build_amazon_system_prompt,
+    infer_amazon_scope,
     llm_enabled,
     validate_boundary,
     validate_llm_answer,
@@ -188,6 +189,21 @@ class AmazonChatAgentTest(unittest.TestCase):
         self.assertIn("performance/account/health", prompt)
         self.assertIn("page exec", prompt)
         self.assertIn("订单缺陷率", prompt)
+
+    def test_sales_questions_are_allowed(self) -> None:
+        for question in (
+            "帮我查一下今天店铺卖了多少钱",
+            "今天销售额是多少",
+            "店铺今天一共卖了多少钱",
+            "查一下最近7天的销售和收入",
+        ):
+            decision = validate_boundary(question)
+            self.assertTrue(decision.allowed, question)
+            self.assertEqual("", decision.error_code, question)
+
+    def test_sales_questions_map_to_reports_scope(self) -> None:
+        self.assertEqual(infer_amazon_scope("今天店铺卖了多少钱"), "reports")
+        self.assertEqual(infer_amazon_scope("最近7天的销售额和销量"), "reports")
 
 
 if __name__ == "__main__":

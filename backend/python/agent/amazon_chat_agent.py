@@ -41,6 +41,17 @@ ALLOWED_KEYWORDS = (
     "asin",
     "商品",
     "产品",
+    "sale",
+    "sales",
+    "revenue",
+    "销售",
+    "销售额",
+    "销量",
+    "卖了",
+    "卖出",
+    "营业额",
+    "收入",
+    "流水",
     "广告",
     "ads",
     "advertising",
@@ -242,7 +253,11 @@ def snapshot_has_data(snapshot: dict[str, Any]) -> bool:
 
 def infer_amazon_scope(question: str) -> str:
     text = question.lower()
-    if any(keyword in text for keyword in ("product", "products", "listing", "asin", "商品", "产品", "inventory", "库存", "广告", "ads", "acos")):
+    if any(keyword in text for keyword in (
+        "product", "products", "listing", "asin", "商品", "产品",
+        "inventory", "库存", "广告", "ads", "acos",
+        "sale", "sales", "revenue", "销售", "销售额", "销量", "卖了", "营业额", "收入", "流水",
+    )):
         return "reports"
     if any(keyword in text for keyword in ("order", "orders", "订单", "发货", "shipment", "message", "buyer message", "买家消息", "站内信", "review", "评价", "评论", "差评", "case", "客服工单", "申诉")):
         return "daily"
