@@ -57,3 +57,25 @@ defineEmits(['action', 'secondaryAction', 'open-history'])
     </template>
   </PanelHeader>
 </template>
+
+<style scoped>
+.panel-header {
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.panel-header :deep(.panel-header__title) {
+  font-size: 13px;
+}
+
+.panel-header :deep(.panel-header__desc) {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.panel-header :deep(.panel-header__sync) {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+</style>

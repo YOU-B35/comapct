@@ -27,7 +27,9 @@ from app.browser.pdd_context import (
     close_pdd_profile_browsers,
     ensure_pdd_home_page,
     install_pdd_only_tab_guard,
+    is_pdd_web_url,
     launch_pdd_persistent_context,
+    pdd_home_url,
     sanitize_profile_startup_for_pdd,
 )
 from app.session_scope import normalize_session_key, resolve_platform_profile_dir
@@ -150,7 +152,8 @@ _PDD_DAY_BUCKET = TokenBucket(
     capacity=1.0,
 )
 
-# 拼多多登录态 cookie 标记（probe 后可补充；先用 PASS_ID/ruipk 等常见）
+# 拼多多登录态 cookie 标记：卖家后台与买家端共用。买家端常见
+# PDDAccessToken / api_uid / pdd_user_id；匹配时忽略大小写。
 _AUTH_COOKIE_MARKERS = (
     "PASS_ID",
     "ruipk",
@@ -160,6 +163,11 @@ _AUTH_COOKIE_MARKERS = (
     "pdd_user_uid",
     "pdd_cookie",
     "J-sessionid",
+    "PDDAccessToken",
+    "api_uid",
+    "access_token",
+    "pdd_token",
+    "pddpassport",
 )
 
 _LOGIN_CTA_MARKERS = (
@@ -170,6 +178,17 @@ _LOGIN_CTA_MARKERS = (
     "登录拼多多",
     "立即登录",
     "账号登录",
+)
+
+# 买家端（mobile.yangkeduo.com）登录后首页/个人页的导航文案；与卖家后台 markers 分开判定。
+_BUYER_LOGGED_IN_MARKERS = (
+    "首页",
+    "分类",
+    "购物车",
+    "我的",
+    "订单",
+    "搜索",
+    "拼多多",
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -359,6 +378,7 @@ def _launch(
     force_navigate: bool = True,
     store_id: str | None = None,
     profile_dir_override: Path | None = None,
+    home_url: str | None = None,
 ):
     from playwright.sync_api import sync_playwright
 
@@ -366,7 +386,8 @@ def _launch(
     if _has_pdd_profile_lock(user_dir):
         print("[PddBrowser] stale profile lock present, reclaiming before launch…", flush=True)
         close_pdd_profile_browsers(user_dir)
-    sanitize_profile_startup_for_pdd(user_dir, home_url=PDD_SELLER_HOME)
+    home_url = home_url or pdd_home_url(store_id)
+    sanitize_profile_startup_for_pdd(user_dir, home_url=home_url)
     launch_kwargs = _pdd_launch_kwargs(headless=headless)
     state: dict[str, Any] = {"pw": None}
 
@@ -392,7 +413,7 @@ def _launch(
         _close_pw(state["pw"], None)
         raise
     install_pdd_only_tab_guard(context)
-    page = ensure_pdd_home_page(context, force_navigate=force_navigate)
+    page = ensure_pdd_home_page(context, force_navigate=force_navigate, home_url=home_url)
     return state["pw"], context, page
 
 
@@ -402,7 +423,10 @@ def _cookie_summary(context) -> str:
     except Exception:
         return "cookies=unreadable"
     names = sorted({str(c.get("name") or "") for c in cookies if c.get("name")})
-    auth_hits = [n for n in names if any(m in n for m in _AUTH_COOKIE_MARKERS)]
+    auth_hits = [
+        n for n in names
+        if any(m.upper() in n.upper() for m in _AUTH_COOKIE_MARKERS)
+    ]
     return f"cookies={len(names)} auth={auth_hits[:8] or '-'}"
 
 
@@ -416,34 +440,52 @@ def _has_auth_cookies(context) -> bool:
         domain = str(cookie.get("domain") or "").lower()
         if not any(host in domain for host in ("pinduoduo", "pddglobal", "yangkeduo")):
             continue
-        if any(marker in name for marker in _AUTH_COOKIE_MARKERS):
+        name_upper = name.upper()
+        if any(marker.upper() in name_upper for marker in _AUTH_COOKIE_MARKERS):
+            return True
+        if any(keyword in name_upper for keyword in ("UID", "TOKEN", "PASS", "SESSION", "LOGIN", "USER")):
             return True
     return False
 
 
-def _looks_logged_in(page, context=None) -> bool:
-    """Require real auth cookies + console chrome; reject login CTA pages."""
-    url = (page.url or "").lower()
-    if "login" in url or "passport" in url or "sso" in url:
+def _looks_logged_in(page, context=None, *, buyer: bool = False) -> bool:
+    """认证 cookie 是登录态强信号；卖家端无 cookie 时用页面文案兜底判定。"""
+    if not is_pdd_web_url(page.url or ""):
         return False
-    if "pinduoduo.com" not in url:
-        return False
+    has_auth = context is not None and _has_auth_cookies(context)
+    if buyer:
+        # 买家首页的导航文案（首页/分类/购物车/我的）未登录也可见，
+        # 因此买家态必须依据认证 cookie 判定，避免公开页误报。
+        return has_auth
     try:
         body = page.inner_text("body", timeout=3000)
     except Exception:
         body = ""
+    if has_auth:
+        # 登录完成后页面可能仍停留在 login/next 地址或残留登录 CTA，
+        # 此时 cookie 已说明登录完成，直接判定已登录。
+        return True
     if any(marker in body for marker in _LOGIN_CTA_MARKERS):
         return False
-    markers = ("订单", "商品", "售后", "数据", "首页", "拼多多商家")
+    url = (page.url or "").lower()
+    if "login" in url or "passport" in url or "sso" in url:
+        return False
+    markers = _BUYER_LOGGED_IN_MARKERS if buyer else ("订单", "商品", "售后", "数据", "首页", "拼多多商家")
     hits = sum(1 for m in markers if m in body)
     if hits < 2:
-        return False
-    if context is not None and not _has_auth_cookies(context):
         return False
     return True
 
 
-def _wait_until_logged_in(page, context, *, timeout_seconds: int, label: str):
+def _wait_until_logged_in(
+    page,
+    context,
+    *,
+    timeout_seconds: int,
+    label: str,
+    buyer: bool = False,
+    home_url: str | None = None,
+):
     deadline = time.time() + max(30, int(timeout_seconds))
     last_log = 0.0
     current = page
@@ -456,13 +498,17 @@ def _wait_until_logged_in(page, context, *, timeout_seconds: int, label: str):
             pass
         try:
             current_url = (current.url or "").lower()
-            if "pinduoduo.com" not in current_url:
+            if not is_pdd_web_url(current_url):
                 # 已登录的会话访问首页会自动跳到商家后台；仅当停在空白/外部页时才回首页，
                 # 避免把正在手动填写的登录表单强制跳走。
-                current = ensure_pdd_home_page(context, force_navigate=True)
+                current = ensure_pdd_home_page(
+                    context,
+                    force_navigate=True,
+                    home_url=home_url or pdd_home_url("buyer" if buyer else None),
+                )
         except Exception:
             pass
-        logged_in = _looks_logged_in(current, context)
+        logged_in = _looks_logged_in(current, context, buyer=buyer)
         now_ts = time.time()
         if logged_in:
             return True, current
@@ -474,7 +520,7 @@ def _wait_until_logged_in(page, context, *, timeout_seconds: int, label: str):
             )
             last_log = now_ts
         time.sleep(1.0)
-    return _looks_logged_in(current, context), current
+    return _looks_logged_in(current, context, buyer=buyer), current
 
 
 # ============================================================================
@@ -489,19 +535,24 @@ def probe_session(tenant_id: int, store_id: str | None = None) -> dict[str, Any]
                 tenant_id, headless=False, force_navigate=True, store_id=store_id,
             )
             time.sleep(1.5)
-            logged_in = _looks_logged_in(page, context)
+            buyer = str(store_id or "").strip().lower() == "buyer"
+            logged_in = _looks_logged_in(page, context, buyer=buyer)
             print(
                 f"[PddProbe] tenant={tenant_id} logged_in={logged_in} "
                 f"url={page.url!r} {_cookie_summary(context)}",
                 flush=True,
             )
+            if buyer:
+                message = "拼多多买家态已登录" if logged_in else "拼多多买家态未登录，请打开登录窗口完成买家登录"
+            else:
+                message = "拼多多已登录" if logged_in else "拼多多未登录，请打开登录窗口完成登录"
             return {
                 "tenant_id": tenant_id,
                 "ready": logged_in,
                 "logged_in": logged_in,
                 "requires_auth": not logged_in,
                 "profile_busy": False,
-                "message": "拼多多已登录" if logged_in else "拼多多未登录，请打开登录窗口完成登录",
+                "message": message,
                 "shop_count": 0,
                 "shops": [],
             }
@@ -519,20 +570,31 @@ def open_login_window(
     def _run() -> dict[str, Any]:
         pw = context = page = None
         try:
+            home_url = pdd_home_url(store_id)
             pw, context, page = _launch(
                 tenant_id, headless=False, force_navigate=True, store_id=store_id,
             )
-            print(f"[PddLogin] opened {PDD_SELLER_HOME} tenant={tenant_id}", flush=True)
+            print(f"[PddLogin] opened {home_url} tenant={tenant_id}", flush=True)
             logged_in, page = _wait_until_logged_in(
-                page, context, timeout_seconds=timeout_seconds, label="open_login",
+                page,
+                context,
+                timeout_seconds=timeout_seconds,
+                label="open_login",
+                buyer=str(store_id or "").strip().lower() == "buyer",
+                home_url=home_url,
             )
+            buyer = str(store_id or "").strip().lower() == "buyer"
             return {
                 "tenant_id": tenant_id,
                 "ready": logged_in,
                 "logged_in": logged_in,
                 "requires_auth": not logged_in,
                 "profile_busy": False,
-                "message": "拼多多已登录" if logged_in else "登录超时，请重试打开登录窗口",
+                "message": (
+                    "拼多多买家态已登录" if logged_in and buyer
+                    else "拼多多已登录" if logged_in
+                    else "登录超时，请重试打开登录窗口"
+                ),
                 "shop_count": 0,
                 "shops": [],
             }

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { SHIPMENT_STATUS } from '@/constants/amazonDaily'
 import { summarizeShipments } from '@/utils/amazon'
+import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 
@@ -29,6 +30,11 @@ const filtered = computed(() => {
   return props.shipments.filter((s) => s.status === filter.value)
 })
 
+const { page, pageSize, total, paged } = useFuzzySearchPagination(filtered, {
+  pageSize: 15,
+  fields: [],
+})
+
 function statusMeta(row) {
   return SHIPMENT_STATUS[row.status] || SHIPMENT_STATUS.in_transit
 }
@@ -47,21 +53,6 @@ function statusMeta(row) {
       @open-history="$emit('open-history')"
     />
 
-    <div class="mini-stats">
-      <div class="mini-stat is-danger">
-        <span class="mini-stat__value">{{ summary.shortage }}</span>
-        <span class="mini-stat__label">缺件</span>
-      </div>
-      <div class="mini-stat is-danger">
-        <span class="mini-stat__value">{{ summary.closedNoStock }}</span>
-        <span class="mini-stat__label">完成无货</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.inTransit }}</span>
-        <span class="mini-stat__label">运输中</span>
-      </div>
-    </div>
-
     <div class="toolbar">
       <el-radio-group v-model="filter" size="small">
         <el-radio-button value="alert">{{ summary.alerts ? `预警 (${summary.alerts})` : '预警' }}</el-radio-button>
@@ -70,7 +61,7 @@ function statusMeta(row) {
       </el-radio-group>
     </div>
 
-    <el-table :data="filtered" stripe size="small" v-loading="loading">
+    <el-table :data="paged" stripe size="small" v-loading="loading" class="amazon-list">
       <el-table-column prop="shipmentId" label="货件号" min-width="130" />
       <el-table-column
         v-if="showStoreColumn"
@@ -97,18 +88,23 @@ function statusMeta(row) {
       <el-table-column prop="eta" label="预计到达" width="110" />
       <el-table-column prop="note" label="说明" min-width="200" show-overflow-tooltip />
     </el-table>
+
+    <div class="pagination-row">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
-.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.mini-stat {
-  display: grid; gap: 4px; padding: 12px 14px;
-  border-radius: 8px; background: var(--el-fill-color-lighter);
-}
-.mini-stat.is-danger .mini-stat__value { color: var(--el-color-danger); }
-.mini-stat__value { font-size: 18px; font-weight: 700; }
-.mini-stat__label { font-size: 13px; color: var(--el-text-color-secondary); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.amazon-list :deep(.el-table__cell .cell) { font-size: 12px; line-height: 1.4; }
+.amazon-list :deep(.el-table__cell) { padding: 5px 0; }
+.pagination-row { display: flex; justify-content: flex-end; margin-top: 10px; }
 </style>

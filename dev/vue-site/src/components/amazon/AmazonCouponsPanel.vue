@@ -3,6 +3,7 @@ import { formatUtc8 } from '@/utils/time'
 import { computed, ref } from 'vue'
 import { COUPON_STATUS } from '@/constants/amazonDaily'
 import { summarizeCoupons } from '@/utils/amazon'
+import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 
@@ -28,6 +29,11 @@ const filtered = computed(() => {
   return props.coupons.filter((c) => c.status === filter.value)
 })
 
+const { page, pageSize, total, paged } = useFuzzySearchPagination(filtered, {
+  pageSize: 15,
+  fields: [],
+})
+
 function statusMeta(row) {
   return COUPON_STATUS[row.status] || COUPON_STATUS.active
 }
@@ -46,21 +52,6 @@ function statusMeta(row) {
       @open-history="$emit('open-history')"
     />
 
-    <div class="mini-stats">
-      <div class="mini-stat is-warning">
-        <span class="mini-stat__value">{{ summary.expiring }}</span>
-        <span class="mini-stat__label">即将过期</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.expired }}</span>
-        <span class="mini-stat__label">已过期</span>
-      </div>
-      <div class="mini-stat is-danger">
-        <span class="mini-stat__value">{{ summary.abnormal }}</span>
-        <span class="mini-stat__label">配置异常</span>
-      </div>
-    </div>
-
     <div class="toolbar">
       <el-radio-group v-model="filter" size="small">
         <el-radio-button value="alert">{{ summary.alerts ? `待关注 (${summary.alerts})` : '待关注' }}</el-radio-button>
@@ -69,7 +60,7 @@ function statusMeta(row) {
       </el-radio-group>
     </div>
 
-    <el-table :data="filtered" stripe size="small" v-loading="loading">
+    <el-table :data="paged" stripe size="small" v-loading="loading" class="amazon-list">
       <el-table-column prop="name" label="优惠券" min-width="160" show-overflow-tooltip />
       <el-table-column
         v-if="showStoreColumn"
@@ -94,19 +85,23 @@ function statusMeta(row) {
       </el-table-column>
       <el-table-column prop="note" label="备注" min-width="180" show-overflow-tooltip />
     </el-table>
+
+    <div class="pagination-row">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
-.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.mini-stat {
-  display: grid; gap: 4px; padding: 12px 14px;
-  border-radius: 8px; background: var(--el-fill-color-lighter);
-}
-.mini-stat.is-danger .mini-stat__value { color: var(--el-color-danger); }
-.mini-stat.is-warning .mini-stat__value { color: var(--el-color-warning); }
-.mini-stat__value { font-size: 18px; font-weight: 700; }
-.mini-stat__label { font-size: 13px; color: var(--el-text-color-secondary); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.amazon-list :deep(.el-table__cell .cell) { font-size: 12px; line-height: 1.4; }
+.amazon-list :deep(.el-table__cell) { padding: 5px 0; }
+.pagination-row { display: flex; justify-content: flex-end; margin-top: 10px; }
 </style>

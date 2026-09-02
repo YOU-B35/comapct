@@ -132,13 +132,16 @@ public class MonitorServiceImpl implements MonitorService {
         targetUrl = validateAndMaybeCanonicalizeTargetUrl(platform, targetType, crawlStrategy, targetUrl);
         String host = text(payload, "host", parseHost(targetUrl));
         int freshnessMinutes = intValue(payload.get("freshness_minutes"), intValue(payload.get("freshnessMinutes"), 1440));
+        String configJson = configJsonText(payload.get("config_json"), text(payload, "configJson", ""));
 
         jdbc.update("""
                 INSERT INTO monitor_target (
                   id, tenant_id, platform, target_type, label, target_url, host, status,
-                  crawl_strategy, freshness_minutes, latest_snapshot_id, latest_snapshot_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
-                """, id, tenantId, platform, targetType, label, targetUrl, host, status, crawlStrategy, freshnessMinutes, now, now);
+                  crawl_strategy, freshness_minutes, config_json, latest_snapshot_id, latest_snapshot_at,
+                  created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
+                """, id, tenantId, platform, targetType, label, targetUrl, host, status, crawlStrategy,
+                freshnessMinutes, configJson, now, now);
 
         String scheduleId = "msch_" + UUID.randomUUID().toString().replace("-", "");
         jdbc.update("""
@@ -165,12 +168,17 @@ public class MonitorServiceImpl implements MonitorService {
         targetUrl = validateAndMaybeCanonicalizeTargetUrl(platform, targetType, crawlStrategy, targetUrl);
         String host = text(payload, "host", parseHost(targetUrl));
         int freshnessMinutes = intValue(payload.get("freshness_minutes"), intValue(payload.get("freshnessMinutes"), intValue(existing.get("freshness_minutes"), 1440)));
+        String configJson = configJsonText(
+                payload.get("config_json"),
+                text(payload, "configJson", String.valueOf(existing.get("config_json") == null ? "" : existing.get("config_json")))
+        );
 
         jdbc.update("""
                 UPDATE monitor_target
-                SET label = ?, target_url = ?, host = ?, status = ?, crawl_strategy = ?, freshness_minutes = ?, updated_at = ?
+                SET label = ?, target_url = ?, host = ?, status = ?, crawl_strategy = ?,
+                    freshness_minutes = ?, config_json = ?, updated_at = ?
                 WHERE tenant_id = ? AND id = ?
-                """, label, targetUrl, host, status, crawlStrategy, freshnessMinutes, now(), tenantId, id);
+                """, label, targetUrl, host, status, crawlStrategy, freshnessMinutes, configJson, now(), tenantId, id);
         return requireTarget(id, tenantId);
     }
 
@@ -715,6 +723,7 @@ public class MonitorServiceImpl implements MonitorService {
         dto.put("host", row.get("host"));
         dto.put("status", row.get("status"));
         dto.put("crawl_strategy", row.get("crawl_strategy"));
+        dto.put("config_json", row.get("config_json") == null ? "" : String.valueOf(row.get("config_json")));
         dto.put("freshness_minutes", intValue(row.get("freshness_minutes"), 1440));
         dto.put("latest_snapshot_id", row.get("latest_snapshot_id"));
         dto.put("latest_snapshot_at", row.get("latest_snapshot_at"));
@@ -770,6 +779,20 @@ public class MonitorServiceImpl implements MonitorService {
         }
         String text = String.valueOf(value).trim();
         return text.isEmpty() ? fallback : text;
+    }
+
+    /** 保留合法 JSON 配置；非 JSON 字符串返回空串，避免脏数据入库。 */
+    private String configJsonText(Object value, String fallback) {
+        String raw = value == null ? fallback : String.valueOf(value).trim();
+        if (raw.isBlank()) {
+            return "";
+        }
+        try {
+            new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw);
+            return raw;
+        } catch (Exception ex) {
+            return "";
+        }
     }
 
     private int intValue(Object value, int fallback) {

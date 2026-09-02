@@ -20,6 +20,32 @@ from typing import Any
 from playwright.sync_api import BrowserContext, Page
 
 PDD_SELLER_HOME = "https://mms.pinduoduo.com/"
+PDD_MOBILE_HOME = "https://mobile.yangkeduo.com/"
+
+
+def pdd_home_url(store_id: str | None = None) -> str:
+    """Choose the PDD home URL for a login/session flow.
+
+    Seller flows (default / mms) open the merchant backend; the buyer-side
+    monitor flow (store_id="buyer") must open the mobile site instead.
+
+    买家端固定使用 ``mobile.yangkeduo.com``：与竞店 monitor 链接（
+    ``PddMonitorUrlValidator`` 规范化为 mobile.yangkeduo.com）同域，
+    登录产生的 cookie 才能被竞店抓取复用。
+    """
+    if str(store_id or "").strip().lower() == "buyer":
+        return PDD_MOBILE_HOME
+    return PDD_SELLER_HOME
+
+
+def is_pdd_web_url(url: str) -> bool:
+    """True when the URL belongs to PDD web properties (seller or buyer domain)."""
+    normalized = (url or "").lower().strip()
+    if not normalized:
+        return False
+    if normalized.startswith(("about:", "chrome:", "devtools:", "data:", "blob:")):
+        return False
+    return "pinduoduo.com" in normalized or "yangkeduo.com" in normalized
 
 _LOCK_NAMES = (
     "lockfile",
@@ -297,13 +323,19 @@ def install_pdd_only_tab_guard(context: BrowserContext) -> None:
     close_foreign_pdd_pages(context)
 
 
-def ensure_pdd_home_page(context: BrowserContext, *, force_navigate: bool = True) -> Page:
+def ensure_pdd_home_page(
+    context: BrowserContext,
+    *,
+    force_navigate: bool = True,
+    home_url: str | None = None,
+) -> Page:
+    home_url = home_url or PDD_SELLER_HOME
     for _ in range(2):
         close_foreign_pdd_pages(context)
         page: Page | None = None
         for candidate in context.pages:
             url = (candidate.url or "").lower()
-            if "mms.pinduoduo.com" in url or "pinduoduo.com" in url:
+            if is_pdd_web_url(url):
                 page = candidate
                 if not is_pdd_auth_url(url):
                     break
@@ -313,14 +345,14 @@ def ensure_pdd_home_page(context: BrowserContext, *, force_navigate: bool = True
         page_url = (page.url or "").lower()
         if (
             force_navigate
-            or "pinduoduo.com" not in page_url
+            or not is_pdd_web_url(page_url)
             or is_pdd_auth_url(page_url)
         ):
             try:
-                page.goto(PDD_SELLER_HOME, wait_until="domcontentloaded", timeout=60_000)
+                page.goto(home_url, wait_until="domcontentloaded", timeout=60_000)
             except Exception:
                 try:
-                    page.goto(PDD_SELLER_HOME, wait_until="commit", timeout=30_000)
+                    page.goto(home_url, wait_until="commit", timeout=30_000)
                 except Exception:
                     pass
         try:
@@ -329,12 +361,12 @@ def ensure_pdd_home_page(context: BrowserContext, *, force_navigate: bool = True
             pass
         close_foreign_pdd_pages(context)
         if (
-            "pinduoduo.com" in (page.url or "").lower()
+            is_pdd_web_url(page.url)
             and not is_pdd_auth_url(page.url)
         ):
             return page
         time.sleep(0.35)
     page = context.new_page()
-    page.goto(PDD_SELLER_HOME, wait_until="commit", timeout=30_000)
+    page.goto(home_url, wait_until="commit", timeout=30_000)
     close_foreign_pdd_pages(context)
     return page

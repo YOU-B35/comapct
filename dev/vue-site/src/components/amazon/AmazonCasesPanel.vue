@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { summarizeCases } from '@/utils/amazon'
+import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 
@@ -27,6 +28,11 @@ const filtered = computed(() => {
     return props.cases.filter((c) => c.status === 'pending_reply')
   }
   return props.cases
+})
+
+const { page, pageSize, total, paged } = useFuzzySearchPagination(filtered, {
+  pageSize: 15,
+  fields: [],
 })
 
 function replyFromLabel(from) {
@@ -59,21 +65,6 @@ defineExpose({ finishAcknowledge })
       @open-history="$emit('open-history')"
     />
 
-    <div class="mini-stats">
-      <div class="mini-stat is-danger">
-        <span class="mini-stat__value">{{ summary.newReplies }}</span>
-        <span class="mini-stat__label">新回复未读</span>
-      </div>
-      <div class="mini-stat is-warning">
-        <span class="mini-stat__value">{{ summary.pendingReply }}</span>
-        <span class="mini-stat__label">待我方回复</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.open }}</span>
-        <span class="mini-stat__label">进行中</span>
-      </div>
-    </div>
-
     <div class="toolbar">
       <el-radio-group v-model="filter" size="small">
         <el-radio-button value="new">{{ summary.newReplies ? `新回复 (${summary.newReplies})` : '新回复' }}</el-radio-button>
@@ -82,7 +73,7 @@ defineExpose({ finishAcknowledge })
       </el-radio-group>
     </div>
 
-    <el-table :data="filtered" stripe size="small" v-loading="loading">
+    <el-table :data="paged" stripe size="small" v-loading="loading" class="amazon-list">
       <el-table-column prop="caseId" label="Case ID" width="130" />
       <el-table-column
         v-if="showStoreColumn"
@@ -120,19 +111,23 @@ defineExpose({ finishAcknowledge })
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="pagination-row">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
-.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.mini-stat {
-  display: grid; gap: 4px; padding: 12px 14px;
-  border-radius: 8px; background: var(--el-fill-color-lighter);
-}
-.mini-stat.is-danger .mini-stat__value { color: var(--el-color-danger); }
-.mini-stat.is-warning .mini-stat__value { color: var(--el-color-warning); }
-.mini-stat__value { font-size: 18px; font-weight: 700; }
-.mini-stat__label { font-size: 13px; color: var(--el-text-color-secondary); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.amazon-list :deep(.el-table__cell .cell) { font-size: 12px; line-height: 1.4; }
+.amazon-list :deep(.el-table__cell) { padding: 5px 0; }
+.pagination-row { display: flex; justify-content: flex-end; margin-top: 10px; }
 </style>

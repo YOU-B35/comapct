@@ -1,7 +1,7 @@
 <script setup>
 import { formatUtc8 } from '@/utils/time'
 import { computed } from 'vue'
-import { summarizeSellerNews } from '@/utils/amazon'
+import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 
 const props = defineProps({
@@ -15,8 +15,6 @@ const props = defineProps({
 
 defineEmits(['open-history'])
 
-const summary = computed(() => summarizeSellerNews(props.news))
-
 const sorted = computed(() =>
   [...props.news].sort((a, b) => {
     if (a.importance === 'high' && b.importance !== 'high') return -1
@@ -24,6 +22,11 @@ const sorted = computed(() =>
     return String(b.publishedAt).localeCompare(String(a.publishedAt))
   }),
 )
+
+const { page, pageSize, total, paged } = useFuzzySearchPagination(sorted, {
+  pageSize: 15,
+  fields: [],
+})
 </script>
 
 <template>
@@ -36,24 +39,9 @@ const sorted = computed(() =>
       @open-history="$emit('open-history')"
     />
 
-    <div class="mini-stats">
-      <div class="mini-stat is-danger">
-        <span class="mini-stat__value">{{ summary.highPriority }}</span>
-        <span class="mini-stat__label">重要通知</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.today }}</span>
-        <span class="mini-stat__label">今日新增</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.total }}</span>
-        <span class="mini-stat__label">近期待阅</span>
-      </div>
-    </div>
-
     <div class="news-list">
       <article
-        v-for="item in sorted"
+        v-for="item in paged"
         :key="item.id"
         class="news-card"
         :class="{ 'is-high': item.importance === 'high' }"
@@ -69,24 +57,26 @@ const sorted = computed(() =>
       </article>
     </div>
 
+    <div class="pagination-row">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+      />
+    </div>
+
     <el-empty v-if="!loading && !sorted.length" description="暂无卖家新闻" :image-size="72" />
   </div>
 </template>
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
-.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.mini-stat {
-  display: grid; gap: 4px; padding: 12px 14px;
-  border-radius: 8px; background: var(--el-fill-color-lighter);
-}
-.mini-stat.is-danger .mini-stat__value { color: var(--el-color-danger); }
-.mini-stat__value { font-size: 18px; font-weight: 700; }
-.mini-stat__label { font-size: 13px; color: var(--el-text-color-secondary); }
-.news-list { display: grid; gap: 12px; }
+.news-list { display: grid; gap: 8px; }
 .news-card {
-  padding: 14px 16px;
-  border-radius: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
   background: var(--el-fill-color-blank);
 }
@@ -96,15 +86,16 @@ const sorted = computed(() =>
 }
 .news-head {
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 .news-store, .news-time {
   font-size: 12px; color: var(--el-text-color-secondary);
 }
 .news-time { margin-left: auto; }
-.news-title { margin: 0 0 8px; font-size: 15px; }
+.news-title { margin: 0 0 5px; font-size: 13px; }
 .news-summary {
-  margin: 0; font-size: 14px; line-height: 1.65;
+  margin: 0; font-size: 13px; line-height: 1.5;
   color: var(--el-text-color-regular);
 }
+.pagination-row { display: flex; justify-content: flex-end; margin-top: 10px; }
 </style>

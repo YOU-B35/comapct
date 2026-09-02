@@ -15,6 +15,7 @@ from app.monitor_db import init_monitor_result_schema, init_monitor_schema
 from app.monitor_schedule_enqueuer import enqueue_due_jobs
 from app.monitor_worker_service import process_next_pending_job
 from app.platforms.alibaba1688_monitor_adapter import Alibaba1688MonitorAdapter
+from app.platforms.pdd_monitor_adapter import PddMonitorAdapter
 from app.platforms.temu_monitor_adapter import TemuMonitorAdapter
 
 
@@ -28,7 +29,11 @@ def process_one_job(*, worker_id: str, report_root: Path) -> dict[str, Any] | No
         enqueue_due_jobs(conn)
         return process_next_pending_job(
             conn,
-            adapters={"temu": TemuMonitorAdapter(), "1688": Alibaba1688MonitorAdapter()},
+            adapters={
+                "temu": TemuMonitorAdapter(),
+                "1688": Alibaba1688MonitorAdapter(),
+                "pdd": PddMonitorAdapter(),
+            },
             report_root=report_root,
             worker_id=worker_id,
         )

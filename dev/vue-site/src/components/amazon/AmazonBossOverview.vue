@@ -1,6 +1,15 @@
 <script setup>
 import { computed } from 'vue'
 import { summarizeTopProducts, summarizeOutboundOrders, acosMeta, summarizeAccountSnapshot, formatAmazonMoney } from '@/utils/amazonBoss'
+import {
+  summarizeAccountHealth,
+  summarizeBuyerMessages,
+  summarizeCases,
+  summarizeCoupons,
+  summarizeReviews,
+  summarizeSellerNews,
+  summarizeShipments,
+} from '@/utils/amazon'
 import { resolveStoreAssignee } from '@/utils/storeAssignment'
 import AssigneeTag from '@/components/common/AssigneeTag.vue'
 import PlatformAnalyticsCharts from '@/components/charts/PlatformAnalyticsCharts.vue'
@@ -9,6 +18,7 @@ const props = defineProps({
   products: { type: Array, default: () => [] },
   outboundOrders: { type: Array, default: () => [] },
   accountMetrics: { type: Array, default: () => [] },
+  workflow: { type: Object, default: () => ({}) },
   stores: { type: Array, default: () => [] },
   assigneeMap: { type: Object, default: () => ({}) },
   showStoreList: { type: Boolean, default: true },
@@ -96,7 +106,32 @@ const alertItems = computed(() => [
     tab: 'outbound:packed',
     type: 'primary',
   },
+  ...workflowAlerts.value,
 ])
+
+const workflowAlerts = computed(() => {
+  const messages = summarizeBuyerMessages(props.workflow.buyerMessages || [])
+  const account = summarizeAccountHealth(props.workflow.accountMetrics || [])
+  const reviews = summarizeReviews(props.workflow.reviews || [])
+  const coupons = summarizeCoupons(props.workflow.coupons || [])
+  const news = summarizeSellerNews(props.workflow.sellerNews || [])
+  const shipments = summarizeShipments(props.workflow.shipments || [])
+  const cases = summarizeCases(props.workflow.cases || [])
+  return [
+    { label: '待回复', count: messages.pending, tab: 'messages', type: 'warning' },
+    {
+      label: '账户预警',
+      count: account.critical + account.warning,
+      tab: 'account',
+      type: 'danger',
+    },
+    { label: '差评', count: reviews.pending, tab: 'reviews', type: 'danger' },
+    { label: '优惠券异常', count: coupons.alerts, tab: 'coupons', type: 'warning' },
+    { label: '重要通知', count: news.highPriority, tab: 'news', type: 'danger' },
+    { label: '缺件/无货', count: shipments.alerts, tab: 'shipments', type: 'danger' },
+    { label: 'Case 新回复', count: cases.newReplies, tab: 'cases', type: 'primary' },
+  ]
+})
 
 const highAcosProducts = computed(() =>
   productSummary.value.top

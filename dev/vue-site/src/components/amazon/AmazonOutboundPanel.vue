@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { OUTBOUND_FULFILLMENT, OUTBOUND_STATUS } from '@/constants/amazonBoss'
 import { summarizeOutboundOrders, formatAmazonMoney } from '@/utils/amazonBoss'
+import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 
@@ -35,6 +36,11 @@ const filteredOrders = computed(() => {
     return props.orders.filter((o) => o.status === 'packed')
   }
   return props.orders.filter((o) => o.status === filter.value)
+})
+
+const { page, pageSize, total, paged } = useFuzzySearchPagination(filteredOrders, {
+  pageSize: 15,
+  fields: [],
 })
 
 function fulfillmentMeta(row) {
@@ -91,25 +97,6 @@ defineExpose({ finishShip })
       @open-history="$emit('open-history')"
     />
 
-    <div class="mini-stats">
-      <div class="mini-stat is-danger">
-        <span class="mini-stat__value">{{ summary.pending }}</span>
-        <span class="mini-stat__label">待发货</span>
-      </div>
-      <div class="mini-stat is-warning">
-        <span class="mini-stat__value">{{ summary.packed }}</span>
-        <span class="mini-stat__label">待揽收</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.fbmPending }}</span>
-        <span class="mini-stat__label">FBM 待处理</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.fbaPending }}</span>
-        <span class="mini-stat__label">FBA 待处理</span>
-      </div>
-    </div>
-
     <div class="toolbar">
       <el-radio-group v-model="filter" size="small">
         <el-radio-button value="pending">{{ summary.pending ? `待发货 (${summary.pending})` : '待发货' }}</el-radio-button>
@@ -119,7 +106,7 @@ defineExpose({ finishShip })
       </el-radio-group>
     </div>
 
-    <el-table :data="filteredOrders" stripe size="small" v-loading="loading">
+    <el-table :data="paged" stripe size="small" v-loading="loading" class="amazon-list">
       <el-table-column prop="orderNo" label="订单号" min-width="150" />
       <el-table-column v-if="showStoreColumn" label="店铺" width="130">
         <template #default="{ row }">{{ storeNameMap[row.storeId] || '—' }}</template>
@@ -162,6 +149,16 @@ defineExpose({ finishShip })
       </el-table-column>
     </el-table>
 
+    <div class="pagination-row">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+      />
+    </div>
+
     <el-dialog v-model="dialogVisible" title="标记发货" width="440px" destroy-on-close>
       <el-form v-if="activeRow" label-width="80px">
         <el-form-item label="订单号">{{ activeRow.orderNo }}</el-form-item>
@@ -188,49 +185,26 @@ defineExpose({ finishShip })
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
-}
-
-.mini-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-@media (max-width: 960px) {
-  .mini-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.mini-stat {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--el-fill-color-lighter);
-}
-
-.mini-stat.is-danger .mini-stat__value {
-  color: var(--el-color-danger);
-}
-
-.mini-stat.is-warning .mini-stat__value {
-  color: var(--el-color-warning);
-}
-
-.mini-stat__value {
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.mini-stat__label {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
 }
 
 .tracking {
   font-size: 11px;
   color: var(--el-text-color-secondary);
+}
+
+.amazon-list :deep(.el-table__cell .cell) {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.amazon-list :deep(.el-table__cell) {
+  padding: 5px 0;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 </style>

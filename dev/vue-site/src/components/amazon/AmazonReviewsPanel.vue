@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { summarizeReviews } from '@/utils/amazon'
+import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 
@@ -29,6 +30,11 @@ const filtered = computed(() => {
     return props.reviews.filter((r) => r.status === 'pending' || r.status === 'pending_write')
   }
   return props.reviews.filter((r) => r.status === filter.value)
+})
+
+const { page, pageSize, total, paged } = useFuzzySearchPagination(filtered, {
+  pageSize: 15,
+  fields: [],
 })
 
 function starType(rating) {
@@ -67,21 +73,6 @@ defineExpose({ finishHandle })
       @open-history="$emit('open-history')"
     />
 
-    <div class="mini-stats">
-      <div class="mini-stat is-danger">
-        <span class="mini-stat__value">{{ summary.byRating[1] }}</span>
-        <span class="mini-stat__label">1 星待处理</span>
-      </div>
-      <div class="mini-stat is-warning">
-        <span class="mini-stat__value">{{ summary.byRating[2] }}</span>
-        <span class="mini-stat__label">2 星待处理</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.byRating[3] }}</span>
-        <span class="mini-stat__label">3 星待处理</span>
-      </div>
-    </div>
-
     <div class="toolbar">
       <el-radio-group v-model="filter" size="small">
         <el-radio-button value="pending">{{ summary.pending ? `待处理 (${summary.pending})` : '待处理' }}</el-radio-button>
@@ -90,7 +81,7 @@ defineExpose({ finishHandle })
       </el-radio-group>
     </div>
 
-    <el-table :data="filtered" stripe size="small" v-loading="loading">
+    <el-table :data="paged" stripe size="small" v-loading="loading" class="amazon-list">
       <el-table-column label="星级" width="80" align="center">
         <template #default="{ row }">
           <el-tag :type="starType(row.rating)" size="small">{{ row.rating }} 星</el-tag>
@@ -119,6 +110,16 @@ defineExpose({ finishHandle })
       </el-table-column>
     </el-table>
 
+    <div class="pagination-row">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+      />
+    </div>
+
     <el-dialog v-model="dialogVisible" title="标记差评已处理" width="440px" destroy-on-close>
       <el-form v-if="activeRow" label-width="80px">
         <el-form-item label="商品">{{ activeRow.productName }}</el-form-item>
@@ -136,14 +137,8 @@ defineExpose({ finishHandle })
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
-.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.mini-stat {
-  display: grid; gap: 4px; padding: 12px 14px;
-  border-radius: 8px; background: var(--el-fill-color-lighter);
-}
-.mini-stat.is-danger .mini-stat__value { color: var(--el-color-danger); }
-.mini-stat.is-warning .mini-stat__value { color: var(--el-color-warning); }
-.mini-stat__value { font-size: 18px; font-weight: 700; }
-.mini-stat__label { font-size: 13px; color: var(--el-text-color-secondary); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.amazon-list :deep(.el-table__cell .cell) { font-size: 12px; line-height: 1.4; }
+.amazon-list :deep(.el-table__cell) { padding: 5px 0; }
+.pagination-row { display: flex; justify-content: flex-end; margin-top: 10px; }
 </style>

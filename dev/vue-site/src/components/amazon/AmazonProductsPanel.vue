@@ -1,8 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { ACOS_THRESHOLDS } from '@/constants/amazonBoss'
 import { summarizeTopProducts, acosMeta, formatAmazonMoney, formatAmazonPercent } from '@/utils/amazonBoss'
 import { resolveAmazonProductEmptyHint } from '@/utils/amazonProductHint'
+import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 
@@ -69,12 +69,10 @@ const filteredProducts = computed(() => {
   return list
 })
 
-function avgAcosClass(acos) {
-  const meta = acosMeta(acos)
-  if (meta.level === 'danger') return 'is-danger'
-  if (meta.level === 'warning') return 'is-warning'
-  return ''
-}
+const { page, pageSize, total, paged } = useFuzzySearchPagination(filteredProducts, {
+  pageSize: 15,
+  fields: [],
+})
 
 function formatOptionalPercent(value) {
   const num = Number(value)
@@ -112,33 +110,6 @@ watch(
       @action="$emit('refresh')"
       @open-history="$emit('open-history')"
     />
-
-    <div class="mini-stats">
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.total || summary.top.length }}</span>
-        <span class="mini-stat__label">SKU 总数</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.totalRevenueText }}</span>
-        <span class="mini-stat__label">TOP20 销售额</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value" :class="avgAcosClass(summary.avgAcos)">
-          {{ summary.avgAcos > 0 ? `${summary.avgAcos}%` : '—' }}
-        </span>
-        <span class="mini-stat__label">平均 ACOS</span>
-        <el-text size="small" type="info">健康线 ≤ {{ ACOS_THRESHOLDS.good }}%</el-text>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value is-danger">{{ summary.dangerAcosCount }}</span>
-        <span class="mini-stat__label">ACOS 过高</span>
-        <el-text size="small" type="info">≥ {{ ACOS_THRESHOLDS.danger }}%</el-text>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.totalAdSpendText }}</span>
-        <span class="mini-stat__label">广告花费</span>
-      </div>
-    </div>
 
     <el-alert
       v-if="dataQualityAlert"
@@ -186,7 +157,7 @@ watch(
       </el-radio-group>
     </div>
 
-    <el-table :data="filteredProducts" stripe size="small" v-loading="loading" class="product-table">
+    <el-table :data="paged" stripe size="small" v-loading="loading" class="product-table amazon-list">
       <el-table-column label="#" width="48" align="center" fixed="left">
         <template #default="{ row }">{{ row.displayRank }}</template>
       </el-table-column>
@@ -252,6 +223,16 @@ watch(
         <template #default="{ row }">{{ formatOptionalCount(row.unitsOnHand) }}</template>
       </el-table-column>
     </el-table>
+
+    <div class="pagination-row">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+      />
+    </div>
   </div>
 </template>
 
@@ -266,51 +247,12 @@ watch(
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
-}
-
-.mini-stats {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-}
-
-@media (max-width: 960px) {
-  .mini-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.mini-stat {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--el-fill-color-lighter);
-}
-
-.mini-stat__value {
-  font-size: 18px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
 }
 
 .money-cell {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
-}
-
-.mini-stat__value.is-danger {
-  color: var(--el-color-danger);
-}
-
-.mini-stat__value.is-warning {
-  color: var(--el-color-warning);
-}
-
-.mini-stat__label {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
 }
 
 .product-table :deep(.money-col .cell) {
@@ -321,5 +263,20 @@ watch(
 
 .product-table {
   width: 100%;
+}
+
+.amazon-list :deep(.el-table__cell .cell) {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.amazon-list :deep(.el-table__cell) {
+  padding: 5px 0;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 </style>

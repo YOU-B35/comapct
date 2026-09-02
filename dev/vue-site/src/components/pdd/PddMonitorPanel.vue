@@ -34,6 +34,7 @@ const loading = ref(false)
 const buyerSession = ref(null)
 const buyerLoginLoading = ref(false)
 const buyerProbeLoading = ref(false)
+let buyerSessionTimer = null
 const showAdd = ref(false)
 const form = ref({
   label: '',
@@ -117,12 +118,43 @@ async function loadBuyerSession() {
   }
 }
 
+function clearBuyerSessionTimer() {
+  if (buyerSessionTimer) {
+    clearTimeout(buyerSessionTimer)
+    buyerSessionTimer = null
+  }
+}
+
+function scheduleBuyerSessionPoll(delayMs, { timeoutMs = 600000, intervalMs = 3000 } = {}) {
+  clearBuyerSessionTimer()
+  buyerSessionTimer = setTimeout(async () => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      try {
+        const session = await fetchPddMonitorBuyerSession()
+        buyerSession.value = session || null
+        if (!session?.profile_busy && !session?.profileBusy) return
+      } catch (e) {
+        // 会话接口暂时不可用，继续重试
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    }
+    try {
+      buyerSession.value = await fetchPddMonitorBuyerSession()
+    } catch (e) {
+      // 保留最后一次状态
+    }
+  }, delayMs)
+}
+
 async function openBuyerLogin() {
   buyerLoginLoading.value = true
   try {
     const data = await openPddMonitorBuyerLogin()
-    buyerSession.value = { ...(buyerSession.value || {}), ...(data || {}), profile_busy: true }
     ElMessage.success(data?.message || '已打开拼多多买家登录窗口')
+    buyerSession.value = { ...(buyerSession.value || {}), profile_busy: true }
+    // 登录窗口可能持续数分钟，后台轮询真实会话快照，登录完成自动变绿
+    scheduleBuyerSessionPoll(2000, { timeoutMs: 600000, intervalMs: 3000 })
   } catch (error) {
     ElMessage.error(error?.message || '打开买家登录失败')
   } finally {
@@ -134,8 +166,9 @@ async function probeBuyerSession() {
   buyerProbeLoading.value = true
   try {
     const data = await probePddMonitorBuyerSession()
-    buyerSession.value = { ...(buyerSession.value || {}), ...(data || {}), profile_busy: true }
     ElMessage.info(data?.message || '已开始检测拼多多买家登录状态')
+    // 探测任务完成后轮询会话快照，避免停留在“排队中”的假状态
+    scheduleBuyerSessionPoll(1500, { timeoutMs: 90000, intervalMs: 2000 })
   } catch (error) {
     ElMessage.error(error?.message || '检测买家登录状态失败')
   } finally {
@@ -162,8 +195,17 @@ async function loadLatest() {
     const data = await fetchPddMonitorLatest(selectedTargetId.value)
     latest.value = data
     products.value = Array.isArray(data?.products) ? data.products : []
-    signals.value = await fetchPddMonitorSignals(selectedTargetId.value, 50)
-    await loadTrend()
+    try {
+      signals.value = await fetchPddMonitorSignals(selectedTargetId.value, 50)
+    } catch (e) {
+      signals.value = []
+    }
+    try {
+      await loadTrend()
+    } catch (e) {
+      trend.value = []
+      renderTrend()
+    }
   } catch (error) {
     ElMessage.error(error?.message || '加载快照失败')
   } finally {
@@ -194,7 +236,6 @@ function renderTrend() {
     })
     return
   }
-  const xLabels = rows.map((r) => formatUtc8(r.snapshot_at).slice(5, 16))
   if (trendProductId) {
     const selected = rows.filter((r) => r.product_id === trendProductId)
     if (selected.length) {
@@ -215,27 +256,33 @@ function renderTrend() {
       return
     }
   }
+  // 全部商品模式：按快照时间轴去重对齐，避免同一时间点多商品导致 x 轴错位
+  const timeline = Array.from(new Set(rows.map((r) => formatUtc8(r.snapshot_at).slice(5, 16)))).sort()
   const seriesMap = {}
   for (const row of rows) {
-    if (!seriesMap[row.product_id]) seriesMap[row.product_id] = []
-    seriesMap[row.product_id].push([formatUtc8(row.snapshot_at).slice(5, 16), row.total_sales])
+    if (!seriesMap[row.product_id]) seriesMap[row.product_id] = {}
+    seriesMap[row.product_id][formatUtc8(row.snapshot_at).slice(5, 16)] = row.total_sales
   }
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
     legend: { type: 'scroll' },
-    xAxis: { type: 'category', data: xLabels },
+    xAxis: { type: 'category', data: timeline },
     yAxis: { type: 'value', name: '累计销量(件)' },
     dataZoom: [{ type: 'inside' }, { type: 'slider' }],
-    series: Object.entries(seriesMap).map(([pid, points]) => ({
-      name: pid,
-      type: 'line',
-      data: points,
-      showSymbol: false,
-    })),
+    series: Object.entries(seriesMap).map(([pid, points]) => {
+      const label = products.value.find((p) => String(p.product_id) === String(pid))?.product_name || pid
+      return {
+        name: label,
+        type: 'line',
+        data: timeline.map((t) => points[t] ?? null),
+        showSymbol: false,
+      }
+    }),
   })
 }
 
 onBeforeUnmount(() => {
+  clearBuyerSessionTimer()
   trendChart?.dispose()
   trendChart = null
 })
@@ -271,6 +318,10 @@ async function trigger(targetId) {
 }
 
 async function saveTarget() {
+  if (!form.value.target_url.trim()) {
+    ElMessage.warning('请填写店铺或商品链接')
+    return
+  }
   const payload = {
     label: form.value.label,
     target_url: form.value.target_url,
@@ -348,7 +399,7 @@ defineExpose({ loadTargets })
       <el-form label-width="110px">
         <el-form-item label="店铺名称"><el-input v-model="form.label" placeholder="如：某某旗舰店" /></el-form-item>
         <el-form-item label="店铺/商品链接">
-          <el-input v-model="form.target_url" placeholder="拼多多店铺/商品链接" />
+          <el-input v-model="form.target_url" placeholder="如 https://mobile.yangkeduo.com/mall_page.html?mall_id=..." />
         </el-form-item>
         <el-form-item label="监控类型">
           <el-select v-model="form.crawl_strategy">
@@ -356,9 +407,17 @@ defineExpose({ loadTargets })
             <el-option label="指定商品盯梢" value="pdd_pinned_offers" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Top N"><el-input-number v-model="form.top_n" :min="1" :max="50" /></el-form-item>
+        <el-form-item v-if="form.crawl_strategy === 'pdd_shop_topn'" label="Top N">
+          <el-input-number v-model="form.top_n" :min="1" :max="50" />
+        </el-form-item>
         <el-form-item label="盯梢商品">
           <el-input v-model="form.pinned_offer_ids" placeholder="goodsId，逗号分隔" />
+          <div class="form-tip">
+            <template v-if="form.crawl_strategy === 'pdd_pinned_offers'">
+              商品链接模式可留空，将自动盯梢链接中的 goodsId；盯梢采集需买家态已登录。
+            </template>
+            <template v-else>可额外盯梢店铺 Top N 外的商品；盯梢采集需买家态已登录。</template>
+          </div>
         </el-form-item>
         <el-form-item label="轮询间隔">
           <el-select v-model="form.interval_minutes">
@@ -407,6 +466,11 @@ defineExpose({ loadTargets })
           </template>
           <el-table :data="products" size="small" max-height="420">
             <el-table-column prop="rank" label="排名" width="55" />
+            <el-table-column label="盯梢" width="60" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_pinned" type="warning" size="small" effect="plain">盯梢</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="商品" min-width="220">
               <template #default="{ row }">
                 <a :href="row.url" target="_blank" rel="noopener">
@@ -459,7 +523,9 @@ defineExpose({ loadTargets })
     <el-card shadow="never" style="margin-top: 12px">
       <template #header>告警信号</template>
       <el-table :data="signals" size="small">
-        <el-table-column prop="created_at" label="时间" width="160" />
+        <el-table-column label="时间" width="160">
+          <template #default="{ row }">{{ formatUtc8(row.created_at) }}</template>
+        </el-table-column>
         <el-table-column label="类型" width="150">
           <template #default="{ row }">{{ signalTypeText(row.signal_type) }}</template>
         </el-table-column>
@@ -487,6 +553,14 @@ defineExpose({ loadTargets })
   align-items: center;
   gap: 8px;
   margin-left: auto;
+}
+
+.form-tip {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #909399;
 }
 
 @media (max-width: 768px) {

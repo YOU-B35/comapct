@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { ACCOUNT_METRIC_STATUS } from '@/constants/amazonDaily'
 import { summarizeAccountHealth } from '@/utils/amazon'
+import { useFuzzySearchPagination } from '@/composables/useFuzzySearchPagination'
 import AmazonPanelHeader from '@/components/amazon/AmazonPanelHeader.vue'
 import AssigneeTableColumn from '@/components/common/AssigneeTableColumn.vue'
 
@@ -29,6 +30,11 @@ const filtered = computed(() => {
   return props.metrics.filter((m) => m.status === filter.value)
 })
 
+const { page, pageSize, total, paged } = useFuzzySearchPagination(filtered, {
+  pageSize: 15,
+  fields: [],
+})
+
 function statusMeta(row) {
   return ACCOUNT_METRIC_STATUS[row.status] || ACCOUNT_METRIC_STATUS.normal
 }
@@ -54,21 +60,6 @@ function trendIcon(trend) {
       </template>
     </AmazonPanelHeader>
 
-    <div class="mini-stats">
-      <div class="mini-stat is-danger">
-        <span class="mini-stat__value">{{ summary.critical }}</span>
-        <span class="mini-stat__label">爆红</span>
-      </div>
-      <div class="mini-stat is-warning">
-        <span class="mini-stat__value">{{ summary.warning }}</span>
-        <span class="mini-stat__label">预警</span>
-      </div>
-      <div class="mini-stat">
-        <span class="mini-stat__value">{{ summary.normal }}</span>
-        <span class="mini-stat__label">正常</span>
-      </div>
-    </div>
-
     <div class="toolbar">
       <el-radio-group v-model="filter" size="small">
         <el-radio-button value="alert">待关注 ({{ summary.critical + summary.warning }})</el-radio-button>
@@ -78,7 +69,7 @@ function trendIcon(trend) {
       </el-radio-group>
     </div>
 
-    <el-table :data="filtered" stripe size="small" v-loading="loading">
+    <el-table :data="paged" stripe size="small" v-loading="loading" class="amazon-list">
       <el-table-column prop="label" label="指标" min-width="140" />
       <el-table-column
         v-if="showStoreColumn"
@@ -103,20 +94,24 @@ function trendIcon(trend) {
       </el-table-column>
       <el-table-column prop="note" label="处理建议" min-width="220" show-overflow-tooltip />
     </el-table>
+
+    <div class="pagination-row">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .amz-panel { display: grid; gap: 16px; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
-.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.mini-stat {
-  display: grid; gap: 4px; padding: 12px 14px;
-  border-radius: 8px; background: var(--el-fill-color-lighter);
-}
-.mini-stat.is-danger .mini-stat__value { color: var(--el-color-danger); }
-.mini-stat.is-warning .mini-stat__value { color: var(--el-color-warning); }
-.mini-stat__value { font-size: 18px; font-weight: 700; }
-.mini-stat__label { font-size: 13px; color: var(--el-text-color-secondary); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
 .trend { margin-left: 4px; font-size: 12px; color: var(--el-text-color-secondary); }
+.amazon-list :deep(.el-table__cell .cell) { font-size: 12px; line-height: 1.4; }
+.amazon-list :deep(.el-table__cell) { padding: 5px 0; }
+.pagination-row { display: flex; justify-content: flex-end; margin-top: 10px; }
 </style>

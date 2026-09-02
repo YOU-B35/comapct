@@ -612,6 +612,7 @@ onActivated(loadModule)
         :products="filteredProducts"
         :outbound-orders="filteredOutbound"
         :account-metrics="filtered.accountMetrics"
+        :workflow="filtered"
         :stores="overviewStores"
         :assignee-map="assigneeMap"
         :show-store-list="showStoreList"
@@ -843,11 +844,17 @@ onActivated(loadModule)
 }
 
 .module-tabs :deep(.el-tabs__header) {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+.module-tabs :deep(.el-tabs__item) {
+  font-size: 13px;
+  height: 34px;
+  line-height: 34px;
 }
 
 .tab-panel {
-  padding: 16px 0 4px;
+  padding: 8px 0 2px;
 }
 
 .tab-badge {
