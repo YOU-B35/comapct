@@ -271,6 +271,9 @@ public class AmazonChatService {
                 continue;
             }
             String toolName = text(call.get("tool_name"));
+            if (toolName.isBlank()) {
+                toolName = text(call.get("name"));
+            }
             Object args = call.get("args");
             String argsJson = writeJson(args instanceof Map<?, ?> ? args : Map.of());
             String summary = text(call.get("summary"));

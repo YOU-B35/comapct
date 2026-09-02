@@ -17,7 +17,10 @@ import subprocess
 import time
 from typing import Any
 
+from agent.agent_tools import TOOL_SCHEMAS, dispatch_tool
+from agent.chat_kernel import run_agent_loop
 from app.amazon.report_crawler import crawl_amazon
+from app.llm.client import chat_completion
 
 
 ALLOWED_KEYWORDS = (
@@ -128,6 +131,35 @@ def answer_amazon_chat(task: dict[str, Any]) -> dict[str, Any]:
             "tool_calls": [],
             "session_id": session_id,
         }
+
+    if llm_enabled():
+        try:
+            llm_out = run_amazon_llm_chat(
+                question=question,
+                store_name=store_name,
+                payload=payload,
+                llm=chat_completion,
+                tool_executor=dispatch_tool,
+            )
+        except Exception as exc:
+            llm_out = {"status": "failed", "error_message": str(exc)}
+        if llm_out.get("status") == "success":
+            return {
+                "status": "success",
+                "refused": False,
+                "answer": llm_out["answer"],
+                "source": {
+                    "type": "llm_agent",
+                    "name": "amazon_chat_llm_v2",
+                    "status": "ok",
+                    "captured_at": _now(),
+                },
+                "captured_at": _now(),
+                "duration_ms": _elapsed_ms(started),
+                "token_usage": llm_out.get("token_usage") or {},
+                "tool_calls": llm_out.get("tool_calls") or [],
+                "session_id": session_id,
+            }
 
     live = read_live_amazon_data(question=question, store_name=store_name, payload=payload)
     snapshot = payload.get("data_snapshot") if isinstance(payload.get("data_snapshot"), dict) else {}
@@ -531,3 +563,134 @@ def _now() -> str:
 def _trim(value: str, limit: int) -> str:
     text = value or ""
     return text if len(text) <= limit else text[:limit] + "..."
+
+
+def llm_enabled() -> bool:
+    switch = os.environ.get("AMAZON_CHAT_LLM_ENABLED", "").strip().lower()
+    if switch in ("1", "true", "yes", "on"):
+        return True
+    if switch in ("0", "false", "no", "off"):
+        return False
+    return bool(os.environ.get("LLM_API_KEY", "").strip())
+
+
+def build_amazon_system_prompt(store_name: str) -> str:
+    return (
+        "你是 CrossHub 的 Amazon 店铺运营数据助手，只服务当前绑定的 Amazon 店铺。\n"
+        f"当前店铺：{store_name or '未命名店铺'}。\n"
+        "铁律：\n"
+        "1. 只能使用提供的紫鸟 CLI 工具取数；不得编造订单、金额、库存、评价等任何经营数据。\n"
+        "2. 工具没拿到数据时，如实回答“未获取到数据”，禁止推测或估算。\n"
+        "3. 回答必须包含“数据来源”和“采集时间”两行；来源写实际使用的工具名和页面。\n"
+        "4. 只回答 Amazon 账户健康、订单/发货、商品/库存/广告、买家消息、评价、Case 等经营问题；写操作、跨平台、闲聊一律拒绝。\n"
+        "5. 一次只做一件事：先打开店铺，再访问页面，避免重复打开同一店铺。\n"
+        "6. 长页面优先用 page content / csv_read 的结构化数据，不要贴原始 HTML。\n"
+    )
+
+
+def validate_llm_answer(answer: str) -> tuple[bool, str]:
+    if not answer or not answer.strip():
+        return False, "答案为空白"
+    if "数据来源" not in answer:
+        return False, "答案缺少“数据来源”标注"
+    if "采集时间" not in answer:
+        return False, "答案缺少“采集时间”标注"
+    return True, ""
+
+
+def bound_ziniao_store_id(payload: dict[str, Any]) -> str:
+    return str(
+        payload.get("browser_id")
+        or payload.get("external_shop_id")
+        or ""
+    ).strip()
+
+
+def session_memory_text(payload: dict[str, Any]) -> str:
+    lines: list[str] = []
+    store_id = bound_ziniao_store_id(payload)
+    if store_id:
+        lines.append(f"- 当前紫鸟店铺ID: {store_id}")
+    if payload.get("store_name"):
+        lines.append(f"- 当前店铺名称: {payload.get('store_name')}")
+    if payload.get("merchant_id"):
+        lines.append(f"- Amazon merchantId: {payload.get('merchant_id')}")
+    rows = payload.get("memory") or []
+    if isinstance(rows, list):
+        for row in rows[:20]:
+            if not isinstance(row, dict):
+                continue
+            key = row.get("mem_key") or row.get("key") or ""
+            value = row.get("mem_value") or row.get("value") or ""
+            if key or value:
+                lines.append(f"- {key}: {value}")
+    return "\n".join(lines)
+
+
+def amazon_tool_executor(payload: dict[str, Any], tool_executor):
+    bound_store_id = bound_ziniao_store_id(payload)
+
+    def _execute(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        safe_args = dict(args or {})
+        if name == "ziniao_automation_run":
+            steps = str(safe_args.get("steps") or "")
+            if not bound_store_id or bound_store_id not in steps:
+                return {
+                    "ok": False,
+                    "data": None,
+                    "summary": "工具调用被拒绝：自动化步骤必须限定在当前会话绑定的 Amazon 店铺",
+                    "error": "amazon_chat_store_mismatch",
+                }
+        if name.startswith("ziniao_") and name not in {"ziniao_doctor", "ziniao_store_list", "ziniao_automation_run"}:
+            if not bound_store_id:
+                return {
+                    "ok": False,
+                    "data": None,
+                    "summary": "工具调用被拒绝：当前店铺没有可用的紫鸟 browser_id 绑定",
+                    "error": "amazon_chat_ziniao_binding_missing",
+                }
+            requested = str(safe_args.get("store_id") or "").strip()
+            if requested and bound_store_id and requested != bound_store_id:
+                return {
+                    "ok": False,
+                    "data": None,
+                    "summary": "工具调用被拒绝：只能访问当前会话绑定的 Amazon 店铺",
+                    "error": "amazon_chat_store_mismatch",
+                }
+            if bound_store_id:
+                safe_args["store_id"] = bound_store_id
+        return tool_executor(name, safe_args)
+
+    return _execute
+
+
+def run_amazon_llm_chat(
+    *,
+    question: str,
+    store_name: str,
+    payload: dict[str, Any],
+    llm,
+    tool_executor,
+) -> dict[str, Any]:
+    result = run_agent_loop(
+        user_query=question,
+        system_prompt=build_amazon_system_prompt(store_name),
+        tools=TOOL_SCHEMAS,
+        tool_executor=amazon_tool_executor(payload, tool_executor),
+        llm=llm,
+        session_memory=session_memory_text(payload),
+    )
+    if result["status"] != "success" or not result["answer"]:
+        return {
+            "status": "failed",
+            "error_message": result.get("error_message") or "LLM 未返回有效答案",
+        }
+    ok, why = validate_llm_answer(result["answer"])
+    if not ok:
+        return {"status": "failed", "error_message": f"答案校验未通过：{why}"}
+    return {
+        "status": "success",
+        "answer": result["answer"],
+        "tool_calls": result["tool_logs"],
+        "token_usage": result["token_usage"],
+    }

@@ -3,7 +3,14 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from agent.amazon_chat_agent import answer_amazon_chat, validate_boundary
+from agent.amazon_chat_agent import (
+    amazon_tool_executor,
+    answer_amazon_chat,
+    llm_enabled,
+    validate_boundary,
+    validate_llm_answer,
+)
+from app.llm.client import LlmResponse
 
 
 def _task(message: str) -> dict:
@@ -94,6 +101,73 @@ class AmazonChatAgentTest(unittest.TestCase):
         self.assertIn("实时指标", result["answer"])
         self.assertNotIn("缓存指标", result["answer"])
         self.assertEqual("ziniao_browser:account_health", result["source"]["name"])
+
+    def test_llm_enabled_returns_true_when_switch_on(self) -> None:
+        with patch.dict("os.environ", {"AMAZON_CHAT_LLM_ENABLED": "1"}, clear=False):
+            self.assertTrue(llm_enabled())
+
+    def test_llm_enabled_off_without_key(self) -> None:
+        with patch.dict("os.environ", {"AMAZON_CHAT_LLM_ENABLED": "", "LLM_API_KEY": ""}, clear=False):
+            self.assertFalse(llm_enabled())
+
+    def test_validate_llm_answer_requires_source_and_time(self) -> None:
+        ok, why = validate_llm_answer("账户健康正常。")
+        self.assertFalse(ok)
+        self.assertIn("数据来源", why)
+        ok, _ = validate_llm_answer("账户健康正常。\n数据来源：紫鸟 page content\n采集时间：2026-09-02 10:00:00")
+        self.assertTrue(ok)
+
+    def test_llm_path_returns_answer_and_usage(self) -> None:
+        task = _task("帮我看一下当前店铺的账户健康")
+        task["payload"]["browser_id"] = ""
+        with patch.dict("os.environ", {"AMAZON_CHAT_LLM_ENABLED": "1"}, clear=False):
+            with patch(
+                "agent.amazon_chat_agent.chat_completion",
+                return_value=LlmResponse(
+                    content="账户健康正常。\n数据来源：紫鸟 page content\n采集时间：2026-09-02 10:00:00",
+                    usage={"total_tokens": 12},
+                ),
+            ):
+                result = answer_amazon_chat(task)
+        self.assertEqual("success", result["status"])
+        self.assertIn("数据来源", result["answer"])
+        self.assertEqual(result["token_usage"]["total_tokens"], 12)
+        self.assertEqual(result["source"]["name"], "amazon_chat_llm_v2")
+
+    def test_llm_failure_falls_back_to_v1_snapshot(self) -> None:
+        task = _task("帮我看一下当前店铺的账户健康")
+        task["payload"]["data_snapshot"] = {
+            "captured_at": "2026-09-01 10:00:00",
+            "account_metrics": [
+                {
+                    "metric_key": "late_shipment_rate",
+                    "metric_label": "迟发率",
+                    "status": "warning",
+                    "value_text": "3.1%",
+                }
+            ],
+            "operational_items": [],
+            "top_products": [],
+        }
+        with patch.dict("os.environ", {"AMAZON_CHAT_LLM_ENABLED": "1"}, clear=False):
+            with patch("agent.amazon_chat_agent.chat_completion", side_effect=RuntimeError("LLM down")):
+                result = answer_amazon_chat(task)
+        self.assertEqual("success", result["status"])
+        self.assertEqual("crosshub_local_amazon_tables", result["source"]["name"])
+
+    def test_llm_tool_executor_rejects_other_store(self) -> None:
+        calls = []
+
+        def executor(name, args):
+            calls.append((name, args))
+            return {"ok": True, "data": None, "summary": "opened", "error": ""}
+
+        guarded = amazon_tool_executor({"browser_id": "current-store"}, executor)
+        result = guarded("ziniao_store_open", {"store_id": "other-store"})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual("amazon_chat_store_mismatch", result["error"])
+        self.assertEqual([], calls)
 
 
 if __name__ == "__main__":
