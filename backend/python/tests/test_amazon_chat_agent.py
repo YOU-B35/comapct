@@ -212,6 +212,18 @@ class AmazonChatAgentTest(unittest.TestCase):
         self.assertIn("amazonsell/business", prompt)
         self.assertIn("已订购商品销售额", prompt)
 
+    def test_system_prompt_contains_domain_map_and_snapshot_labeling(self) -> None:
+        prompt = build_amazon_system_prompt("YOTO美国账号")
+        for marker in (
+            "messaging/inbox",
+            "feedback-manager",
+            "fba/inbound-shipment/summary",
+            "cu/case-lobby",
+            "本地快照",
+            "人机验证",
+        ):
+            self.assertIn(marker, prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

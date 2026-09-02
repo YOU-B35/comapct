@@ -187,6 +187,39 @@ class ZiniaoCliToolsTest(unittest.TestCase):
         self.assertEqual(kwargs.get("encoding"), "utf-8")
         self.assertEqual(kwargs.get("errors"), "replace")
 
+    def test_looks_like_captcha_detects_markers(self) -> None:
+        self.assertTrue(cli_tools.looks_like_captcha("I'm not ROBOT"))
+        self.assertTrue(cli_tools.looks_like_captcha("请完成安全验证"))
+        self.assertTrue(cli_tools.looks_like_captcha("please verify you are not a robot"))
+        self.assertFalse(cli_tools.looks_like_captcha("菜单 商品 订单 账户状况"))
+
+    def test_page_content_with_captcha_waits_then_retries(self) -> None:
+        first = CompletedProc(0, '{"content": "I\'m not ROBOT 请完成验证"}')
+        captcha_clear = CompletedProc(0, '{"content": "账户状况 良好"}')
+        with patch("app.ziniao.cli_tools.shutil.which", return_value="ziniao-cli"):
+            with patch(
+                "app.ziniao.cli_tools.subprocess.run",
+                side_effect=[first, captcha_clear, captcha_clear],
+            ) as run:
+                with patch("app.ziniao.cli_tools.bring_ziniao_browser_front", return_value=True):
+                    with patch("app.ziniao.cli_tools.time.sleep"):
+                        result = cli_tools.ziniao_page_content("s1")
+        self.assertTrue(result["ok"])
+        self.assertIn("良好", result["summary"])
+        self.assertEqual(run.call_count, 3)
+
+    def test_page_content_with_captcha_times_out(self) -> None:
+        captcha = CompletedProc(0, '{"content": "I\'m not ROBOT"}')
+        with patch("app.ziniao.cli_tools.shutil.which", return_value="ziniao-cli"):
+            with patch("app.ziniao.cli_tools.subprocess.run", return_value=captcha) as run:
+                with patch("app.ziniao.cli_tools.bring_ziniao_browser_front", return_value=True):
+                    with patch("app.ziniao.cli_tools.time.sleep"):
+                        with patch.dict("os.environ", {"AMAZON_CHAT_CAPTCHA_TIMEOUT_SECONDS": "2"}, clear=False):
+                            result = cli_tools.ziniao_page_content("s1")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "ziniao_captcha_timeout")
+        self.assertTrue(result.get("captcha"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -614,6 +614,20 @@ def build_amazon_system_prompt(store_name: str) -> str:
         "重点核对订单缺陷率、取消率、迟发率等指标；禁止只凭菜单就下结论：\n"
         "(()=>{const b=document.body.innerText;const i=b.indexOf('账户状况');"
         "return i>=0?b.slice(Math.max(0,i-200),i+4000):b.slice(0,4000)})()\n"
+        "10. 数据域→实时页面地图（先实时，读不到换候选，禁止臆造 URL）："
+        "账户健康/绩效=performance/dashboard（兜底 performance/account/health）；"
+        "销售额/收入=business-reports/detail/sales-traffic-by-asin 或 amazonsell/business 的今日全球销售额；"
+        "订单=orders-v3/?page=1（fba pending/canceled/unshipped）；"
+        "商品/库存=myinventory/inventory 与 business-reports；"
+        "广告=advertising.amazon.com/campaign-manager/all-campaigns；"
+        "买家消息=messaging/inbox；评价/反馈=feedback-manager/index.html；"
+        "优惠券=seller-promotions/coupon/home；货件=fba/inbound-shipment/summary；"
+        "Case=cu/case-lobby。\n"
+        "11. 页面出现人机验证/验证码时停止取数，提示用户在弹出的紫鸟浏览器窗口完成验证后重试，"
+        "不得继续猜测或编造数据。\n"
+        "12. 驾驶舱里的账户指标/买家消息/评价/优惠券/货件/Case/TOP商品等来自本地已同步快照"
+        "（amazon_account_metric/amazon_operational_item/amazon_product_snapshot/amazon_outbound_order）；"
+        "引用这些数据时答案必须标注「本地快照（可能非最新）」，禁止把快照冒充实时数据。\n"
     )
 
 

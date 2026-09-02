@@ -7,8 +7,23 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
+
+CAPTCHA_MARKERS = (
+    "not a robot",
+    "not robot",
+    "robot check",
+    "recaptcha",
+    "captcha",
+    "安全验证",
+    "人机验证",
+    "验证码",
+    "unusual traffic",
+    "访问异常",
+    "流量异常",
+)
 
 
 def _tool_timeout(default: float) -> float:
@@ -16,6 +31,91 @@ def _tool_timeout(default: float) -> float:
         return float(os.environ.get("AMAZON_CHAT_TOOL_TIMEOUT_SECONDS", str(default)))
     except ValueError:
         return default
+
+
+def looks_like_captcha(text: str) -> bool:
+    low = (text or "").lower()
+    return any(marker in low for marker in CAPTCHA_MARKERS)
+
+
+def _captcha_timeout_seconds() -> float:
+    try:
+        return max(10.0, float(os.environ.get("AMAZON_CHAT_CAPTCHA_TIMEOUT_SECONDS", "300")))
+    except ValueError:
+        return 300.0
+
+
+def bring_ziniao_browser_front(store_id: str, store_name: str = "") -> bool:
+    """Activate the Ziniao store browser window so a human can solve CAPTCHA."""
+    if os.name != "nt":
+        return True
+    hint = (store_name or store_id or "").strip()
+    script = (
+        "$s=New-Object -ComObject WScript.Shell;"
+        f"$ok=$s.AppActivate('{hint}');"
+        "if(-not $ok){Get-Process ziniaobrowser -ErrorAction SilentlyContinue|"
+        "ForEach-Object{$null=$s.AppActivate($_.Id)}}"
+    )
+    try:
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return completed.returncode == 0
+    except Exception:
+        return False
+
+
+def _output_text(result: dict[str, Any]) -> str:
+    return str(result.get("data") or result.get("summary") or "")
+
+
+def _handle_captcha(
+    store_id: str,
+    args: list[str],
+    first_result: dict[str, Any],
+    store_name: str = "",
+) -> dict[str, Any]:
+    timeout = _captcha_timeout_seconds()
+    print(
+        f"[ZiniaoCaptcha] 检测到人机验证，正在唤起店铺浏览器，"
+        f"请在窗口内完成验证（最长等待 {int(timeout)} 秒）...",
+        flush=True,
+    )
+    bring_ziniao_browser_front(store_id, store_name)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(3)
+        probe = _run_cli(
+            ["page", "exec", "--store-id", store_id, "--script", "document.body.innerText"],
+            20,
+        )
+        if probe["ok"] and not looks_like_captcha(_output_text(probe)):
+            print("[ZiniaoCaptcha] 验证已通过，继续取数...", flush=True)
+            return _run_cli(args, _tool_timeout(60))
+    return {
+        **first_result,
+        "ok": False,
+        "data": None,
+        "summary": f"人机验证超时（{int(timeout)} 秒），请在紫鸟浏览器完成验证后重试",
+        "error": "ziniao_captcha_timeout",
+        "captcha": True,
+    }
+
+
+def _run_page_command(
+    store_id: str,
+    args: list[str],
+    timeout: float,
+    store_name: str = "",
+) -> dict[str, Any]:
+    result = _run_cli(args, timeout)
+    if result["ok"] and looks_like_captcha(_output_text(result)):
+        return _handle_captcha(store_id, args, result, store_name)
+    return result
 
 
 def _page_content_max_chars() -> int:
@@ -161,7 +261,8 @@ def ziniao_page_content(
     content_format: str = "structured",
     timeout: float = 60,
 ) -> dict[str, Any]:
-    result = _run_cli(
+    result = _run_page_command(
+        store_id,
         ["page", "content", "--store-id", store_id, "--content-format", content_format],
         _tool_timeout(timeout),
     )
@@ -171,7 +272,11 @@ def ziniao_page_content(
 
 
 def ziniao_page_exec(store_id: str, js: str, timeout: float = 60) -> dict[str, Any]:
-    return _run_cli(["page", "exec", "--store-id", store_id, "--script", js], _tool_timeout(timeout))
+    return _run_page_command(
+        store_id,
+        ["page", "exec", "--store-id", store_id, "--script", js],
+        _tool_timeout(timeout),
+    )
 
 
 def ziniao_automation_run(steps_json: str, timeout: float = 120) -> dict[str, Any]:
