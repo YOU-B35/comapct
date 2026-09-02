@@ -206,6 +206,12 @@ class AmazonChatAgentTest(unittest.TestCase):
         self.assertEqual(infer_amazon_scope("今天店铺卖了多少钱"), "reports")
         self.assertEqual(infer_amazon_scope("最近7天的销售额和销量"), "reports")
 
+    def test_system_prompt_contains_sales_url_and_hint(self) -> None:
+        prompt = build_amazon_system_prompt("YOTO美国账号")
+        self.assertIn("sales-traffic-by-asin", prompt)
+        self.assertIn("amazonsell/business", prompt)
+        self.assertIn("已订购商品销售额", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
