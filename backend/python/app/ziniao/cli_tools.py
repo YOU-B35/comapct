@@ -18,6 +18,13 @@ def _tool_timeout(default: float) -> float:
         return default
 
 
+def _page_content_max_chars() -> int:
+    try:
+        return max(200, int(os.environ.get("AGENT_PAGE_CONTENT_MAX_CHARS", "12000")))
+    except ValueError:
+        return 12000
+
+
 def _trim(text: str, limit: int = 2000) -> str:
     return text[:limit] + ("..." if len(text) > limit else "")
 
@@ -154,10 +161,13 @@ def ziniao_page_content(
     content_format: str = "structured",
     timeout: float = 60,
 ) -> dict[str, Any]:
-    return _run_cli(
+    result = _run_cli(
         ["page", "content", "--store-id", store_id, "--content-format", content_format],
         _tool_timeout(timeout),
     )
+    if result["ok"]:
+        result["max_chars"] = _page_content_max_chars()
+    return result
 
 
 def ziniao_page_exec(store_id: str, js: str, timeout: float = 60) -> dict[str, Any]:

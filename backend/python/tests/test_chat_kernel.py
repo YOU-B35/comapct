@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
-from agent.chat_kernel import run_agent_loop
+from agent.chat_kernel import _tool_payload, run_agent_loop
 from app.llm.client import LlmResponse, LlmToolCall
 
 
@@ -88,6 +89,43 @@ class ChatKernelTest(unittest.TestCase):
             llm=FakeLlm([first, second]),
         )
         self.assertEqual(result["token_usage"]["total_tokens"], 35)
+
+    def test_tool_payload_honors_result_max_chars(self) -> None:
+        payload = _tool_payload(
+            {
+                "ok": True,
+                "summary": "ok",
+                "data": "x" * 5000,
+                "max_chars": 3000,
+            }
+        )
+
+        self.assertLessEqual(len(payload), 3100)
+        self.assertIn("...", payload)
+
+    def test_tool_payload_uses_default_limit_without_max_chars(self) -> None:
+        payload = _tool_payload({"ok": True, "summary": "ok", "data": "y" * 5000})
+
+        self.assertLessEqual(len(payload), 2100)
+
+    def test_max_rounds_reads_env_default(self) -> None:
+        def always_tool(messages):
+            return LlmResponse(
+                content="",
+                tool_calls=[LlmToolCall(id="c1", name="ziniao_doctor", arguments={})],
+            )
+
+        with patch.dict("os.environ", {"AGENT_MAX_ROUNDS": "2"}, clear=False):
+            result = run_agent_loop(
+                user_query="q",
+                system_prompt="p",
+                tools=[{}],
+                tool_executor=lambda n, a: {"ok": True, "data": {}, "summary": "ok"},
+                llm=FakeLlm([always_tool] * 10),
+            )
+
+        self.assertEqual(result["status"], "max_rounds_exceeded")
+        self.assertEqual(len(result["tool_logs"]), 2)
 
 
 if __name__ == "__main__":

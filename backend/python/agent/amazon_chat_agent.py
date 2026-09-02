@@ -587,6 +587,14 @@ def build_amazon_system_prompt(store_name: str) -> str:
         "6. 长页面优先用 page content / csv_read 的结构化数据，不要贴原始 HTML。\n"
         "7. 当前会话绑定店铺的 storeId 见店铺记忆（紫鸟店铺ID），所有 store open / page 命令直接使用它；"
         "只有记忆缺失时才用 ziniao_store_list 按店铺名解析，禁止臆造 storeId。\n"
+        "8. 页面 URL 地图：账户健康=https://sellercentral.amazon.com/performance/account/health；"
+        "订单=https://sellercentral.amazon.com/orders-v3/?page=1；"
+        "商品报告=https://sellercentral.amazon.com/business-reports/detail/sales-traffic-by-asin；"
+        "库存=https://sellercentral.amazon.com/myinventory/inventory。不要臆造 URL。\n"
+        "9. 账户健康页若 text 只有左侧菜单、没有指标数值，用 page exec 执行下面 JS 提取指标区文本，"
+        "重点核对订单缺陷率、取消率、迟发率等指标；禁止只凭菜单就下结论：\n"
+        "(()=>{const b=document.body.innerText;const i=b.indexOf('账户状况');"
+        "return i>=0?b.slice(Math.max(0,i-200),i+4000):b.slice(0,4000)})()\n"
     )
 
 

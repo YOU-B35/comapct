@@ -59,6 +59,18 @@ class ZiniaoCliToolsTest(unittest.TestCase):
         self.assertIn("--content-format", args)
         self.assertIn("structured", args)
 
+    def test_page_content_result_carries_max_chars(self) -> None:
+        with patch("app.ziniao.cli_tools.shutil.which", return_value="ziniao-cli"):
+            with patch(
+                "app.ziniao.cli_tools.subprocess.run",
+                return_value=CompletedProc(0, '{"ok": true, "data": {"content": "abc"}}'),
+            ):
+                result = cli_tools.ziniao_page_content("s1")
+
+        self.assertTrue(result["ok"])
+        self.assertIsInstance(result.get("max_chars"), int)
+        self.assertGreaterEqual(result["max_chars"], 12000)
+
     def test_read_csv_file(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             path = os.path.join(td, "report.csv")

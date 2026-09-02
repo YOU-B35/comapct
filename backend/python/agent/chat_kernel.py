@@ -15,6 +15,13 @@ def _max_tool_chars() -> int:
         return 2000
 
 
+def _max_rounds() -> int:
+    try:
+        return int(os.environ.get("AGENT_MAX_ROUNDS", "8"))
+    except ValueError:
+        return 8
+
+
 def _accumulate(total: dict[str, int], usage: dict[str, int]) -> None:
     for key, value in (usage or {}).items():
         if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -28,7 +35,9 @@ def _tool_payload(result: dict[str, Any]) -> str:
         "data": result.get("data"),
     }
     text = json.dumps(payload, ensure_ascii=False)
-    limit = max(200, _max_tool_chars())
+    raw_limit = result.get("max_chars")
+    limit = raw_limit if isinstance(raw_limit, int) and not isinstance(raw_limit, bool) else _max_tool_chars()
+    limit = max(200, limit)
     return text[:limit] + ("..." if len(text) > limit else "")
 
 
@@ -39,9 +48,10 @@ def run_agent_loop(
     tools: list[dict[str, Any]],
     tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
     llm: Callable[[list[dict[str, Any]], list[dict[str, Any]]], LlmResponse],
-    max_rounds: int = 6,
+    max_rounds: int | None = None,
     session_memory: str = "",
 ) -> dict[str, Any]:
+    max_rounds = max(1, _max_rounds() if max_rounds is None else max_rounds)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     if session_memory:
         messages.append({"role": "system", "content": f"店铺上下文与记忆：\n{session_memory}"})

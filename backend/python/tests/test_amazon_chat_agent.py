@@ -182,6 +182,13 @@ class AmazonChatAgentTest(unittest.TestCase):
         self.assertIn("storeId", prompt)
         self.assertIn("ziniao_store_list", prompt)
 
+    def test_system_prompt_contains_account_health_url_and_extract_js(self) -> None:
+        prompt = build_amazon_system_prompt("YOTO美国账号")
+
+        self.assertIn("performance/account/health", prompt)
+        self.assertIn("page exec", prompt)
+        self.assertIn("订单缺陷率", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
