@@ -24,6 +24,7 @@ from app.amazon.parsers.seller_pages import (
     parse_orders_from_text,
 )
 from app.amazon.scope_planner import normalize_scope
+from app.amazon.static_authenticated_api import fetch_static_scope
 from app.ziniao import cli_tools
 
 HOME_URL = "https://sellercentral.amazon.com/amazonsell/business"
@@ -287,31 +288,57 @@ def crawl_zclaw_amazon(*, store_id: str = "", store_name: str, scope: str) -> di
         raise RuntimeError(opened.get("summary") or "紫鸟店铺浏览器未能打开")
 
     result = _empty_result()
+    api_result = fetch_static_scope(store_id, normalized_scope)
+    for field, rows in api_result.data.items():
+        if field in result and rows:
+            result[field] = rows
     if normalized_scope == "account_health":
-        health_text = _visit_and_read(store_id, HEALTH_URL)
-        result["page_url"] = HEALTH_URL
-        result["metrics"] = _merge_metrics(_account_health_metrics(health_text), parse_home_metrics(health_text))
+        if "metrics" not in api_result.provided_fields:
+            health_text = _visit_and_read(store_id, HEALTH_URL)
+            result["page_url"] = HEALTH_URL
+            result["metrics"] = _merge_metrics(
+                _account_health_metrics(health_text),
+                parse_home_metrics(health_text),
+                result["metrics"],
+            )
         if not result["metrics"]:
             raise RuntimeError("ZClaw 未从账户状况页面解析到指标")
     else:
-        home_text = _visit_and_read(store_id, HOME_URL)
-        result["page_url"] = HOME_URL
-        result["metrics"] = _merge_metrics(_dashboard_metrics(home_text), parse_home_metrics(home_text))
-        result["seller_news"], result["cases"] = parse_home_news_and_cases(home_text)
+        if "metrics" not in api_result.provided_fields:
+            home_text = _visit_and_read(store_id, HOME_URL)
+            result["page_url"] = HOME_URL
+            result["metrics"] = _merge_metrics(
+                _dashboard_metrics(home_text),
+                parse_home_metrics(home_text),
+                result["metrics"],
+            )
+            result["seller_news"], result["cases"] = parse_home_news_and_cases(home_text)
     if normalized_scope == "daily":
-        result["outbound_orders"] = _crawl_orders(store_id)
+        if "outbound_orders" not in api_result.provided_fields:
+            result["outbound_orders"] = _crawl_orders(store_id)
         if not result["metrics"] and not result["outbound_orders"]:
             raise RuntimeError("ZClaw 未从今日运营页面解析到指标或订单")
     elif normalized_scope == "reports":
-        result["products"] = _crawl_products(store_id)
-        result["page_url"] = REPORT_URLS[0]
+        if "products" not in api_result.provided_fields:
+            result["products"] = _crawl_products(store_id)
+            result["page_url"] = REPORT_URLS[0]
         if not result["products"]:
             raise RuntimeError("ZClaw 未从 Business Report 或库存页面解析到商品明细")
 
+    transport = "zclaw_api" if api_result.complete else (
+        "zclaw_api+page" if api_result.endpoint_keys else "zclaw"
+    )
     result["result_summary"] = {
         "products_count": len(result["products"]),
         "orders_count": len(result["outbound_orders"]),
         "metrics_count": len(result["metrics"]),
-        "transport": "zclaw", "store_binding": binding, "scope": normalized_scope, "complete": True,
+        "transport": transport,
+        "store_binding": binding,
+        "scope": normalized_scope,
+        "complete": True,
+        "endpoint_keys": api_result.endpoint_keys,
+        "endpoint_versions": api_result.endpoint_versions,
+        "api_diagnostics": api_result.diagnostics,
+        "fallback_used": not api_result.complete,
     }
     return result
