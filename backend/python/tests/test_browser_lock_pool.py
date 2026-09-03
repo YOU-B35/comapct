@@ -89,6 +89,14 @@ def test_task_browser_keys_single_session_and_multi_session():
     assert browser_lock_key("temu", 6, "s2") in keys
 
 
+def test_amazon_cli_store_id_is_used_as_browser_lock_identity():
+    task = {
+        "task_type": "amazon_sync",
+        "payload": {"tenant_id": 7, "browser_id": "webdriver-1", "ziniao_store_id": "cli-store-1"},
+    }
+    assert task_browser_keys("amazon", task) == [browser_lock_key("amazon", 7, "cli-store-1")]
+
+
 def test_douyin_and_1688_task_key_uses_store_id():
     douyin = {
         "task_type": "douyin_sync",

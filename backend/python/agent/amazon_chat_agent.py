@@ -20,7 +20,7 @@ from typing import Any
 from agent.agent_tools import TOOL_SCHEMAS, dispatch_tool
 from agent.chat_kernel import run_agent_loop
 from app.amazon.report_crawler import crawl_amazon
-from app.amazon.zclaw_crawler import crawl_zclaw_amazon
+from app.amazon.zclaw_crawler import crawl_zclaw_amazon, supports_zclaw_fast_scope
 from app.llm.client import chat_completion
 
 
@@ -269,12 +269,15 @@ def read_live_amazon_data(*, question: str, store_name: str, payload: dict[str, 
     started = time.perf_counter()
     browser_id = str(payload.get("browser_id") or payload.get("external_shop_id") or "").strip()
     browser_oauth = str(payload.get("browser_oauth") or "").strip()
-    if not browser_id and not browser_oauth:
+    ziniao_store_id = str(payload.get("ziniao_store_id") or "").strip()
+    has_webdriver_binding = bool(browser_id or browser_oauth)
+    has_zclaw_binding = bool(ziniao_store_id or store_name)
+    if not has_webdriver_binding and not has_zclaw_binding:
         return {
             "tool_name": "amazon_ziniao_live_crawl",
             "ok": False,
             "args": {"store_name": store_name, "question_length": len(question)},
-            "summary": "当前店铺没有绑定紫鸟 browser_id/browser_oauth，无法直接打开紫鸟店铺浏览器",
+            "summary": "当前店铺没有绑定紫鸟 CLI 店铺或 WebDriver browser_id/browser_oauth，无法直接打开紫鸟店铺浏览器",
             "duration_ms": _elapsed_ms(started),
             "source": {
                 "type": "ziniao_binding",
@@ -287,20 +290,38 @@ def read_live_amazon_data(*, question: str, store_name: str, payload: dict[str, 
     scope = infer_amazon_scope(question)
     zclaw_error = ""
     zclaw_enabled = os.environ.get("AMAZON_ZCLAW_FALLBACK_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
-    if browser_id and zclaw_enabled:
+    if zclaw_enabled and supports_zclaw_fast_scope(scope) and has_zclaw_binding:
         try:
-            data = crawl_zclaw_amazon(browser_id=browser_id, store_name=store_name, scope=scope)
+            data = crawl_zclaw_amazon(store_id=ziniao_store_id, store_name=store_name, scope=scope)
             summary = data.get("result_summary") if isinstance(data, dict) else {}
-            return {
-                "tool_name": "amazon_ziniao_live_crawl", "ok": True, "scope": scope,
-                "data": data if isinstance(data, dict) else {},
-                "args": {"scope": scope, "store_name": store_name, "platform_account_id": payload.get("platform_account_id", ""), "question_length": len(question)},
-                "summary": _trim(json.dumps(summary, ensure_ascii=False), 800),
-                "duration_ms": _elapsed_ms(started),
-                "source": {"type": "ziniao_zclaw", "name": f"ziniao_zclaw:{scope}", "status": "ok", "captured_at": _now()},
-            }
+            if isinstance(summary, dict) and summary.get("complete"):
+                return {
+                    "tool_name": "amazon_ziniao_live_crawl", "ok": True, "scope": scope,
+                    "data": data if isinstance(data, dict) else {},
+                    "args": {"scope": scope, "store_name": store_name, "platform_account_id": payload.get("platform_account_id", ""), "question_length": len(question)},
+                    "summary": _trim(json.dumps(summary, ensure_ascii=False), 800),
+                    "duration_ms": _elapsed_ms(started),
+                    "source": {"type": "ziniao_zclaw", "name": f"ziniao_zclaw:{scope}", "status": "ok", "captured_at": _now()},
+                }
+            zclaw_error = "ZClaw 返回的数据不完整"
         except Exception as exc:
             zclaw_error = str(exc)
+
+    if not has_webdriver_binding:
+        return {
+            "tool_name": "amazon_ziniao_live_crawl",
+            "ok": False,
+            "scope": scope,
+            "args": {"scope": scope, "store_name": store_name, "question_length": len(question)},
+            "summary": zclaw_error or "当前店铺没有绑定紫鸟 browser_id/browser_oauth，无法读取完整明细",
+            "duration_ms": _elapsed_ms(started),
+            "source": {
+                "type": "ziniao_binding",
+                "name": "platform_account.ziniao_binding",
+                "status": "missing",
+                "captured_at": _now(),
+            },
+        }
 
     try:
         timeout_seconds = float(os.environ.get("AMAZON_CHAT_CRAWL_TIMEOUT_SECONDS", "600"))

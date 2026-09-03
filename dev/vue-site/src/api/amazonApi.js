@@ -404,20 +404,32 @@ export async function refreshAmazonAllWithSync(stores = [], options = {}) {
     [PLATFORM_SYNC_BATCH_GUARD]: true,
     recordCooldown: false,
   }
-  const [dailyResult, reportsResult] = await Promise.allSettled([
+  // Amazon tasks for the same bound browser are mutually exclusive. Running
+  // these ranges in parallel makes the second request wait on the first job
+  // instead of collecting its own scope.
+  const settle = async (operation) => {
+    try {
+      return { status: 'fulfilled', value: await operation() }
+    } catch (reason) {
+      return { status: 'rejected', reason }
+    }
+  }
+  const dailyResult = await settle(() =>
     refreshWithSync(
       stores,
       { scope: 'daily', platformAccountId: options.platformAccountId, ...innerOpts },
       fetchAmazonDailyFromBackend,
       '已刷新今日运营数据',
     ),
+  )
+  const reportsResult = await settle(() =>
     refreshWithSync(
       stores,
       { scope: 'reports', platformAccountId: options.platformAccountId, ...innerOpts },
       fetchAmazonInsightsFromBackend,
       '已刷新 Business Report 产品数据',
     ),
-  ])
+  )
 
   const errors = [dailyResult, reportsResult]
     .filter((item) => item.status === 'rejected')

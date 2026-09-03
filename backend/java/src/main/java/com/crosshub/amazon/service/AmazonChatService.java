@@ -100,6 +100,7 @@ public class AmazonChatService {
         payload.put("external_shop_id", defaultText(account.getExternalShopId(), ""));
         payload.put("browser_id", defaultText(account.getExternalShopId(), ""));
         payload.put("browser_oauth", defaultText(account.getZiniaoBrowserOauth(), ""));
+        payload.put("ziniao_store_id", defaultText(account.getZiniaoCliStoreId(), ""));
         payload.put("merchant_id", defaultText(account.getAmazonMerchantId(), ""));
         payload.put("session_id", sessionId);
         payload.put("message", message);

@@ -109,6 +109,8 @@ public class TemuMapper {
         map.put("external_shop_id", row.getExternalShopId());
         map.put("integrationMode", row.getIntegrationMode());
         map.put("integration_mode", row.getIntegrationMode());
+        map.put("ziniaoStoreId", row.getZiniaoCliStoreId());
+        map.put("ziniao_store_id", row.getZiniaoCliStoreId());
         return map;
     }
 

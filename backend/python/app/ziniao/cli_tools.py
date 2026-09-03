@@ -75,6 +75,24 @@ def _output_text(result: dict[str, Any]) -> str:
     return str(result.get("data") or result.get("summary") or "")
 
 
+def decode_json_data(value: Any) -> Any:
+    """Decode the JSON payload printed by a Ziniao CLI command when possible.
+
+    The CLI writes command results to stdout as JSON, while a few versions wrap
+    that JSON in a string or in a ``data`` field.  Keep non-JSON output intact
+    so callers can still surface the CLI's diagnostic text.
+    """
+    decoded = value
+    for _ in range(3):
+        if not isinstance(decoded, str):
+            break
+        try:
+            decoded = json.loads(decoded)
+        except json.JSONDecodeError:
+            break
+    return decoded
+
+
 def _handle_captcha(
     store_id: str,
     args: list[str],

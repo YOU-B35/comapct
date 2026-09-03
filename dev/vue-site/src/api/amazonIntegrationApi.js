@@ -15,6 +15,7 @@ function mapCandidate(row) {
   if (!row) return row
   return {
     browserId: String(row.browser_id ?? row.browserId ?? ''),
+    ziniaoStoreId: String(row.ziniao_store_id ?? row.ziniaoStoreId ?? row.store_id ?? row.storeId ?? ''),
     browserOauth: row.browser_oauth ?? row.browserOauth ?? '',
     browserName: row.browser_name ?? row.browserName ?? '',
     platformName: row.platform_name ?? row.platformName ?? '',
@@ -48,6 +49,7 @@ export async function bindZiniaoStores(stores) {
     {
       stores: (stores || []).map((item) => ({
         browser_id: item.browserId,
+        ziniao_store_id: item.ziniaoStoreId,
         browser_oauth: item.browserOauth,
         browser_name: item.browserName,
         platform_name: item.platformName,
@@ -85,5 +87,5 @@ export async function discoverZiniaoStoresWithPoll() {
       throw new Error(job.error_message || job.error_code || '紫鸟店铺发现失败')
     }
   }
-  throw new Error('紫鸟店铺发现超时，请确认 Agent 与 WebDriver 已启动')
+  throw new Error('紫鸟店铺发现超时，请确认 Agent 与紫鸟 CLI 或 WebDriver 已启动')
 }

@@ -42,6 +42,9 @@ public class PlatformAccount {
     @Column(name = "ziniao_browser_oauth", columnDefinition = "TEXT NOT NULL DEFAULT ''")
     private String ziniaoBrowserOauth = "";
 
+    @Column(name = "ziniao_cli_store_id", columnDefinition = "TEXT NOT NULL DEFAULT ''")
+    private String ziniaoCliStoreId = "";
+
     @Column(name = "agent_node_id", columnDefinition = "TEXT NOT NULL DEFAULT ''")
     private String agentNodeId = "";
 
@@ -70,6 +73,8 @@ public class PlatformAccount {
     public void setIntegrationMode(String integrationMode) { this.integrationMode = integrationMode == null ? "" : integrationMode; }
     public String getZiniaoBrowserOauth() { return ziniaoBrowserOauth; }
     public void setZiniaoBrowserOauth(String ziniaoBrowserOauth) { this.ziniaoBrowserOauth = ziniaoBrowserOauth == null ? "" : ziniaoBrowserOauth; }
+    public String getZiniaoCliStoreId() { return ziniaoCliStoreId; }
+    public void setZiniaoCliStoreId(String ziniaoCliStoreId) { this.ziniaoCliStoreId = ziniaoCliStoreId == null ? "" : ziniaoCliStoreId; }
     public String getAgentNodeId() { return agentNodeId; }
     public void setAgentNodeId(String agentNodeId) { this.agentNodeId = agentNodeId == null ? "" : agentNodeId; }
     public String getAmazonMerchantId() { return amazonMerchantId; }

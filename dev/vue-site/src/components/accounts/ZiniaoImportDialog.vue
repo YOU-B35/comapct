@@ -43,9 +43,11 @@ const presence = computed(() =>
 const agentOnline = computed(() => presence.value.tenantOnline)
 const ziniaoOnline = computed(() => localZiniaoOnline.value || Boolean(integrationStatus.value.ziniao_online))
 
-const selectableCandidates = computed(() =>
-  candidates.value.filter((item) => item.browserId),
-)
+function candidateKey(item) {
+  return item?.browserId || item?.ziniaoStoreId || ''
+}
+
+const selectableCandidates = computed(() => candidates.value.filter(candidateKey))
 
 async function loadStatus() {
   loadingStatus.value = true
@@ -71,7 +73,7 @@ async function loadStatus() {
 async function loadCandidates() {
   const res = await fetchZiniaoCandidates()
   candidates.value = res.data || []
-  selectedIds.value = candidates.value.map((item) => item.browserId)
+  selectedIds.value = candidates.value.map(candidateKey)
   await nextTick()
   syncTableSelection()
 }
@@ -81,14 +83,14 @@ function syncTableSelection() {
   if (!table) return
   table.clearSelection()
   for (const row of selectableCandidates.value) {
-    if (selectedIds.value.includes(row.browserId)) {
+    if (selectedIds.value.includes(candidateKey(row))) {
       table.toggleRowSelection(row, true)
     }
   }
 }
 
 function onSelectionChange(rows) {
-  selectedIds.value = (rows || []).map((row) => row.browserId)
+  selectedIds.value = (rows || []).map(candidateKey)
 }
 
 async function runDiscover() {
@@ -96,7 +98,7 @@ async function runDiscover() {
   try {
     const result = await discoverZiniaoStoresWithPoll()
     candidates.value = result.stores || []
-    selectedIds.value = candidates.value.map((item) => item.browserId)
+    selectedIds.value = candidates.value.map(candidateKey)
     if (!candidates.value.length) {
       ElMessage.warning('未发现可绑定的紫鸟店铺')
     } else {
@@ -113,7 +115,7 @@ async function runDiscover() {
 
 async function confirmBind() {
   const selected = selectableCandidates.value.filter((item) =>
-    selectedIds.value.includes(item.browserId),
+    selectedIds.value.includes(candidateKey(item)),
   )
   if (!selected.length) {
     ElMessage.warning('请至少选择一个店铺')
@@ -159,7 +161,7 @@ watch(
         :closable="false"
         show-icon
         title="需在运维机启动同步程序"
-        description="请联系运维确认已启动 CrossHub-Sync-Helper.exe（运维机常驻，不在网页下载）。已安装紫鸟时会一并拉起 WebDriver。"
+        description="请联系运维确认已启动 CrossHub-Sync-Helper.exe（运维机常驻，不在网页下载）。普通模式通过紫鸟 CLI 扫描和同步，开发者模式则使用 WebDriver。"
       />
 
       <AgentPresenceStatus
@@ -186,7 +188,7 @@ watch(
         :data="selectableCandidates"
         size="small"
         stripe
-        row-key="browserId"
+        :row-key="candidateKey"
         @selection-change="onSelectionChange"
       >
         <el-table-column type="selection" width="48" />

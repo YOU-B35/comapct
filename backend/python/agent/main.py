@@ -20,7 +20,12 @@ from agent.handlers import dispatch_task
 from agent.health_server import start_health_server
 from agent.java_client import AgentApiClient
 from agent.task_executor import BrowserAffinityTaskExecutor
+from app.ziniao import cli_tools
 from app.ziniao.client import ZiniaoClient, ZiniaoConfig
+
+_CLI_PROBE_TTL_SECONDS = 60.0
+_cli_probe_at = 0.0
+_cli_probe_online = False
 
 
 def ziniao_port_open(port: int | None = None) -> bool:
@@ -41,15 +46,22 @@ def create_ziniao_client() -> ZiniaoClient | None:
 
 
 def detect_ziniao_online(ziniao: ZiniaoClient | None) -> bool:
-    if not ziniao_port_open():
-        return False
-    if ziniao is None:
-        return True
-    try:
-        return ziniao.ping()
-    except Exception:
-        # WebDriver 端口已开即视为就绪；凭据异常时仍允许页面显示紫鸟在线
-        return True
+    if ziniao_port_open():
+        if ziniao is None:
+            return True
+        try:
+            return ziniao.ping()
+        except Exception:
+            # WebDriver 端口已开即视为就绪；凭据异常时仍允许页面显示紫鸟在线。
+            return True
+
+    # 普通模式没有 WebDriver 端口，改用官方 CLI 的 doctor 作为可用性探针。
+    global _cli_probe_at, _cli_probe_online
+    now = time.monotonic()
+    if now - _cli_probe_at >= _CLI_PROBE_TTL_SECONDS:
+        _cli_probe_at = now
+        _cli_probe_online = bool(cli_tools.ziniao_doctor(timeout=5).get("ok"))
+    return _cli_probe_online
 
 
 def _heartbeat_loop(

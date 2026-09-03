@@ -71,6 +71,9 @@ class ZiniaoCliToolsTest(unittest.TestCase):
         self.assertIsInstance(result.get("max_chars"), int)
         self.assertGreaterEqual(result["max_chars"], 12000)
 
+    def test_decode_json_data_unwraps_json_string(self) -> None:
+        self.assertEqual(cli_tools.decode_json_data('[{"asin":"B012345678"}]')[0]["asin"], "B012345678")
+
     def test_read_csv_file(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             path = os.path.join(td, "report.csv")

@@ -143,7 +143,8 @@ public class AgentController {
                     "store_name", pa.getStoreName() == null ? "" : pa.getStoreName(),
                     "account", pa.getAccount() == null ? "" : pa.getAccount(),
                     "platform", platform,
-                    "external_shop_id", pa.getExternalShopId() == null ? "" : pa.getExternalShopId()
+                    "external_shop_id", pa.getExternalShopId() == null ? "" : pa.getExternalShopId(),
+                    "ziniao_store_id", pa.getZiniaoCliStoreId() == null ? "" : pa.getZiniaoCliStoreId()
             ));
         }
         return Map.of("success", true, "data", grouped);
@@ -175,7 +176,7 @@ public class AgentController {
                 tenantId,
                 new StorePayload(id.isBlank() ? null : id, platform, storeName, account, password,
                         companyName.isBlank() ? null : companyName, externalShopId.isBlank() ? null : externalShopId,
-                        "browser", null),
+                        "browser", null, null),
                 true
         );
         return Map.of("success", true, "message", "店铺绑定成功", "data", data);

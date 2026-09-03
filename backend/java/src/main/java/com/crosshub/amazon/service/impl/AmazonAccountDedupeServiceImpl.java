@@ -64,10 +64,13 @@ public class AmazonAccountDedupeServiceImpl implements AmazonAccountDedupeServic
         Map<String, List<PlatformAccount>> groups = new LinkedHashMap<>();
         for (PlatformAccount account : accounts) {
             String external = trim(account.getExternalShopId());
-            if (external.isBlank()) {
+            String cliStoreId = trim(account.getZiniaoCliStoreId());
+            String identity = !external.isBlank() ? "webdriver:" + external
+                    : (!cliStoreId.isBlank() ? "cli:" + cliStoreId : "");
+            if (identity.isBlank()) {
                 continue;
             }
-            groups.computeIfAbsent(external, key -> new ArrayList<>()).add(account);
+            groups.computeIfAbsent(identity, key -> new ArrayList<>()).add(account);
         }
 
         int removed = 0;
@@ -107,8 +110,12 @@ public class AmazonAccountDedupeServiceImpl implements AmazonAccountDedupeServic
 
     private int accountScore(PlatformAccount account) {
         int score = 0;
-        if ("ziniao".equalsIgnoreCase(trim(account.getIntegrationMode()))) {
+        if ("ziniao".equalsIgnoreCase(trim(account.getIntegrationMode()))
+                || "ziniao_cli".equalsIgnoreCase(trim(account.getIntegrationMode()))) {
             score += 4;
+        }
+        if (!trim(account.getZiniaoCliStoreId()).isBlank()) {
+            score += 2;
         }
         if (!trim(account.getZiniaoBrowserOauth()).isBlank()) {
             score += 2;

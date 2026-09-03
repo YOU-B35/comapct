@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import os
 import time
 import sys
 from typing import Any
@@ -18,6 +19,7 @@ from agent.temu_tasks import (
     probe_session,
 )
 from app.amazon.report_crawler import AmazonLoginRequiredError, crawl_amazon
+from app.amazon.zclaw_crawler import crawl_zclaw_amazon, supports_zclaw_fast_scope
 from app.amazon.write_actions import execute_amazon_write
 from app.ziniao.client import ZiniaoClient, ZiniaoConfig
 
@@ -125,12 +127,45 @@ def handle_ziniao_discover(client: AgentApiClient, task: dict[str, Any]) -> None
         stores = ziniao.get_browser_list()
         client.complete_task(task_id, status="success", result={"stores": stores})
     except Exception as exc:
-        client.complete_task(
-            task_id,
-            status="failed",
-            error_code="ZINIAO_DISCOVER_FAILED",
-            error_message=str(exc),
-        )
+        message = str(exc)
+        if "普通模式运行" not in message and "WebDriver API" not in message:
+            client.complete_task(
+                task_id,
+                status="failed",
+                error_code="ZINIAO_DISCOVER_FAILED",
+                error_message=message,
+            )
+            return
+        from app.ziniao import cli_tools
+
+        listed = cli_tools.ziniao_store_list()
+        if not listed.get("ok"):
+            client.complete_task(
+                task_id,
+                status="failed",
+                error_code="ZINIAO_DISCOVER_FAILED",
+                error_message=f"{message}；ZClaw CLI 读取店铺失败：{listed.get('summary') or listed.get('error')}",
+            )
+            return
+        stores: list[dict[str, Any]] = []
+        for raw in listed.get("data") or []:
+            if not isinstance(raw, dict):
+                continue
+            platform = str(raw.get("platformName") or raw.get("platform_name") or "")
+            if "amazon" not in platform.lower() and "亚马逊" not in platform:
+                continue
+            store_id = str(raw.get("storeId") or raw.get("store_id") or raw.get("id") or "").strip()
+            if not store_id:
+                continue
+            stores.append({
+                "browserId": "",
+                "ziniaoStoreId": store_id,
+                "browserName": str(raw.get("storeName") or raw.get("store_name") or raw.get("name") or store_id),
+                "platformName": platform or "Amazon",
+                "storeUsername": str(raw.get("storeUsername") or raw.get("account") or ""),
+                "browserIp": str(raw.get("browserIp") or raw.get("ip") or ""),
+            })
+        client.complete_task(task_id, status="success", result={"stores": stores, "transport": "ziniao_cli"})
 
 
 def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
@@ -155,18 +190,36 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
     )
 
     try:
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            task_context = copy_context()
-            future = executor.submit(
-                task_context.run,
-                crawl_amazon,
-                scope=scope,
-                browser_id=browser_id,
-                browser_oauth=browser_oauth,
-                store_name=store_name,
-                merchant_id=merchant_id,
-            )
-            result = future.result(timeout=CRAWL_TIMEOUT_SECONDS)
+        result = None
+        zclaw_enabled = os.environ.get("AMAZON_ZCLAW_FALLBACK_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+        ziniao_store_id = str(payload.get("ziniao_store_id") or "").strip()
+        if zclaw_enabled and supports_zclaw_fast_scope(scope) and (ziniao_store_id or store_name):
+            try:
+                zclaw_result = crawl_zclaw_amazon(
+                    store_id=ziniao_store_id,
+                    store_name=store_name,
+                    scope=scope,
+                )
+                if isinstance(zclaw_result, dict) and zclaw_result.get("result_summary", {}).get("complete"):
+                    result = zclaw_result
+                    print(f"[Agent][Amazon] ZClaw path succeeded task_id={task_id}", file=sys.stderr)
+            except Exception as exc:
+                print(f"[Agent][Amazon] ZClaw path unavailable task_id={task_id}: {exc}", file=sys.stderr)
+        if result is None:
+            if ziniao_store_id and not browser_id and not browser_oauth:
+                raise RuntimeError("紫鸟 CLI 同步失败，且该店铺没有 WebDriver 绑定：请确认店铺已登录并安装 ziniao-cli")
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                task_context = copy_context()
+                future = executor.submit(
+                    task_context.run,
+                    crawl_amazon,
+                    scope=scope,
+                    browser_id=browser_id,
+                    browser_oauth=browser_oauth,
+                    store_name=store_name,
+                    merchant_id=merchant_id,
+                )
+                result = future.result(timeout=CRAWL_TIMEOUT_SECONDS)
         elapsed = int((time.time() - started) * 1000)
         summary = result.get("result_summary") if isinstance(result, dict) else {}
         print(
@@ -198,7 +251,13 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
     except Exception as exc:
         message = str(exc)
         error_code = "AMAZON_SYNC_FAILED"
-        if "未登录" in message or "login" in message.lower() or "sign in" in message.lower():
+        if "普通模式运行" in message or "WebDriver API" in message:
+            error_code = "AMAZON_WEBDRIVER_MODE_REQUIRED"
+            message = (
+                "紫鸟当前以普通模式运行，传统 Amazon 全量同步需要 WebDriver 开发者模式。"
+                "请先在账户绑定中通过紫鸟 CLI 导入店铺；已导入的 CLI 店铺可同步账户健康、订单、库存和 Business Report。"
+            )
+        elif "未登录" in message or "login" in message.lower() or "sign in" in message.lower():
             error_code = "AMAZON_LOGIN_REQUIRED"
         print(
             f"[Agent][Amazon] failed task_id={task_id} code={error_code} msg={message}",

@@ -69,7 +69,8 @@ def task_browser_keys(platform: str, task: dict[str, Any]) -> list[str]:
 
     if platform == "amazon":
         identity = (
-            payload.get("browser_id")
+            payload.get("ziniao_store_id")
+            or payload.get("browser_id")
             or payload.get("external_shop_id")
             or payload.get("store_id")
             or payload.get("session_key")

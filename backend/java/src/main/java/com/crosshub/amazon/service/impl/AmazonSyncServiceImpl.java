@@ -460,7 +460,7 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         job.setAgentId("");
         job.setScope(scope);
         job.setStatus("pending");
-        job.setMode("ziniao_webdriver");
+        job.setMode(defaultText(account.getZiniaoCliStoreId(), "").isBlank() ? "ziniao_webdriver" : "ziniao_cli");
         job.setCreatedAt(now());
         job.setResultSummary(writeJson(new LinkedHashMap<>(Map.of(
                 "trigger", trigger == null || trigger.isBlank() ? "manual" : trigger,
@@ -485,6 +485,7 @@ public class AmazonSyncServiceImpl implements AmazonSyncService {
         payload.put("external_shop_id", defaultText(account.getExternalShopId(), ""));
         payload.put("browser_id", defaultText(account.getExternalShopId(), ""));
         payload.put("browser_oauth", defaultText(account.getZiniaoBrowserOauth(), ""));
+        payload.put("ziniao_store_id", defaultText(account.getZiniaoCliStoreId(), ""));
         payload.put("store_name", defaultText(account.getStoreName(), ""));
         payload.put("merchant_id", defaultText(account.getAmazonMerchantId(), ""));
         payload.put("retry_count", Math.max(0, retryCount));

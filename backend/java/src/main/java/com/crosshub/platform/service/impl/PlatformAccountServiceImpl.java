@@ -89,13 +89,34 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
         if (account.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "登录账号不能为空");
         }
-        boolean ziniaoAmazonBind = "amazon".equals(platform) && !trim(payload.externalShopId()).isBlank();
+        boolean ziniaoAmazonBind = "amazon".equals(platform)
+                && (!trim(payload.externalShopId()).isBlank() || !trim(payload.ziniaoCliStoreId()).isBlank());
         if (id.isBlank() && ziniaoAmazonBind) {
-            var existingAmazon = repository.findFirstByTenantIdAndPlatformAndExternalShopIdOrderByBoundAtDesc(
-                    tenantId, platform, trim(payload.externalShopId())
-            );
-            if (existingAmazon.isPresent()) {
-                id = existingAmazon.get().getId();
+            String browserId = trim(payload.externalShopId());
+            String cliStoreId = trim(payload.ziniaoCliStoreId());
+            if (!browserId.isBlank()) {
+                var existingAmazon = repository.findFirstByTenantIdAndPlatformAndExternalShopIdOrderByBoundAtDesc(
+                        tenantId, platform, browserId
+                );
+                if (existingAmazon.isPresent()) {
+                    id = existingAmazon.get().getId();
+                }
+            } else if (!cliStoreId.isBlank()) {
+                List<PlatformAccount> amazonAccounts = repository.findByTenantIdAndPlatformOrderByBoundAtDesc(tenantId, platform);
+                id = amazonAccounts.stream()
+                        .filter(item -> cliStoreId.equals(trim(item.getZiniaoCliStoreId())))
+                        .map(PlatformAccount::getId)
+                        .findFirst()
+                        .orElse("");
+                if (id.isBlank()) {
+                    // A previously WebDriver-bound store may later be imported in
+                    // normal mode. Store names are unique per platform/tenant.
+                    id = amazonAccounts.stream()
+                            .filter(item -> storeName.equalsIgnoreCase(trim(item.getStoreName())))
+                            .map(PlatformAccount::getId)
+                            .findFirst()
+                            .orElse("");
+                }
             }
         }
         if (id.isBlank() && password.isBlank() && !ziniaoAmazonBind && !allowEmptyPassword) {
@@ -134,10 +155,14 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
         row.setCompanyName(trim(payload.companyName()));
         row.setExternalShopId(resolveExternalShopId(tenantId, platform, storeName, account, trim(payload.externalShopId())));
         if (ziniaoAmazonBind) {
-            row.setIntegrationMode("ziniao");
+            row.setIntegrationMode(trim(payload.ziniaoCliStoreId()).isBlank() ? "ziniao" : "ziniao_cli");
             String oauth = trim(payload.ziniaoBrowserOauth());
             if (!oauth.isBlank()) {
                 row.setZiniaoBrowserOauth(oauth);
+            }
+            String cliStoreId = trim(payload.ziniaoCliStoreId());
+            if (!cliStoreId.isBlank()) {
+                row.setZiniaoCliStoreId(cliStoreId);
             }
         } else if (payload.integrationMode() != null && !payload.integrationMode().isBlank()) {
             row.setIntegrationMode(trim(payload.integrationMode()));
@@ -171,7 +196,8 @@ public class PlatformAccountServiceImpl implements PlatformAccountService {
                         companyName != null && !companyName.isBlank() ? companyName : item.companyName(),
                         item.externalShopId(),
                         item.integrationMode(),
-                        item.ziniaoBrowserOauth()
+                        item.ziniaoBrowserOauth(),
+                        item.ziniaoCliStoreId()
                 )))
                 .toList();
     }
