@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from agent.amazon_chat_agent import read_live_amazon_data
-from app.amazon.zclaw_crawler import _content_text, _dashboard_metrics
+from app.amazon.zclaw_crawler import _account_health_metrics, _content_text, _dashboard_metrics, crawl_zclaw_amazon
 
 
 class ZclawAmazonCrawlerTest(unittest.TestCase):
@@ -37,6 +37,28 @@ class ZclawAmazonCrawlerTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["source"]["type"], "ziniao_webdriver")
         webdriver.assert_called_once()
+
+
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_page_visit")
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_store_open")
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_page_content")
+    def test_crawl_uses_account_health_parser_for_account_health_scope(self, page_content, store_open, page_visit) -> None:
+        store_open.return_value = {"ok": True}
+        page_visit.return_value = {"ok": True}
+        page_content.return_value = {"ok": True, "data": {"data": {"content": {"headings": ["账户状况评级 200"], "links": [{"text": "订单缺陷率 0%"}]}}}}
+        result = crawl_zclaw_amazon(browser_id="store-1", store_name="Store", scope="account_health")
+        self.assertEqual(result["metrics"][0]["metric_key"], "account_health_rating")
+        self.assertEqual(result["result_summary"]["scope"], "account_health")
+
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_page_visit")
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_page_content")
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_store_open")
+    def test_crawl_navigates_to_scope_page_before_reading(self, store_open, page_content, page_visit) -> None:
+        store_open.return_value = {"ok": True}
+        page_visit.return_value = {"ok": True}
+        page_content.return_value = {"ok": True, "data": {"data": {"content": {"headings": ["账户状况 良好"], "links": [{"text": "订单缺陷率 0%"}]}}}}
+        crawl_zclaw_amazon(browser_id="store-1", store_name="Store", scope="account_health")
+        page_visit.assert_called_once_with("store-1", "https://sellercentral.amazon.com/performance/account/health", wait_until="domcontentloaded")
 
 
 if __name__ == "__main__":

@@ -5,9 +5,15 @@ import json
 import re
 from typing import Any
 
+from app.amazon.page_urls import HEALTH_URL, REPORT_URLS
 from app.ziniao import cli_tools
 
 HOME_URL = "https://sellercentral.amazon.com/amazonsell/business"
+SCOPE_URLS = {
+    "account_health": HEALTH_URL,
+    "reports": REPORT_URLS[0],
+    "daily": HOME_URL,
+}
 
 
 def _content_text(raw: Any) -> str:
@@ -19,17 +25,39 @@ def _content_text(raw: Any) -> str:
     if not isinstance(raw, dict):
         return ""
     node: Any = raw
-    for key in ("data", "data", "content"):
+    for _ in range(4):
+        if isinstance(node, str):
+            return node
         if not isinstance(node, dict):
+            return ""
+        if any(key in node for key in ("headings", "links", "buttons", "bodyText", "text")):
             break
-        node = node.get(key)
+        child = None
+        for key in ("data", "content"):
+            candidate = node.get(key)
+            if isinstance(candidate, (dict, str)):
+                child = candidate
+                break
+        if child is None:
+            break
+        node = child
     if isinstance(node, str):
         return node
-    if isinstance(node, dict):
-        return str(node.get("bodyText") or node.get("text") or node.get("content") or "")
-    return ""
-
-
+    if not isinstance(node, dict):
+        return ""
+    legacy = node.get("bodyText") or node.get("text")
+    if legacy:
+        return str(legacy)
+    parts = []
+    for heading in node.get("headings") or []:
+        if isinstance(heading, str) and heading.strip():
+            parts.append(heading.strip())
+    for item in (node.get("links") or []) + (node.get("buttons") or []):
+        if isinstance(item, dict):
+            text = (item.get("text") or "").strip()
+            if text:
+                parts.append(text)
+    return "\n".join(parts) if parts else ""
 def _metric(label: str, text: str, pattern: str) -> dict[str, str] | None:
     match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
     if not match:
@@ -62,11 +90,30 @@ def _resolve_store_id(store_id: str, store_name: str) -> tuple[str, str]:
     return str(matches[0].get("storeId") or ""), "name_match"
 
 
+
+# Account health parser
+def _account_health_metrics(text: str) -> list[dict[str, str]]:
+    patterns = (
+        ("account_health_status", r"账户状况\s*(?:为\s*)?((?:良好|健康|警告|预警|存在风险|不健康|healthy|good|warning|critical|unhealthy))"),
+        ("account_health_rating", r"账户状况评级[^0-9]*?([0-9]+)"),
+        ("order_defect_rate", r"订单缺陷率[^%]*?([0-9,.]+)%"),
+        ("late_shipment_rate", r"迟发率[^%]*?([0-9,.]+)%"),
+        ("valid_tracking_rate", r"有效追踪率[^%]*?([0-9,.]+)%"),
+        ("on_time_delivery_rate", r"准时交货率[^%]*?([0-9,.]+)%"),
+        ("ip_complaints", r"知识产权投诉[^0-9]*?([0-9]+)"),
+        ("restricted_product_violations", r"违反受限商品政策[^0-9]*?([0-9]+)"),
+        ("listing_policy_violations", r"上架政策违规[^0-9]*?([0-9]+)"),
+    )
+    return [row for label, pattern in patterns if (row := _metric(label, text, pattern))]
 def crawl_zclaw_amazon(*, browser_id: str, store_name: str, scope: str) -> dict[str, Any]:
     store_id, binding = _resolve_store_id(browser_id, store_name)
-    opened = cli_tools.ziniao_store_open(store_id, HOME_URL)
+    target_url = SCOPE_URLS.get(scope, HOME_URL)
+    opened = cli_tools.ziniao_store_open(store_id, target_url)
     if not opened.get("ok"):
         raise RuntimeError(opened.get("summary") or "紫鸟店铺浏览器未能打开")
+    visited = cli_tools.ziniao_page_visit(store_id, target_url, wait_until="domcontentloaded")
+    if not visited.get("ok"):
+        raise RuntimeError(visited.get("summary") or "紫鸟店铺浏览器未能导航到目标页面")
     content = cli_tools.ziniao_page_content(store_id)
     if not content.get("ok"):
         raise RuntimeError(content.get("summary") or "无法读取 Amazon 页面")
@@ -76,7 +123,7 @@ def crawl_zclaw_amazon(*, browser_id: str, store_name: str, scope: str) -> dict[
     low = text.lower()
     if any(marker in low for marker in ("sign in", "登录", "not a robot", "captcha", "人机验证", "验证码")):
         raise RuntimeError("Amazon 页面需要人工登录或完成验证")
-    metrics = _dashboard_metrics(text)
+    metrics = _account_health_metrics(text) if scope == "account_health" else _dashboard_metrics(text)
     if not metrics and "sellercentral.amazon.com" not in text.lower() and "卖家" not in text:
         raise RuntimeError("当前紫鸟店铺未处于可识别的 Seller Central 页面")
     return {
@@ -86,6 +133,13 @@ def crawl_zclaw_amazon(*, browser_id: str, store_name: str, scope: str) -> dict[
         "buyer_messages": [],
         "reviews": [],
         "cases": [],
-        "page_url": HOME_URL,
-        "result_summary": {"products_count": 0, "orders_count": 0, "metrics_count": len(metrics), "transport": "zclaw", "store_binding": binding},
+        "page_url": target_url,
+        "result_summary": {
+            "products_count": 0,
+            "orders_count": 0,
+            "metrics_count": len(metrics),
+            "transport": "zclaw",
+            "store_binding": binding,
+            "scope": scope,
+        },
     }
