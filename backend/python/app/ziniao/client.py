@@ -15,8 +15,9 @@ from typing import Any
 
 import httpx
 
+from app.ziniao.discovery import DEFAULT_CLIENT_PATH, discover_ziniao_client_path
+
 DEFAULT_SOCKET_PORT = 16851
-DEFAULT_CLIENT_PATH = Path(r"C:\Program Files\ziniao\ziniao.exe")
 
 
 @dataclass
@@ -35,9 +36,7 @@ class ZiniaoConfig:
         company = (os.getenv("ZINIAO_COMPANY") or "").strip()
         username = (os.getenv("ZINIAO_USERNAME") or "").strip()
         password = (os.getenv("ZINIAO_PASSWORD") or "").strip()
-        client_path = (
-            os.getenv("ZINIAO_CLIENT_PATH") or str(DEFAULT_CLIENT_PATH)
-        ).strip() or str(DEFAULT_CLIENT_PATH)
+        client_path = discover_ziniao_client_path((os.getenv("ZINIAO_CLIENT_PATH") or "").strip())
         socket_port = int(os.getenv("ZINIAO_SOCKET_PORT") or str(DEFAULT_SOCKET_PORT))
 
         if not company or not username or not password:
