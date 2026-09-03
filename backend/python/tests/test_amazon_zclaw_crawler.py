@@ -60,6 +60,29 @@ class ZclawAmazonCrawlerTest(unittest.TestCase):
         crawl_zclaw_amazon(browser_id="store-1", store_name="Store", scope="account_health")
         page_visit.assert_called_once_with("store-1", "https://sellercentral.amazon.com/performance/account/health", wait_until="domcontentloaded")
 
+    def test_dashboard_metrics_extracts_today_sales_and_orders_from_live_dashboard(self) -> None:
+        text = "已订购商品销售额 US$9.99 已订购商品数量 1 转化率 -- 今天到目前为止"
+        rows = {row["metric_key"]: row["value"] for row in _dashboard_metrics(text)}
+        self.assertEqual(rows["today_sales"], "US$9.99")
+        self.assertEqual(rows["today_orders"], "1")
+
+    @patch("app.amazon.zclaw_crawler.time.sleep")
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_page_visit")
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_store_open")
+    @patch("app.amazon.zclaw_crawler.cli_tools.ziniao_page_content")
+    def test_crawl_retries_while_amazon_dashboard_is_still_loading(self, page_content, store_open, page_visit, sleep) -> None:
+        store_open.return_value = {"ok": True}
+        page_visit.return_value = {"ok": True}
+        page_content.side_effect = [
+            {"ok": True, "data": {"data": {"content": {"text": "正在加载..."}}}},
+            {"ok": True, "data": {"data": {"content": {"text": "我的业务 今日全球销售额 US$10 未解决的订单 15 总余额 US$74 已订购商品销售额 US$9.99 已订购商品数量 1"}}}},
+        ]
+        result = crawl_zclaw_amazon(browser_id="store-1", store_name="Store", scope="daily")
+        self.assertEqual(result["result_summary"]["transport"], "zclaw")
+        self.assertEqual(result["result_summary"]["metrics_count"], 4)
+        self.assertEqual(page_content.call_count, 2)
+        sleep.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 from typing import Any
 
 from app.amazon.page_urls import HEALTH_URL, REPORT_URLS
@@ -67,8 +69,8 @@ def _metric(label: str, text: str, pattern: str) -> dict[str, str] | None:
 
 def _dashboard_metrics(text: str) -> list[dict[str, str]]:
     patterns = (
-        ("today_sales", r"(?:今天到目前为止.{0,80}?已订购商品销售额|已订购商品销售额.{0,80}?今天到目前为止)\s*(US\$[\d,.]+)"),
-        ("today_orders", r"(?:今天到目前为止.{0,80}?已订购商品数量|已订购商品数量.{0,80}?今天到目前为止)\s*([\d,]+)"),
+        ("today_sales", r"已订购商品销售额\s*(US\$[\d,.]+)"),
+        ("today_orders", r"已订购商品数量\s*([\d,]+)"),
         ("unresolved_orders", r"未解决的订单\s*([\d,]+)"),
         ("total_balance", r"总余额\s*(US\$[\d,.]+)"),
         ("ad_sales_7d", r"最近\s*7\s*天.{0,180}?带来的销售额\s*(US\$[\d,.]+)"),
@@ -105,6 +107,54 @@ def _account_health_metrics(text: str) -> list[dict[str, str]]:
         ("listing_policy_violations", r"上架政策违规[^0-9]*?([0-9]+)"),
     )
     return [row for label, pattern in patterns if (row := _metric(label, text, pattern))]
+def _content_retry_count() -> int:
+    try:
+        return max(1, min(int(os.environ.get("AMAZON_ZCLAW_CONTENT_RETRIES", "8")), 10))
+    except ValueError:
+        return 8
+
+
+def _content_retry_delay() -> float:
+    try:
+        return max(0.0, min(float(os.environ.get("AMAZON_ZCLAW_CONTENT_RETRY_DELAY_SECONDS", "1.5")), 10.0))
+    except ValueError:
+        return 1.5
+
+
+def _page_content_ready(text: str, scope: str) -> bool:
+    if not text.strip():
+        return False
+    low = text.lower()
+    if any(marker in low for marker in ("正在加载", "loading...", "loading…", "please wait")):
+        return False
+    metrics = _account_health_metrics(text) if scope == "account_health" else _dashboard_metrics(text)
+    if scope == "daily":
+        return bool(metrics) and ("已订购商品销售额" in text or "今天到目前为止" in text)
+    if scope == "account_health":
+        return bool(metrics)
+    return bool(metrics) or any(marker in low for marker in (
+        "sellercentral.amazon.com", "seller central", "卖家平台", "我的业务", "账户状况"
+    ))
+
+
+def _read_ready_page_content(store_id: str, scope: str) -> tuple[dict[str, Any], str]:
+    last_result: dict[str, Any] = {}
+    last_text = ""
+    attempts = _content_retry_count()
+    for attempt in range(attempts):
+        result = cli_tools.ziniao_page_content(store_id)
+        last_result = result
+        if result.get("ok"):
+            last_text = _content_text(result.get("data"))
+            if _page_content_ready(last_text, scope):
+                return result, last_text
+        if attempt < attempts - 1:
+            time.sleep(_content_retry_delay())
+    if not last_result.get("ok"):
+        raise RuntimeError(last_result.get("summary") or "无法读取 Amazon 页面")
+    return last_result, last_text
+
+
 def crawl_zclaw_amazon(*, browser_id: str, store_name: str, scope: str) -> dict[str, Any]:
     store_id, binding = _resolve_store_id(browser_id, store_name)
     target_url = SCOPE_URLS.get(scope, HOME_URL)
@@ -114,17 +164,14 @@ def crawl_zclaw_amazon(*, browser_id: str, store_name: str, scope: str) -> dict[
     visited = cli_tools.ziniao_page_visit(store_id, target_url, wait_until="domcontentloaded")
     if not visited.get("ok"):
         raise RuntimeError(visited.get("summary") or "紫鸟店铺浏览器未能导航到目标页面")
-    content = cli_tools.ziniao_page_content(store_id)
-    if not content.get("ok"):
-        raise RuntimeError(content.get("summary") or "无法读取 Amazon 页面")
-    text = _content_text(content.get("data"))
+    content, text = _read_ready_page_content(store_id, scope)
     if not text:
         raise RuntimeError("Amazon 页面未返回可解析文本")
     low = text.lower()
     if any(marker in low for marker in ("sign in", "登录", "not a robot", "captcha", "人机验证", "验证码")):
         raise RuntimeError("Amazon 页面需要人工登录或完成验证")
     metrics = _account_health_metrics(text) if scope == "account_health" else _dashboard_metrics(text)
-    if not metrics and "sellercentral.amazon.com" not in text.lower() and "卖家" not in text:
+    if not metrics and not any(marker in low for marker in ("sellercentral.amazon.com", "seller central", "卖家", "我的业务", "账户状况")):
         raise RuntimeError("当前紫鸟店铺未处于可识别的 Seller Central 页面")
     return {
         "metrics": metrics,
