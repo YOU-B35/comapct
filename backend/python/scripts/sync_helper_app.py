@@ -274,12 +274,40 @@ def load_config() -> dict:
             file=sys.stderr,
         )
 
-    ziniao_ok = bool(
+    cli_state = {"ok": False, "summary": "未检查"}
+    if token:
+        try:
+            from app.ziniao.cli_tools import prepare_bundled_cli, ziniao_doctor
+
+            prepared_cli = prepare_bundled_cli(project_root)
+            if prepared_cli.get("ok"):
+                cli_state = ziniao_doctor(timeout=8)
+                if cli_state.get("ok"):
+                    print("==> 紫鸟 CLI: 已授权且 ZClaw Bridge 已就绪")
+                else:
+                    print(
+                        f"==> 紫鸟 CLI: 已找到，但尚不可取数：{cli_state.get('summary') or 'doctor 未通过'}",
+                        file=sys.stderr,
+                    )
+            else:
+                cli_state = prepared_cli
+                print(f"==> 紫鸟 CLI: {cli_state['summary']}", file=sys.stderr)
+        except Exception as exc:
+            cli_state = {"ok": False, "summary": f"紫鸟 CLI 初始化失败: {exc}"}
+            print(f"==> {cli_state['summary']}", file=sys.stderr)
+
+    webdriver_configured = bool(
         (os.environ.get("ZINIAO_COMPANY") or "").strip()
         and (os.environ.get("ZINIAO_USERNAME") or "").strip()
         and (os.environ.get("ZINIAO_PASSWORD") or "").strip()
     )
-    print(f"==> 紫鸟账号配置: {'已就绪' if ziniao_ok else '缺失（Amazon 将失败）'}")
+    ziniao_ok = webdriver_configured or bool(cli_state.get("ok"))
+    if cli_state.get("ok"):
+        print("==> 紫鸟同步通道: CLI 普通模式已就绪")
+    elif webdriver_configured:
+        print("==> 紫鸟同步通道: WebDriver 已就绪")
+    else:
+        print("==> 紫鸟同步通道: CLI 与 WebDriver 均未就绪（Amazon 将失败）")
 
     if token:
         os.environ["AGENT_TOKEN"] = token
@@ -293,6 +321,7 @@ def load_config() -> dict:
         "project_root": project_root,
         "temu_profile_root": os.environ.get("TEMU_PROFILE_ROOT", ""),
         "ziniao_configured": ziniao_ok,
+        "ziniao_cli_ready": bool(cli_state.get("ok")),
         "bound": bool(token),
     }
 
@@ -306,7 +335,31 @@ def port_listening(port: int) -> bool:
 
 
 def maybe_start_ziniao() -> None:
-    print("==> [1/2] Ziniao WebDriver（Amazon，端口 16851）...")
+    try:
+        from app.ziniao.cli_tools import prepare_bundled_cli, ziniao_doctor
+
+        cli_installed = bool(prepare_bundled_cli().get("ok"))
+        cli_ready = bool(ziniao_doctor(timeout=8).get("ok"))
+    except Exception:
+        cli_installed = False
+        cli_ready = False
+    if cli_ready:
+        print("==> [1/2] 紫鸟 CLI 普通模式已就绪，保留当前浏览器会话。")
+        return
+
+    webdriver_configured = bool(
+        (os.environ.get("ZINIAO_COMPANY") or "").strip()
+        and (os.environ.get("ZINIAO_USERNAME") or "").strip()
+        and (os.environ.get("ZINIAO_PASSWORD") or "").strip()
+    )
+    if cli_installed and not webdriver_configured:
+        print("==> [1/2] 紫鸟 CLI 已安装但普通模式尚未就绪；请完成 CLI 授权并启动紫鸟浏览器。")
+        return
+    if not webdriver_configured:
+        print("==> [1/2] 未配置 WebDriver 凭据，跳过传统紫鸟浏览器启动。")
+        return
+
+    print("==> [1/2] Ziniao WebDriver（CLI 不可用时的兼容模式，端口 16851）...")
     if not ZINIAO_EXE.is_file():
         print("    [SKIP] 未安装紫鸟。Amazon 同步需要；Temu 不受影响。")
         return

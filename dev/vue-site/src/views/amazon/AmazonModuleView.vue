@@ -2,21 +2,7 @@
 import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import {
-  Bell,
-  Box,
-  ChatDotRound,
-  Clock,
-  DataAnalysis,
-  MagicStick,
-  MoreFilled,
-  Promotion,
-  Refresh,
-  Shop,
-  Tickets,
-  Van,
-  Warning,
-} from '@element-plus/icons-vue'
+import { Clock, Refresh } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePlatformSyncStore } from '@/stores/platformSync'
 import { buildPlatformSyncTargets } from '@/api/platformSync'
@@ -284,36 +270,6 @@ const tabBadges = computed(() => {
     cases: map.cases || 0,
   }
 })
-
-const workspaceMeta = {
-  products: { title: '产品表现', description: '查看销售、流量、库存和广告效率' },
-  outbound: { title: '订单发货', description: '处理待发货、待揽收与异常订单' },
-  messages: { title: '买家消息', description: '集中处理客户咨询和回复任务' },
-  account: { title: '账户状况', description: '跟踪绩效指标与账户风险' },
-  assistant: { title: 'AI 经营助手', description: '基于当前店铺实时数据进行只读分析' },
-  reviews: { title: '差评预警', description: '识别并跟进需要处理的买家评价' },
-  cases: { title: 'Case 回复', description: '管理 Amazon Case 与申诉事项' },
-  coupons: { title: '优惠券', description: '查看促销活动状态与待办' },
-  shipments: { title: '货件到货', description: '跟踪 FBA 货件和到货进度' },
-  news: { title: '卖家新闻', description: '查看与店铺经营相关的平台通知' },
-}
-
-const activeWorkspaceMeta = computed(
-  () => workspaceMeta[activeTab.value] || workspaceMeta.outbound,
-)
-
-const workspaceOptions = computed(() => [
-  ...(auth.isBoss ? [{ value: 'products', label: '产品表现' }] : []),
-  { value: 'outbound', label: '订单发货' },
-  { value: 'messages', label: '买家消息' },
-  { value: 'account', label: '账户状况' },
-  { value: 'assistant', label: 'AI 经营助手' },
-  { value: 'reviews', label: '差评预警' },
-  { value: 'cases', label: 'Case 回复' },
-  { value: 'coupons', label: '优惠券' },
-  { value: 'shipments', label: '货件到货' },
-  { value: 'news', label: '卖家新闻' },
-])
 
 function applyWorkflowData(data) {
   workflow.value = {
@@ -689,7 +645,6 @@ onActivated(loadModule)
     <PageHeader
       title="Amazon 运营中心"
       description="聚合店铺经营数据，按优先级处理订单、商品与风险"
-      compact
     />
 
     <HelperStatusBar
@@ -709,30 +664,14 @@ onActivated(loadModule)
       class="operational-hint"
     />
 
-    <PageSection v-if="amazonStores.length" tone="toolbar" class="store-command-bar">
+    <PageSection v-if="amazonStores.length" title="店铺" tone="toolbar" class="store-command-bar">
       <div class="toolbar-row">
-        <div class="store-control">
-          <span class="store-control__icon" aria-hidden="true">
-            <el-icon><Shop /></el-icon>
-          </span>
-          <div class="store-control__copy">
-            <span class="store-control__label">当前范围</span>
-            <strong>{{ selectedStoreId === 'all' ? '全部 Amazon 店铺' : (selectedAmazonChatStore?.storeName || '当前店铺') }}</strong>
-          </div>
-          <el-select
-            v-model="selectedStoreId"
-            class="store-select"
-            aria-label="选择 Amazon 店铺"
-          >
-            <el-option label="全部店铺" value="all" />
-            <el-option
-              v-for="store in amazonStores"
-              :key="store.id"
-              :label="store.storeName"
-              :value="store.id"
-            />
-          </el-select>
-        </div>
+        <el-radio-group v-model="selectedStoreId" size="small" class="store-tabs" aria-label="选择 Amazon 店铺">
+          <el-radio-button value="all">全部店铺</el-radio-button>
+          <el-radio-button v-for="store in amazonStores" :key="store.id" :value="store.id">
+            {{ store.storeName }}
+          </el-radio-button>
+        </el-radio-group>
         <div class="toolbar-actions">
           <el-button
             v-if="showManualSyncControls"
@@ -796,75 +735,15 @@ onActivated(loadModule)
 
     <PageSection
       v-if="!loadingStores && amazonStores.length"
-      :title="activeWorkspaceMeta.title"
-      :description="activeWorkspaceMeta.description"
+      title="运营明细"
+      description="按店铺范围查看经营、履约和风险数据"
       class="amazon-workspace"
     >
-      <el-menu
-        :default-active="activeTab"
-        mode="horizontal"
-        :ellipsis="false"
-        class="workspace-nav"
-        @select="activeTab = $event"
-      >
-        <el-menu-item v-if="auth.isBoss" index="products">
-          <el-icon><DataAnalysis /></el-icon>
-          <span>产品</span>
-          <el-badge v-if="tabBadges.products" :value="tabBadges.products" class="menu-badge" />
-        </el-menu-item>
-        <el-menu-item index="outbound">
-          <el-icon><Box /></el-icon>
-          <span>订单</span>
-          <el-badge v-if="tabBadges.outbound" :value="tabBadges.outbound" class="menu-badge" />
-        </el-menu-item>
-        <el-menu-item index="messages">
-          <el-icon><ChatDotRound /></el-icon>
-          <span>消息</span>
-          <el-badge v-if="tabBadges.messages" :value="tabBadges.messages" class="menu-badge" />
-        </el-menu-item>
-        <el-menu-item index="account">
-          <el-icon><Warning /></el-icon>
-          <span>账户</span>
-          <el-badge v-if="tabBadges.account" :value="tabBadges.account" class="menu-badge" />
-        </el-menu-item>
-        <el-menu-item index="assistant">
-          <el-icon><MagicStick /></el-icon>
-          <span>AI 助手</span>
-        </el-menu-item>
-        <el-sub-menu index="more">
-          <template #title>
-            <el-icon><MoreFilled /></el-icon>
-            <span>更多运营</span>
-          </template>
-          <el-menu-item index="reviews"><el-icon><Bell /></el-icon><span>差评预警</span></el-menu-item>
-          <el-menu-item index="cases"><el-icon><Tickets /></el-icon><span>Case 回复</span></el-menu-item>
-          <el-menu-item index="coupons"><el-icon><Promotion /></el-icon><span>优惠券</span></el-menu-item>
-          <el-menu-item index="shipments"><el-icon><Van /></el-icon><span>货件到货</span></el-menu-item>
-          <el-menu-item index="news"><el-icon><Bell /></el-icon><span>卖家新闻</span></el-menu-item>
-        </el-sub-menu>
-      </el-menu>
-
-      <el-select
-        v-model="activeTab"
-        class="workspace-nav-mobile"
-        aria-label="选择 Amazon 运营视图"
-      >
-        <el-option
-          v-for="option in workspaceOptions"
-          :key="option.value"
-          :label="option.label"
-          :value="option.value"
-        />
-      </el-select>
-
       <el-tabs v-model="activeTab" class="module-tabs">
         <el-tab-pane name="assistant">
-          <div class="tab-panel assistant-panel">
-            <div class="assistant-toolbar">
-              <div class="assistant-context">
-                <el-icon><Shop /></el-icon>
-                <span>{{ selectedAmazonChatStore?.storeName || '请选择单个店铺开始分析' }}</span>
-              </div>
+            <div class="tab-panel assistant-panel">
+              <div class="assistant-toolbar">
+                <span class="assistant-context">{{ selectedAmazonChatStore?.storeName || '请选择单个店铺开始分析' }}</span>
               <el-button
                 size="small"
                 :disabled="amazonChatDisabled"
@@ -1093,50 +972,17 @@ onActivated(loadModule)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-}
-
-.store-control {
-  display: flex;
-  align-items: center;
   gap: 12px;
+}
+
+.store-tabs {
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.store-control__icon {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  border: 1px solid var(--ch-border);
-  border-radius: 8px;
-  color: var(--ch-primary);
-  background: var(--ch-primary-soft);
-}
-
-.store-control__copy {
-  display: grid;
-  gap: 1px;
-  min-width: 128px;
-}
-
-.store-control__copy strong {
-  overflow: hidden;
-  color: var(--ch-text);
-  font-size: 13px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.store-control__label {
-  color: var(--ch-text-muted);
-  font-size: 11px;
-}
-
-.store-select {
-  width: min(260px, 34vw);
+.store-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .toolbar-actions {
@@ -1159,48 +1005,6 @@ onActivated(loadModule)
   min-width: 0;
 }
 
-.workspace-nav {
-  --el-menu-horizontal-height: 44px;
-  margin: -4px 0 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border-bottom: 1px solid var(--ch-border);
-  scrollbar-width: none;
-}
-
-.workspace-nav::-webkit-scrollbar {
-  display: none;
-}
-
-.workspace-nav-mobile {
-  display: none;
-}
-
-.workspace-nav :deep(.el-menu-item),
-.workspace-nav :deep(.el-sub-menu__title) {
-  flex-shrink: 0;
-  gap: 6px;
-  padding: 0 14px;
-  color: var(--ch-text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.workspace-nav :deep(.el-menu-item.is-active) {
-  color: var(--ch-primary);
-  background: var(--ch-primary-soft);
-}
-
-.menu-badge {
-  margin-left: 2px;
-}
-
-.menu-badge :deep(.el-badge__content) {
-  position: relative;
-  inset: auto;
-  transform: none;
-}
-
 .assistant-panel {
   display: grid;
   gap: 10px;
@@ -1214,22 +1018,16 @@ onActivated(loadModule)
 }
 
 .assistant-context {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
   min-width: 0;
   color: var(--ch-text-muted);
   font-size: 12px;
-}
-
-.assistant-context span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .module-tabs :deep(.el-tabs__header) {
-  display: none;
+  margin: 0;
 }
 
 .tab-panel {
@@ -1257,16 +1055,6 @@ onActivated(loadModule)
     flex-direction: column;
   }
 
-  .store-control {
-    display: grid;
-    grid-template-columns: 34px minmax(0, 1fr);
-  }
-
-  .store-select {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
   .toolbar-actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1282,26 +1070,8 @@ onActivated(loadModule)
     min-height: 400px;
   }
 
-  .workspace-nav {
-    display: none;
-  }
-
-  .workspace-nav-mobile {
-    display: block;
+  .store-tabs {
     width: 100%;
-    margin: -2px 0 2px;
-  }
-
-  .workspace-tabs :deep(.panel-header__main),
-  .module-tabs :deep(.panel-header__main) {
-    flex-basis: 100%;
-  }
-
-  .workspace-tabs :deep(.panel-header__side),
-  .module-tabs :deep(.panel-header__side) {
-    width: 100%;
-    min-width: 0;
-    flex-shrink: 1;
   }
 }
 </style>

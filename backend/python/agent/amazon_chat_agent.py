@@ -12,8 +12,6 @@ from dataclasses import dataclass
 from datetime import datetime
 import json
 import os
-import shutil
-import subprocess
 import time
 from typing import Any
 
@@ -22,6 +20,7 @@ from agent.chat_kernel import run_agent_loop
 from app.amazon.report_crawler import crawl_amazon
 from app.amazon.zclaw_crawler import crawl_zclaw_amazon, supports_zclaw_fast_scope
 from app.llm.client import chat_completion
+from app.ziniao import cli_tools
 
 
 ALLOWED_KEYWORDS = (
@@ -528,9 +527,9 @@ def parse_operational_item(row: dict[str, Any]) -> dict[str, Any]:
 
 def run_ziniao_chat_probe(*, question: str, store_name: str, payload: dict[str, Any]) -> dict[str, Any]:
     started = time.perf_counter()
-    cli = os.environ.get("ZINIAO_CLI_BIN", "ziniao-cli").strip() or "ziniao-cli"
-    executable = shutil.which(cli)
-    if not executable:
+    result = cli_tools.ziniao_doctor(timeout=20)
+    if not result.get("ok"):
+        status = "missing" if result.get("error") == "ziniao_cli_missing" else "failed"
         return {
             "tool_name": "ziniao_cli",
             "ok": False,
@@ -539,50 +538,26 @@ def run_ziniao_chat_probe(*, question: str, store_name: str, payload: dict[str, 
                 "question_length": len(question),
                 "platform_account_id": payload.get("platform_account_id", ""),
             },
-            "summary": "未检测到紫鸟 CLI，未获取实时页面数据",
+            "summary": result.get("summary") or "未获取到紫鸟 CLI 实时页面数据",
             "duration_ms": _elapsed_ms(started),
             "source": {
                 "type": "local_tool",
                 "name": "ziniao_cli",
-                "status": "missing",
+                "status": status,
                 "captured_at": _now(),
             },
         }
 
-    try:
-        completed = subprocess.run(
-            [executable, "doctor"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=float(os.environ.get("AMAZON_CHAT_TOOL_TIMEOUT_SECONDS", "20")),
-        )
-    except Exception as exc:
-        return {
-            "tool_name": "ziniao_cli",
-            "ok": False,
-            "args": {"store_name": store_name, "question_length": len(question)},
-            "summary": str(exc),
-            "duration_ms": _elapsed_ms(started),
-            "source": {
-                "type": "local_tool",
-                "name": "ziniao_cli",
-                "status": "failed",
-                "captured_at": _now(),
-            },
-        }
-
-    output = (completed.stdout or completed.stderr or "").strip()
     return {
         "tool_name": "ziniao_cli",
-        "ok": completed.returncode == 0,
+        "ok": True,
         "args": {"store_name": store_name, "question_length": len(question)},
-        "summary": _trim(output, 600),
+        "summary": _trim(str(result.get("summary") or result.get("data") or "紫鸟 CLI 可用"), 600),
         "duration_ms": _elapsed_ms(started),
         "source": {
             "type": "local_tool",
             "name": "ziniao_cli doctor",
-            "status": "ok" if completed.returncode == 0 else "failed",
+            "status": "ok",
             "captured_at": _now(),
         },
     }

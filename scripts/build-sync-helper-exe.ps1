@@ -151,6 +151,20 @@ if (-not (Test-Path $ExePath)) {
 }
 
 Write-Host "==> [ASSETS] 拷贝辅助文件到: $AppDir" -ForegroundColor Cyan
+$CliPackage = Join-Path $Root "tools\ziniao-cli"
+$CliDestination = Join-Path $AppDir "tools\ziniao-cli"
+if (Test-Path (Join-Path $CliPackage "package.json")) {
+    New-Item -ItemType Directory -Force -Path $CliDestination | Out-Null
+    Copy-Item -Force (Join-Path $CliPackage "package.json")      (Join-Path $CliDestination "package.json")
+    Copy-Item -Force (Join-Path $CliPackage "package-lock.json") (Join-Path $CliDestination "package-lock.json") -ErrorAction SilentlyContinue
+    $CliNodeModules = Join-Path $CliPackage "node_modules"
+    if (Test-Path $CliNodeModules) {
+        Copy-Item -Recurse -Force $CliNodeModules (Join-Path $CliDestination "node_modules")
+        Write-Host "    已携带内置紫鸟 CLI 依赖（首次启动无需配置环境变量）" -ForegroundColor Gray
+    } else {
+        Write-Host "    已携带紫鸟 CLI 安装包；首次启动将自动安装依赖" -ForegroundColor Gray
+    }
+}
 $example = Join-Path $Assets "config.example.json"
 $cfgOut  = Join-Path $AppDir "config.example.json"
 Copy-Item -Force $example $cfgOut -ErrorAction SilentlyContinue
@@ -284,6 +298,7 @@ CrossHub Sync Helper · 电商跨平台同步助手（64 位 · 浏览器面板�
 【日常使用】
 - 直接双击 EXE；如已运行会复用单实例，避免重复启动。
 - 网站「连接助手」按钮可通过 crosshub-sync-helper:// 协议自动唤起。
+- Amazon 同步会自动发现内置紫鸟 CLI；无需设置 ZINIAO_CLI_BIN 系统环境变量。
 - Playwright Chromium 若缺失：python -m playwright install chromium
 
 文件清单：

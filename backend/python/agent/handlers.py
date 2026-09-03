@@ -121,21 +121,15 @@ def handle_ziniao_discover(client: AgentApiClient, task: dict[str, Any]) -> None
     if not task_id:
         return
 
-    ziniao = ZiniaoClient(ZiniaoConfig.from_env())
     try:
+        ziniao = ZiniaoClient(ZiniaoConfig.from_env())
         ziniao.ensure_webdriver_client(wait_seconds=20)
         stores = ziniao.get_browser_list()
         client.complete_task(task_id, status="success", result={"stores": stores})
     except Exception as exc:
         message = str(exc)
-        if "普通模式运行" not in message and "WebDriver API" not in message:
-            client.complete_task(
-                task_id,
-                status="failed",
-                error_code="ZINIAO_DISCOVER_FAILED",
-                error_message=message,
-            )
-            return
+        # CLI discovery is the primary normal-mode path and must not depend on
+        # legacy WebDriver credentials being present in the Helper environment.
         from app.ziniao import cli_tools
 
         listed = cli_tools.ziniao_store_list()
@@ -189,6 +183,7 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
         file=sys.stderr,
     )
 
+    zclaw_error = ""
     try:
         result = None
         zclaw_enabled = os.environ.get("AMAZON_ZCLAW_FALLBACK_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
@@ -204,10 +199,12 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
                     result = zclaw_result
                     print(f"[Agent][Amazon] ZClaw path succeeded task_id={task_id}", file=sys.stderr)
             except Exception as exc:
+                zclaw_error = str(exc)
                 print(f"[Agent][Amazon] ZClaw path unavailable task_id={task_id}: {exc}", file=sys.stderr)
         if result is None:
             if ziniao_store_id and not browser_id and not browser_oauth:
-                raise RuntimeError("紫鸟 CLI 同步失败，且该店铺没有 WebDriver 绑定：请确认店铺已登录并安装 ziniao-cli")
+                detail = f"：{zclaw_error}" if zclaw_error else ""
+                raise RuntimeError(f"紫鸟 CLI 同步失败，且该店铺没有 WebDriver 绑定{detail}")
             with ThreadPoolExecutor(max_workers=1) as executor:
                 task_context = copy_context()
                 future = executor.submit(
@@ -252,10 +249,24 @@ def handle_amazon_sync(client: AgentApiClient, task: dict[str, Any]) -> None:
         message = str(exc)
         error_code = "AMAZON_SYNC_FAILED"
         if "普通模式运行" in message or "WebDriver API" in message:
-            error_code = "AMAZON_WEBDRIVER_MODE_REQUIRED"
+            if _ziniao_cli_configuration_required(zclaw_error):
+                error_code = "AMAZON_ZINIAO_CLI_SETUP_REQUIRED"
+                message = (
+                    "紫鸟正在普通模式运行，但本机紫鸟 CLI 尚未完成授权初始化。"
+                    "同步助手会自动发现并安装 CLI，无需配置 ZINIAO_CLI_BIN；"
+                    "请由管理员在受控配置中提供紫鸟 CLI 应用授权后重试。"
+                )
+            else:
+                error_code = "AMAZON_WEBDRIVER_MODE_REQUIRED"
+                message = (
+                    "紫鸟当前以普通模式运行，传统 Amazon 全量同步需要 WebDriver 开发者模式。"
+                    "请先在账户绑定中通过紫鸟 CLI 导入店铺；已导入的 CLI 店铺可同步账户健康、订单、库存和 Business Report。"
+                )
+        elif _ziniao_cli_configuration_required(message):
+            error_code = "AMAZON_ZINIAO_CLI_SETUP_REQUIRED"
             message = (
-                "紫鸟当前以普通模式运行，传统 Amazon 全量同步需要 WebDriver 开发者模式。"
-                "请先在账户绑定中通过紫鸟 CLI 导入店铺；已导入的 CLI 店铺可同步账户健康、订单、库存和 Business Report。"
+                "本机紫鸟 CLI 尚未完成授权初始化。同步助手会自动发现并安装 CLI，"
+                "无需配置 ZINIAO_CLI_BIN；请由管理员在受控配置中提供紫鸟 CLI 应用授权后重试。"
             )
         elif "未登录" in message or "login" in message.lower() or "sign in" in message.lower():
             error_code = "AMAZON_LOGIN_REQUIRED"
@@ -321,6 +332,11 @@ def handle_amazon_write(client: AgentApiClient, task: dict[str, Any]) -> None:
             error_code=error_code,
             error_message=message,
         )
+
+
+def _ziniao_cli_configuration_required(message: str) -> bool:
+    low = (message or "").lower()
+    return "config init" in low or "api key" in low or "apikey" in low or "配置文件" in message
 
 
 def handle_amazon_chat(client: AgentApiClient, task: dict[str, Any]) -> None:

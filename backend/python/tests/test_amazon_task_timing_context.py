@@ -46,7 +46,9 @@ class AmazonTaskTimingContextTests(unittest.TestCase):
             "payload": {"scope": "daily", "browser_id": "browser-1", "store_name": "Store"},
         }
 
-        with patch("agent.handlers.crawl_amazon", side_effect=RuntimeError("检测到紫鸟正在普通模式运行（无 WebDriver API）")):
+        with patch("agent.handlers.crawl_zclaw_amazon", side_effect=RuntimeError("CLI store is unavailable")), patch(
+            "agent.handlers.crawl_amazon", side_effect=RuntimeError("检测到紫鸟正在普通模式运行（无 WebDriver API）")
+        ):
             handle_amazon_sync(client, task)
 
         client.complete_task_with_retry.assert_called_once()
@@ -67,6 +69,22 @@ class AmazonTaskTimingContextTests(unittest.TestCase):
 
         zclaw.assert_called_once_with(store_id="cli-store-1", store_name="Store", scope="daily")
         webdriver.assert_not_called()
+
+    def test_normal_mode_surfaces_cli_authorization_requirement(self):
+        client = MagicMock()
+        task = {
+            "task_id": "amazon-sync-cli-config-1",
+            "payload": {"scope": "daily", "browser_id": "browser-1", "store_name": "Store"},
+        }
+
+        with patch("agent.handlers.crawl_zclaw_amazon", side_effect=RuntimeError("找不到配置文件，请执行 ziniao-cli config init")), patch(
+            "agent.handlers.crawl_amazon", side_effect=RuntimeError("检测到紫鸟正在普通模式运行（无 WebDriver API）")
+        ):
+            handle_amazon_sync(client, task)
+
+        _, kwargs = client.complete_task_with_retry.call_args
+        self.assertEqual(kwargs["error_code"], "AMAZON_ZINIAO_CLI_SETUP_REQUIRED")
+        self.assertIn("无需配置 ZINIAO_CLI_BIN", kwargs["error_message"])
 
     def test_write_nested_worker_contributes_to_task_timing(self):
         timing, token = start_task_timing("amazon_write", "amazon-write-1")

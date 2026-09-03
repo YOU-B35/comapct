@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,131 @@ CAPTCHA_MARKERS = (
     "访问异常",
     "流量异常",
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _project_roots(project_root: str = "") -> list[Path]:
+    """Find project roots that may contain the bundled Ziniao CLI package."""
+    raw_roots = [
+        project_root,
+        os.environ.get("CROSSHUB_PROJECT_ROOT", ""),
+        str(_REPO_ROOT),
+    ]
+    if getattr(sys, "frozen", False):
+        raw_roots.extend([
+            str(Path(sys.executable).resolve().parent),
+            str(Path(sys.executable).resolve().parent.parent),
+        ])
+
+    roots: list[Path] = []
+    seen: set[str] = set()
+    for raw in raw_roots:
+        if not raw:
+            continue
+        path = Path(raw).expanduser()
+        key = str(path).lower()
+        if key not in seen:
+            seen.add(key)
+            roots.append(path)
+    return roots
+
+
+def _bundled_cli_package(project_root: str = "") -> Path | None:
+    for root in _project_roots(project_root):
+        candidate = root / "tools" / "ziniao-cli"
+        if (candidate / "package.json").is_file():
+            return candidate
+    return None
+
+
+def _bundled_cli_candidates(project_root: str = "") -> list[Path]:
+    package = _bundled_cli_package(project_root)
+    if package is None:
+        return []
+    names = ("ziniao-cli.cmd", "ziniao-cli") if os.name == "nt" else ("ziniao-cli", "ziniao-cli.cmd")
+    return [package / "node_modules" / ".bin" / name for name in names]
+
+
+def resolve_cli_executable(project_root: str = "") -> str:
+    """Resolve CLI without requiring users to set a system environment variable."""
+    configured = (os.environ.get("ZINIAO_CLI_BIN") or "").strip()
+    if configured:
+        configured_path = Path(configured).expanduser()
+        if configured_path.is_file():
+            return str(configured_path)
+        resolved = shutil.which(configured)
+        if resolved:
+            return resolved
+
+    for command in ("ziniao-cli", "ziniao-cli.cmd"):
+        resolved = shutil.which(command)
+        if resolved:
+            return resolved
+
+    for candidate in _bundled_cli_candidates(project_root):
+        if candidate.is_file():
+            return str(candidate)
+    return ""
+
+
+def prepare_bundled_cli(project_root: str = "") -> dict[str, Any]:
+    """Use or bootstrap the project-bundled CLI for the current Helper process.
+
+    This deliberately writes only the current process environment. It does not
+    require users to create ``ZINIAO_CLI_BIN`` in Windows system settings.
+    """
+    executable = resolve_cli_executable(project_root)
+    if executable:
+        os.environ.setdefault("ZINIAO_CLI_BIN", executable)
+        return {"ok": True, "executable": executable, "installed": False, "summary": "紫鸟 CLI 已就绪"}
+
+    package = _bundled_cli_package(project_root)
+    if package is None:
+        return {
+            "ok": False,
+            "executable": "",
+            "installed": False,
+            "summary": "未找到项目内置紫鸟 CLI 包",
+        }
+
+    npm = shutil.which("npm.cmd") or shutil.which("npm")
+    if not npm:
+        return {
+            "ok": False,
+            "executable": "",
+            "installed": False,
+            "summary": "缺少 Node.js 运行时，无法自动安装项目内置紫鸟 CLI",
+        }
+
+    try:
+        completed = subprocess.run(
+            [npm, "ci", "--omit=dev", "--no-audit", "--no-fund"],
+            cwd=str(package),
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "executable": "", "installed": False, "summary": "自动安装紫鸟 CLI 超时"}
+    except Exception as exc:
+        return {"ok": False, "executable": "", "installed": False, "summary": f"自动安装紫鸟 CLI 失败: {exc}"}
+
+    executable = resolve_cli_executable(project_root)
+    if completed.returncode == 0 and executable:
+        os.environ["ZINIAO_CLI_BIN"] = executable
+        return {"ok": True, "executable": executable, "installed": True, "summary": "已自动安装紫鸟 CLI"}
+
+    detail = (completed.stderr or completed.stdout or "").strip()
+    return {
+        "ok": False,
+        "executable": "",
+        "installed": False,
+        "summary": f"自动安装紫鸟 CLI 失败{f': {detail[:240]}' if detail else ''}",
+    }
 
 
 def _tool_timeout(default: float) -> float:
@@ -192,13 +318,19 @@ def _run_cli(args: list[str], timeout: float) -> dict[str, Any]:
 
 
 def _run_cli_impl(args: list[str], timeout: float) -> dict[str, Any]:
-    cli = (os.environ.get("ZINIAO_CLI_BIN") or "ziniao-cli").strip() or "ziniao-cli"
-    executable = shutil.which(cli)
+    executable = resolve_cli_executable()
+    bootstrap_summary = ""
+    if not executable:
+        # A user may finish binding while the Helper is already running. Make
+        # that path self-contained too instead of requiring a Helper restart.
+        prepared = prepare_bundled_cli()
+        executable = str(prepared.get("executable") or "") if prepared.get("ok") else ""
+        bootstrap_summary = str(prepared.get("summary") or "")
     if not executable:
         return {
             "ok": False,
             "data": None,
-            "summary": f"未检测到紫鸟 CLI: {cli}",
+            "summary": bootstrap_summary or "未检测到紫鸟 CLI",
             "error": "ziniao_cli_missing",
         }
     launch = _resolve_cli_launch(executable)

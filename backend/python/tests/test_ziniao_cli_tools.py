@@ -19,10 +19,54 @@ class CompletedProc:
 
 class ZiniaoCliToolsTest(unittest.TestCase):
     def test_missing_cli_returns_not_ok(self) -> None:
-        with patch("app.ziniao.cli_tools.shutil.which", return_value=None):
+        with patch("app.ziniao.cli_tools.shutil.which", return_value=None), patch(
+            "app.ziniao.cli_tools._bundled_cli_candidates", return_value=[]
+        ), patch("app.ziniao.cli_tools._bundled_cli_package", return_value=None):
             result = cli_tools.ziniao_doctor()
         self.assertFalse(result["ok"])
-        self.assertIn("未检测到", result["summary"])
+        self.assertEqual(result["error"], "ziniao_cli_missing")
+
+    def test_resolve_cli_uses_bundled_project_path_without_env_var(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cli_dir = Path(td) / "tools" / "ziniao-cli" / "node_modules" / ".bin"
+            cli_dir.mkdir(parents=True)
+            (Path(td) / "tools" / "ziniao-cli" / "package.json").write_text("{}", encoding="utf-8")
+            suffix = ".cmd" if os.name == "nt" else ""
+            cli = cli_dir / f"ziniao-cli{suffix}"
+            cli.write_text("", encoding="utf-8")
+            with patch.dict("os.environ", {"ZINIAO_CLI_BIN": ""}, clear=False), patch(
+                "app.ziniao.cli_tools.shutil.which", return_value=None
+            ):
+                resolved = cli_tools.resolve_cli_executable(td)
+        self.assertEqual(resolved, str(cli))
+
+    def test_prepare_cli_uses_existing_bundled_install(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cli_dir = Path(td) / "tools" / "ziniao-cli" / "node_modules" / ".bin"
+            cli_dir.mkdir(parents=True)
+            (Path(td) / "tools" / "ziniao-cli" / "package.json").write_text("{}", encoding="utf-8")
+            suffix = ".cmd" if os.name == "nt" else ""
+            cli = cli_dir / f"ziniao-cli{suffix}"
+            cli.write_text("", encoding="utf-8")
+            with patch.dict("os.environ", {"ZINIAO_CLI_BIN": ""}, clear=False), patch(
+                "app.ziniao.cli_tools.shutil.which", return_value=None
+            ):
+                result = cli_tools.prepare_bundled_cli(td)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["executable"], str(cli))
+
+    def test_doctor_bootstraps_cli_after_runtime_binding(self) -> None:
+        with patch("app.ziniao.cli_tools.resolve_cli_executable", return_value=""), patch(
+            "app.ziniao.cli_tools.prepare_bundled_cli",
+            return_value={"ok": True, "executable": "C:/bin/ziniao-cli.exe", "summary": "已自动安装紫鸟 CLI"},
+        ), patch(
+            "app.ziniao.cli_tools.subprocess.run",
+            return_value=CompletedProc(0, "ziniao ok"),
+        ) as run:
+            result = cli_tools.ziniao_doctor()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(run.call_args[0][0], ["C:/bin/ziniao-cli.exe", "doctor"])
 
     def test_doctor_runs_cli_and_reports_ok(self) -> None:
         with patch("app.ziniao.cli_tools.shutil.which", return_value="C:\\bin\\ziniao-cli.exe"):

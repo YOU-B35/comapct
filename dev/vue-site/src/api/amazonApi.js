@@ -430,26 +430,40 @@ export async function refreshAmazonAllWithSync(stores = [], options = {}) {
       '已刷新 Business Report 产品数据',
     ),
   )
+  const accountHealthResult = await settle(() =>
+    refreshWithSync(
+      stores,
+      { scope: 'account_health', platformAccountId: options.platformAccountId, ...innerOpts },
+      fetchAmazonDailyFromBackend,
+      '已刷新账户状况数据',
+    ),
+  )
 
-  const errors = [dailyResult, reportsResult]
+  const results = [dailyResult, reportsResult, accountHealthResult]
+  const failedResults = results
     .filter((item) => item.status === 'rejected')
-    .map((item) => item.reason?.message || '同步失败')
+  const errors = failedResults.map((item) => item.reason?.message || '同步失败')
 
-  if (errors.length === 2) {
-    throw errors[0] instanceof AppApiError
-      ? errors[0]
+  if (failedResults.length === results.length) {
+    const firstError = failedResults[0]?.reason
+    throw firstError instanceof AppApiError
+      ? firstError
       : new AppApiError(errors[0], 'AMAZON_SYNC_FAILED')
   }
 
-  const dailyData = dailyResult.status === 'fulfilled' ? dailyResult.value.data : null
+  // account_health runs last and returns the latest combined daily payload.
+  const dailyData = accountHealthResult.status === 'fulfilled'
+    ? accountHealthResult.value.data
+    : (dailyResult.status === 'fulfilled' ? dailyResult.value.data : null)
   const insightsData = reportsResult.status === 'fulfilled' ? reportsResult.value.data : null
-  const job = (dailyResult.status === 'fulfilled' && dailyResult.value.job)
+  const job = (accountHealthResult.status === 'fulfilled' && accountHealthResult.value.job)
     || (reportsResult.status === 'fulfilled' && reportsResult.value.job)
+    || (dailyResult.status === 'fulfilled' && dailyResult.value.job)
     || null
-  const partial = [dailyResult, reportsResult].some(
+  const partial = results.some(
     (item) => item.status === 'fulfilled' && item.value.partial,
   ) || errors.length > 0
-  const warning = [dailyResult, reportsResult]
+  const warning = results
     .filter((item) => item.status === 'fulfilled' && item.value.partial)
     .map((item) => item.value.warning)
     .find(Boolean)

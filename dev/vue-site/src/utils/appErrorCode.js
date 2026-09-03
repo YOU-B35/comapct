@@ -105,6 +105,7 @@ export const APP_ERROR_MESSAGES = {
   AMAZON_AGENT_OFFLINE: '本机同步助手未在线，请先安装并绑定',
   AMAZON_USER_HELPER_OFFLINE: '本机同步助手未在线，请先安装并绑定',
   AMAZON_ZINIAO_OFFLINE: '紫鸟 WebDriver 未就绪，请确认开发者模式已启动',
+  AMAZON_ZINIAO_CLI_SETUP_REQUIRED: '紫鸟 CLI 尚未完成授权初始化，请联系管理员完成受控授权后重试',
   AMAZON_SYNC_IN_PROGRESS: '已有 Amazon 同步任务进行中，请稍后再试',
   AMAZON_SYNC_JOB_NOT_FOUND: 'Amazon 同步任务不存在',
   AMAZON_SYNC_FAILED: 'Amazon 数据同步失败，请稍后重试',

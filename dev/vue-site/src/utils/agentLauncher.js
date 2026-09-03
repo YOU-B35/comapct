@@ -42,28 +42,9 @@ title ${title}
 }
 
 function buildZiniaoOptionalSection() {
-  return `echo [1/2] Ziniao WebDriver (Amazon only, port 16851)...
-set "ZINIAO_EXE=C:\\Program Files\\ziniao\\ziniao.exe"
-if not exist "%ZINIAO_EXE%" (
-  echo [SKIP] Ziniao not installed. Amazon sync needs it; Temu is unaffected.
-  echo.
-  goto agent_start
-)
-echo       Quit normal Ziniao first, including the tray icon.
-netstat -ano | findstr ":16851" | findstr "LISTENING" >nul
-if errorlevel 1 (
-  start "" "%ZINIAO_EXE%" --run_type=web_driver --ipc_type=http --port=16851
-  echo Waiting for Ziniao WebDriver...
-  timeout /t 8 /nobreak >nul
-  netstat -ano | findstr ":16851" | findstr "LISTENING" >nul
-  if errorlevel 1 (
-    echo [WARN] Port 16851 is not listening. Amazon sync may fail; Temu can still work.
-  ) else (
-    echo Ziniao WebDriver is ready.
-  )
-) else (
-  echo Ziniao WebDriver is already running.
-)
+  return `echo [1/2] Ziniao Amazon channel...
+echo       The bundled CLI will use normal Ziniao mode when it is authorized.
+echo       WebDriver is only a fallback when credentials are configured in the Helper.
 echo.
 :agent_start
 `
@@ -81,6 +62,8 @@ echo.
 set "AGENT_TOKEN=${token}"
 set "JAVA_API_URL=${apiUrl}"
 set "AGENT_HEALTH_PORT=18765"
+set "CROSSHUB_PROJECT_ROOT=${root}"
+set "ZINIAO_CLI_DIR=${root}\\tools\\ziniao-cli"
 set "PYTHONPATH=${root}\\backend\\python"
 cd /d "${root}"
 where py >nul 2>&1
@@ -93,6 +76,17 @@ if not exist "${root}\\backend\\python\\scripts\\run_agent.py" (
   echo [ERROR] Agent script not found. Check project path: ${root}
   pause
   exit /b 6
+)
+if not exist "%ZINIAO_CLI_DIR%\\node_modules\\.bin\\ziniao-cli.cmd" (
+  echo [INFO] Installing bundled Ziniao CLI for Amazon sync...
+  where npm >nul 2>&1
+  if errorlevel 1 (
+    echo [WARN] Node.js is unavailable. Amazon CLI sync will wait until Node.js is installed.
+  ) else (
+    pushd "${root}\\tools\\ziniao-cli"
+    call npm ci --omit=dev --no-audit --no-fund
+    popd
+  )
 )
 :agent_loop
 py "${root}\\backend\\python\\scripts\\run_agent.py"

@@ -41,10 +41,10 @@ class AmazonChatAgentTest(unittest.TestCase):
         self.assertEqual("AMAZON_CHAT_WRITE_REFUSED", decision.error_code)
 
     def test_no_tool_returns_no_live_data(self) -> None:
-        with patch.dict(
-            "os.environ",
-            {"ZINIAO_CLI_BIN": "__missing_ziniao_cli__", "AMAZON_CHAT_LLM_ENABLED": "0"},
-        ):
+        with patch(
+            "agent.amazon_chat_agent.cli_tools.ziniao_doctor",
+            return_value={"ok": False, "error": "ziniao_cli_missing", "summary": "未检测到紫鸟 CLI"},
+        ), patch.dict("os.environ", {"AMAZON_CHAT_LLM_ENABLED": "0"}):
             result = answer_amazon_chat(_task("帮我看一下当前店铺的账户健康"))
 
         self.assertEqual("no_live_data", result["status"])
