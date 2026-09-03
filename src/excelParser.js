@@ -1,11 +1,74 @@
 import path from "node:path";
 import readExcelFile, { readSheet } from "read-excel-file/node";
 
+const REQUIRED_COLUMN_KEYS = new Set([
+  "groupKey",
+  "rowType",
+  "title",
+  "price",
+  "variantTitle",
+  "internalSku"
+]);
+
 function normalizeHeaderName(name, seen) {
   const base = String(name || "").trim();
   if (!base) return null;
   seen[base] = (seen[base] || 0) + 1;
   return seen[base] === 1 ? base : `${base}_${seen[base]}`;
+}
+
+function addColumn(entries, key, column, required) {
+  if (!column || typeof column !== "string") return;
+  entries.push({ key, column, required });
+}
+
+function configuredColumns(fieldMap) {
+  const columns = fieldMap.columns || {};
+  const entries = [];
+
+  for (const [key, value] of Object.entries(columns)) {
+    if (key === "parentValue" || key === "variantValue") continue;
+    if (key === "reviews" && Array.isArray(value)) {
+      for (const review of value) {
+        addColumn(entries, "reviews.text", review.text, false);
+        addColumn(entries, "reviews.image", review.image, false);
+      }
+      continue;
+    }
+
+    const required = REQUIRED_COLUMN_KEYS.has(key);
+    if (Array.isArray(value)) {
+      for (const column of value) addColumn(entries, key, column, required);
+      continue;
+    }
+    addColumn(entries, key, value, required);
+  }
+
+  const seen = new Set();
+  return entries.filter((entry) => {
+    const id = `${entry.key}:${entry.column}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+export function validateWorkbookColumns(headers, fieldMap) {
+  const available = new Set((headers || []).map((header) => header.key));
+  const missingRequiredColumns = [];
+  const missingOptionalColumns = [];
+
+  for (const entry of configuredColumns(fieldMap)) {
+    if (available.has(entry.column)) continue;
+    const target = entry.required ? missingRequiredColumns : missingOptionalColumns;
+    target.push(entry.column);
+  }
+
+  return {
+    ok: missingRequiredColumns.length === 0,
+    missingRequiredColumns,
+    missingOptionalColumns
+  };
 }
 
 export async function parseWorkbook(filePath, fieldMap) {
@@ -26,6 +89,16 @@ export async function parseWorkbook(filePath, fieldMap) {
   for (let col = 0; col < headerRow.length; col += 1) {
     const key = normalizeHeaderName(headerRow[col], seen);
     if (key) headers.push({ key, column: col, label: key.replace(/_\d+$/, "") });
+  }
+
+  const templateValidation = validateWorkbookColumns(headers, fieldMap);
+  if (!templateValidation.ok) {
+    const optional = templateValidation.missingOptionalColumns.length
+      ? `；同时缺少可选字段：${templateValidation.missingOptionalColumns.join("、")}`
+      : "";
+    throw new Error(
+      `Excel 模板缺少必填字段：${templateValidation.missingRequiredColumns.join("、")}${optional}。请检查 ${sheetName} 第 ${headerIndex + 1} 行表头，或修改 config\\field-map.json。`
+    );
   }
 
   const rows = [];
@@ -49,6 +122,7 @@ export async function parseWorkbook(filePath, fieldMap) {
     sheetNames,
     selectedSheet: sheetName,
     headers,
+    templateValidation,
     rows
   };
 }

@@ -8,7 +8,12 @@ import { parseWorkbook } from "./excelParser.js";
 import { mapRowsToProducts, summarizeBatch } from "./mapper.js";
 import { extractCellImages } from "./cellImages.js";
 import { generateProductImages } from "./openaiImages.js";
-import { checkShopifyConnection, createShopifyProduct } from "./shopify.js";
+import {
+  checkShopifyConnection,
+  createShopifyProduct,
+  listShopifyProducts,
+  updateShopifyProducts
+} from "./shopify.js";
 
 ensureDataDirs();
 
@@ -31,6 +36,27 @@ app.get("/api/status", (_req, res) => {
 app.get("/api/shopify/check", async (_req, res, next) => {
   try {
     res.json(await checkShopifyConnection(cfg));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/shopify/products", async (req, res, next) => {
+  try {
+    res.json({
+      products: await listShopifyProducts(cfg, {
+        query: req.query.query,
+        limit: req.query.limit
+      })
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/shopify/products/update", async (req, res, next) => {
+  try {
+    res.json(await updateShopifyProducts(cfg, req.body.productIds, req.body.fields));
   } catch (error) {
     next(error);
   }
@@ -59,7 +85,8 @@ app.post("/api/upload", upload.single("file"), async (req, res, next) => {
       parsed: {
         sheetNames: parsed.sheetNames,
         selectedSheet: parsed.selectedSheet,
-        headers: parsed.headers
+        headers: parsed.headers,
+        templateValidation: parsed.templateValidation
       },
       extractedImages,
       products,

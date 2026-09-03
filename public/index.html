@@ -38,6 +38,72 @@
         </section>
       </section>
 
+      <section class="product-editor">
+        <div class="editor-header">
+          <div>
+            <h2>已上架商品属性修改</h2>
+            <p>从 Shopify 拉取商品，勾选单个或多个商品后，只更新已选择的属性。</p>
+          </div>
+          <div class="editor-search">
+            <input id="shopifyProductSearch" type="search" placeholder="搜索标题、handle、标签">
+            <button id="loadShopifyProductsBtn">刷新商品</button>
+          </div>
+        </div>
+        <div class="editor-grid">
+          <div class="shopify-products">
+            <div class="selection-bar">
+              <label><input id="selectAllShopifyProducts" type="checkbox"> 全选当前列表</label>
+              <span id="selectedShopifyCount">已选 0 个</span>
+            </div>
+            <div id="shopifyProductList" class="shopify-product-list">
+              <div class="empty small">点击刷新商品后选择要修改的 Shopify 商品。</div>
+            </div>
+          </div>
+          <form id="productUpdateForm" class="update-form">
+            <label class="field-row">
+              <input name="updateStatus" type="checkbox">
+              <span>状态</span>
+              <select name="status">
+                <option value="DRAFT">草稿</option>
+                <option value="ACTIVE">公开</option>
+                <option value="ARCHIVED">归档</option>
+              </select>
+            </label>
+            <label class="field-row">
+              <input name="updateProductType" type="checkbox">
+              <span>产品类型</span>
+              <input name="productType" type="text" placeholder="例如：钓鱼用具">
+            </label>
+            <label class="field-row">
+              <input name="updateVendor" type="checkbox">
+              <span>Vendor</span>
+              <input name="vendor" type="text" placeholder="供应商/品牌">
+            </label>
+            <label class="field-row">
+              <input name="updateTags" type="checkbox">
+              <span>标签</span>
+              <input name="tags" type="text" placeholder="用英文逗号分隔">
+            </label>
+            <label class="field-row">
+              <input name="updateVariantPrice" type="checkbox">
+              <span>所有变体价格</span>
+              <input name="variantPrice" type="number" min="0" step="0.01" placeholder="0.00">
+            </label>
+            <label class="field-row wide">
+              <input name="updateTitle" type="checkbox">
+              <span>标题</span>
+              <input name="title" type="text" placeholder="批量选择时会把所有商品改成同一标题">
+            </label>
+            <label class="field-row wide">
+              <input name="updateDescriptionHtml" type="checkbox">
+              <span>描述 HTML</span>
+              <textarea name="descriptionHtml" rows="5" placeholder="<p>新的商品描述</p>"></textarea>
+            </label>
+            <button id="applyProductUpdateBtn" type="submit">修改选中商品</button>
+          </form>
+        </div>
+      </section>
+
       <section class="log">
         <h2>运行日志</h2>
         <pre id="log"></pre>

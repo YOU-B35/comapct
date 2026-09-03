@@ -117,6 +117,211 @@ async function imageSourcesForProduct(cfg, product) {
   return sources;
 }
 
+function normalizeTags(tags) {
+  if (Array.isArray(tags)) return tags.map((tag) => String(tag).trim()).filter(Boolean);
+  return String(tags || "")
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function normalizeMoney(value) {
+  const cleaned = String(value ?? "").replace(/[^\d.-]/g, "");
+  if (!cleaned) return "";
+  const n = Number(cleaned);
+  return Number.isFinite(n) && n >= 0 ? n.toFixed(2) : "";
+}
+
+function normalizeProductNode(product) {
+  const variants = (product.variants?.edges || []).map(({ node }) => ({
+    id: node.id,
+    title: node.title,
+    sku: node.sku || "",
+    price: node.price || ""
+  }));
+  return {
+    id: product.id,
+    title: product.title,
+    handle: product.handle,
+    status: product.status,
+    productType: product.productType || "",
+    vendor: product.vendor || "",
+    tags: product.tags || [],
+    descriptionHtml: product.descriptionHtml || "",
+    variants
+  };
+}
+
+export async function listShopifyProducts(cfg, options = {}) {
+  const limit = Math.max(1, Math.min(Number(options.limit || 50), 100));
+  const queryText = String(options.query || "").trim() || undefined;
+  const data = await graphql(
+    cfg,
+    `query listProducts($first: Int!, $query: String) {
+      products(first: $first, query: $query, reverse: true) {
+        edges {
+          node {
+            id
+            title
+            handle
+            status
+            productType
+            vendor
+            tags
+            descriptionHtml
+            variants(first: 50) {
+              edges {
+                node {
+                  id
+                  title
+                  sku
+                  price
+                }
+              }
+            }
+          }
+        }
+      }
+    }`,
+    { first: limit, query: queryText }
+  );
+  return (data.products?.edges || []).map(({ node }) => normalizeProductNode(node));
+}
+
+async function getProductVariants(cfg, productId) {
+  const data = await graphql(
+    cfg,
+    `query productVariants($id: ID!) {
+      product(id: $id) {
+        id
+        variants(first: 100) {
+          edges {
+            node {
+              id
+              title
+              sku
+              price
+            }
+          }
+        }
+      }
+    }`,
+    { id: productId }
+  );
+  if (!data.product) throw new Error("找不到这个 Shopify 商品。");
+  return (data.product.variants?.edges || []).map(({ node }) => node);
+}
+
+function productUpdateInput(productId, fields) {
+  const input = { id: productId };
+  const allowedTextFields = ["title", "descriptionHtml", "productType", "vendor"];
+  for (const field of allowedTextFields) {
+    if (Object.hasOwn(fields, field)) input[field] = String(fields[field] ?? "").trim();
+  }
+  if (Object.hasOwn(fields, "tags")) input.tags = normalizeTags(fields.tags);
+  if (Object.hasOwn(fields, "status")) {
+    const status = String(fields.status || "").toUpperCase();
+    if (!["DRAFT", "ACTIVE", "ARCHIVED"].includes(status)) throw new Error("商品状态只能是 DRAFT、ACTIVE 或 ARCHIVED。");
+    input.status = status;
+  }
+  return input;
+}
+
+async function updateProductFields(cfg, productId, fields) {
+  const product = productUpdateInput(productId, fields);
+  if (Object.keys(product).length === 1) return null;
+  const data = await graphql(
+    cfg,
+    `mutation updateProduct($product: ProductUpdateInput!) {
+      productUpdate(product: $product) {
+        product {
+          id
+          title
+          handle
+          status
+          productType
+          vendor
+          tags
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`,
+    { product }
+  );
+  const errors = data.productUpdate?.userErrors || [];
+  if (errors.length) throw new Error(`Shopify 修改商品失败：${errors.map((error) => error.message).join("; ")}`);
+  return data.productUpdate.product;
+}
+
+async function updateAllVariantPrices(cfg, productId, price) {
+  const normalizedPrice = normalizeMoney(price);
+  if (!normalizedPrice) throw new Error("变体价格无效。");
+  const variants = await getProductVariants(cfg, productId);
+  if (!variants.length) return [];
+  const data = await graphql(
+    cfg,
+    `mutation updateVariantPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkUpdate(productId: $productId, variants: $variants, allowPartialUpdates: true) {
+        productVariants {
+          id
+          title
+          sku
+          price
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`,
+    {
+      productId,
+      variants: variants.map((variant) => ({
+        id: variant.id,
+        price: normalizedPrice
+      }))
+    }
+  );
+  const errors = data.productVariantsBulkUpdate?.userErrors || [];
+  if (errors.length) throw new Error(`Shopify 修改变体价格失败：${errors.map((error) => error.message).join("; ")}`);
+  return data.productVariantsBulkUpdate.productVariants || [];
+}
+
+export async function updateShopifyProducts(cfg, productIds, fields) {
+  if (!Array.isArray(productIds) || !productIds.length) throw new Error("请选择要修改的商品。");
+  const updateFields = fields && typeof fields === "object" ? fields : {};
+  const hasProductFields = ["title", "descriptionHtml", "productType", "vendor", "tags", "status"].some((field) =>
+    Object.hasOwn(updateFields, field)
+  );
+  const hasVariantPrice = Object.hasOwn(updateFields, "variantPrice");
+  if (!hasProductFields && !hasVariantPrice) throw new Error("请选择至少一个要修改的属性。");
+
+  const results = [];
+  for (const productId of productIds) {
+    try {
+      const product = hasProductFields ? await updateProductFields(cfg, productId, updateFields) : null;
+      const variants = hasVariantPrice ? await updateAllVariantPrices(cfg, productId, updateFields.variantPrice) : [];
+      results.push({
+        productId,
+        ok: true,
+        product,
+        variantCount: variants.length
+      });
+    } catch (error) {
+      results.push({ productId, ok: false, error: error.message });
+    }
+  }
+
+  return {
+    updated: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    results
+  };
+}
+
 export async function createShopifyProduct(cfg, product, options = {}) {
   const imageSources = await imageSourcesForProduct(cfg, product);
   const optionValues = product.variants.map((variant) => ({ name: variant.title }));

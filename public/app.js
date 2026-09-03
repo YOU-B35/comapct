@@ -12,6 +12,15 @@ const productList = $("#productList");
 const detail = $("#detail");
 const summary = $("#summary");
 const logBox = $("#log");
+const shopifyProductSearch = $("#shopifyProductSearch");
+const loadShopifyProductsBtn = $("#loadShopifyProductsBtn");
+const shopifyProductList = $("#shopifyProductList");
+const selectAllShopifyProducts = $("#selectAllShopifyProducts");
+const selectedShopifyCount = $("#selectedShopifyCount");
+const productUpdateForm = $("#productUpdateForm");
+
+let shopifyProducts = [];
+let selectedShopifyProductIds = new Set();
 
 function log(message, data) {
   const line = `[${new Date().toLocaleTimeString()}] ${message}`;
@@ -123,6 +132,101 @@ function renderImageBox(image) {
   return `<div class="image-box">图片 ${image.index}<br>${escapeHtml(image.warning || "等待 AI 生成或填写 URL")}</div>`;
 }
 
+function renderShopifyProducts() {
+  if (!shopifyProducts.length) {
+    shopifyProductList.innerHTML = `<div class="empty small">没有找到商品。</div>`;
+    updateSelectedShopifyCount();
+    return;
+  }
+
+  shopifyProductList.innerHTML = shopifyProducts
+    .map((product) => {
+      const checked = selectedShopifyProductIds.has(product.id) ? " checked" : "";
+      const tags = product.tags?.length ? product.tags.join(", ") : "-";
+      return `
+        <label class="shopify-product-row">
+          <input type="checkbox" value="${escapeHtml(product.id)}"${checked}>
+          <span>
+            <strong>${escapeHtml(product.title || "(缺少标题)")}</strong>
+            <small>${escapeHtml(product.handle)} · ${escapeHtml(product.status)} · ${escapeHtml(product.productType || "-")} · ${escapeHtml(tags)}</small>
+          </span>
+        </label>`;
+    })
+    .join("");
+
+  shopifyProductList.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selectedShopifyProductIds.add(checkbox.value);
+      else selectedShopifyProductIds.delete(checkbox.value);
+      updateSelectedShopifyCount();
+    });
+  });
+  updateSelectedShopifyCount();
+}
+
+function updateSelectedShopifyCount() {
+  selectedShopifyCount.textContent = `已选 ${selectedShopifyProductIds.size} 个`;
+  selectAllShopifyProducts.checked =
+    shopifyProducts.length > 0 && shopifyProducts.every((product) => selectedShopifyProductIds.has(product.id));
+}
+
+async function loadShopifyProducts() {
+  const query = shopifyProductSearch.value.trim();
+  log(query ? `开始搜索 Shopify 商品：${query}` : "开始读取 Shopify 商品");
+  const payload = await request(`/api/shopify/products?limit=50&query=${encodeURIComponent(query)}`);
+  shopifyProducts = payload.products || [];
+  selectedShopifyProductIds = new Set(
+    [...selectedShopifyProductIds].filter((id) => shopifyProducts.some((product) => product.id === id))
+  );
+  renderShopifyProducts();
+  log("Shopify 商品读取完成", { count: shopifyProducts.length });
+}
+
+function checkedField(form, checkboxName, valueName) {
+  if (!form.elements[checkboxName].checked) return undefined;
+  return form.elements[valueName].value.trim();
+}
+
+function buildUpdateFields(form) {
+  const fields = {};
+  const status = checkedField(form, "updateStatus", "status");
+  const productType = checkedField(form, "updateProductType", "productType");
+  const vendor = checkedField(form, "updateVendor", "vendor");
+  const tags = checkedField(form, "updateTags", "tags");
+  const variantPrice = checkedField(form, "updateVariantPrice", "variantPrice");
+  const title = checkedField(form, "updateTitle", "title");
+  const descriptionHtml = checkedField(form, "updateDescriptionHtml", "descriptionHtml");
+
+  if (status !== undefined) fields.status = status;
+  if (productType !== undefined) {
+    if (!productType) throw new Error("已勾选产品类型，请填写产品类型。");
+    fields.productType = productType;
+  }
+  if (vendor !== undefined) {
+    if (!vendor) throw new Error("已勾选 Vendor，请填写 Vendor。");
+    fields.vendor = vendor;
+  }
+  if (tags !== undefined) {
+    if (!tags) throw new Error("已勾选标签，请填写至少一个标签。");
+    fields.tags = tags;
+  }
+  if (variantPrice !== undefined) {
+    if (!variantPrice) throw new Error("已勾选所有变体价格，请填写价格。");
+    fields.variantPrice = variantPrice;
+  }
+  if (title !== undefined) {
+    if (!title) throw new Error("已勾选标题，请填写标题。");
+    fields.title = title;
+  }
+  if (descriptionHtml !== undefined) {
+    if (!descriptionHtml) throw new Error("已勾选描述 HTML，请填写描述。");
+    fields.descriptionHtml = descriptionHtml;
+  }
+
+  if (!Object.keys(fields).length) throw new Error("请选择至少一个要修改的属性。");
+  return fields;
+}
+
 function render() {
   renderSummary();
   renderProductList();
@@ -152,6 +256,10 @@ uploadBtn.addEventListener("click", async () => {
     selectedProductId = currentBatch.products[0]?.id || null;
     render();
     log("解析完成", currentBatch.summary);
+    const missingOptional = currentBatch.parsed?.templateValidation?.missingOptionalColumns || [];
+    if (missingOptional.length) {
+      log("模板可选字段缺失，相关内容会按空值处理", missingOptional);
+    }
   } catch (error) {
     log(error.message);
   }
@@ -206,8 +314,56 @@ publishBtn.addEventListener("click", async () => {
       body: JSON.stringify({ dryRun: false, status: "DRAFT" })
     });
     log("Shopify 上架完成", payload.results);
+    loadShopifyProducts().catch((error) => log(`刷新 Shopify 商品失败：${error.message}`));
   } catch (error) {
     log(error.message);
+  }
+});
+
+loadShopifyProductsBtn.addEventListener("click", async () => {
+  try {
+    await loadShopifyProducts();
+  } catch (error) {
+    log(`读取 Shopify 商品失败：${error.message}`);
+  }
+});
+
+shopifyProductSearch.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter") return;
+  try {
+    await loadShopifyProducts();
+  } catch (error) {
+    log(`读取 Shopify 商品失败：${error.message}`);
+  }
+});
+
+selectAllShopifyProducts.addEventListener("change", () => {
+  if (selectAllShopifyProducts.checked) {
+    selectedShopifyProductIds = new Set(shopifyProducts.map((product) => product.id));
+  } else {
+    selectedShopifyProductIds.clear();
+  }
+  renderShopifyProducts();
+});
+
+productUpdateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const productIds = [...selectedShopifyProductIds];
+    if (!productIds.length) throw new Error("请先选择要修改的 Shopify 商品。");
+    const fields = buildUpdateFields(productUpdateForm);
+    const ok = window.confirm(`确认修改 ${productIds.length} 个 Shopify 商品？只会更新已勾选的属性。`);
+    if (!ok) return;
+    log("开始修改 Shopify 商品属性", { count: productIds.length, fields });
+    const payload = await request("/api/shopify/products/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productIds, fields })
+    });
+    log("Shopify 商品属性修改完成", payload);
+    await loadShopifyProducts();
+  } catch (error) {
+    log(`修改失败：${error.message}`);
   }
 });
 
